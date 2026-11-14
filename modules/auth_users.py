@@ -1,21 +1,27 @@
 import io
+import re
 import base64
 import functools
-import pyotp
-import qrcode
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash, abort, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash, generate_password_hash
 from db import query_db, execute_db, log_audit
 
-auth_bp = Blueprint("auth", __name__)
+try:
+    import pyotp
+except ImportError:
+    pyotp = None
 
-# Rollen-Hierarchie
-ROLE_PERMISSIONS = {
-    "root_admin": ["system", "packages", "webserver", "database", "files", "apps", "backups", "cron", "settings", "users", "monitor"],
-    "web_admin":  ["webserver", "database", "files", "apps", "backups", "monitor"],
-    "monitor":    ["monitor"]
-}
+try:
+    import qrcode
+    import qrcode.constants
+    import qrcode.image.svg
+except ImportError:
+    qrcode = None
+
+__all__ = ["auth_bp", "current_user", "login_required", "role_required", "log_audit"]
+
+auth_bp = Blueprint("auth", __name__)
 
 def current_user():
     user_id = session.get("user_id")
@@ -103,6 +109,11 @@ def verify_2fa():
 
     if request.method == "POST":
         code = request.form.get("code", "").strip().replace(" ", "")
+
+        if not pyotp:
+            flash("2FA-Modul (pyotp) ist nicht verfügbar.", "error")
+            return render_template("verify_2fa.html", username=user["username"])
+
         totp = pyotp.TOTP(user["totp_secret"])
 
         if totp.verify(code, valid_window=2):
@@ -139,6 +150,10 @@ def setup_2fa():
     if not user:
         return redirect(url_for("auth.login"))
 
+    if not pyotp:
+        flash("Das Python-Modul 'pyotp' ist nicht installiert. Bitte führe 'pip install pyotp qrcode' aus.", "error")
+        return redirect(url_for("settings.index", tab="security"))
+
     if request.method == "POST":
         token = request.form.get("token", "").strip().replace(" ", "")
         secret = session.get("temp_totp_secret")
@@ -170,57 +185,55 @@ def setup_2fa():
     qr_svg = None
     qr_base64 = None
 
-    # 1. Bevorzugt: Gestochen scharfes PNG mit Standard Schwarz-auf-Weiß (Pillow) & 4-Modul Quiet Zone
-    try:
-        import qrcode.constants
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=10,
-            border=4
-        )
-        qr.add_data(provisioning_uri)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        qr_base64 = base64.b64encode(buffered.getvalue()).decode()
-    except Exception:
-        pass
-
-    # 2. Fallback: Valides, responsives Vektor-SVG mit weißem Hintergrund und 4-Modul Quiet Zone
-    if not qr_base64:
+    if qrcode:
+        # 1. Bevorzugt: Gestochen scharfes PNG mit Standard Schwarz-auf-Weiß (Pillow) & 4-Modul Quiet Zone
         try:
-            import qrcode.image.svg
-            import re
             qr = qrcode.QRCode(
                 version=1,
                 error_correction=qrcode.constants.ERROR_CORRECT_M,
                 box_size=10,
-                border=4,
-                image_factory=qrcode.image.svg.SvgPathImage
+                border=4
             )
             qr.add_data(provisioning_uri)
             qr.make(fit=True)
-            img = qr.make_image()
+            img = qr.make_image(fill_color="black", back_color="white")
             buffered = io.BytesIO()
-            img.save(buffered)
-            svg_str = buffered.getvalue().decode("utf-8")
-            
-            # mm-Dimensionen durch 100% ersetzen für saubere CSS-Skalierung
-            svg_str = re.sub(r'width="[^"]+"', 'width="100%"', svg_str, count=1)
-            svg_str = re.sub(r'height="[^"]+"', 'height="100%"', svg_str, count=1)
-            
-            # Weißen Hintergrund-Rechteck in SVG einfügen
-            svg_start = svg_str.find("<svg")
-            if svg_start != -1:
-                svg_tag_end = svg_str.find(">", svg_start)
-                if svg_tag_end != -1:
-                    bg_rect = '<rect width="100%" height="100%" fill="#FFFFFF"/>'
-                    svg_str = svg_str[:svg_tag_end+1] + bg_rect + svg_str[svg_tag_end+1:]
-            qr_svg = svg_str
+            img.save(buffered, format="PNG")
+            qr_base64 = base64.b64encode(buffered.getvalue()).decode()
         except Exception:
             pass
+
+        # 2. Fallback: Valides, responsives Vektor-SVG mit weißem Hintergrund und 4-Modul Quiet Zone
+        if not qr_base64:
+            try:
+                qr = qrcode.QRCode(
+                    version=1,
+                    error_correction=qrcode.constants.ERROR_CORRECT_M,
+                    box_size=10,
+                    border=4,
+                    image_factory=qrcode.image.svg.SvgPathImage
+                )
+                qr.add_data(provisioning_uri)
+                qr.make(fit=True)
+                img = qr.make_image()
+                buffered = io.BytesIO()
+                img.save(buffered)
+                svg_str = buffered.getvalue().decode("utf-8")
+                
+                # mm-Dimensionen durch 100% ersetzen für saubere CSS-Skalierung
+                svg_str = re.sub(r'width="[^"]+"', 'width="100%"', svg_str, count=1)
+                svg_str = re.sub(r'height="[^"]+"', 'height="100%"', svg_str, count=1)
+                
+                # Weißen Hintergrund-Rechteck in SVG einfügen
+                svg_start = svg_str.find("<svg")
+                if svg_start != -1:
+                    svg_tag_end = svg_str.find(">", svg_start)
+                    if svg_tag_end != -1:
+                        bg_rect = '<rect width="100%" height="100%" fill="#FFFFFF"/>'
+                        svg_str = svg_str[:svg_tag_end+1] + bg_rect + svg_str[svg_tag_end+1:]
+                qr_svg = svg_str
+            except Exception:
+                pass
 
     return render_template("setup_2fa.html", qr_svg=qr_svg, qr_base64=qr_base64, secret=secret, user=user)
 
