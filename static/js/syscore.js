@@ -413,7 +413,93 @@ window.triggerGlobalUpdate = function() {
     SysCore.runStreamingCommand('/settings/updater/update', formData, 'SysCore System-Update');
 };
 
+// Globaler Modal-Schließer
+window.closeModal = function(id) {
+    const m = document.getElementById(id);
+    if (m) {
+        m.classList.add("hidden");
+        m.classList.remove("flex");
+    }
+};
+
+// Globaler Modal-Öffner
+window.openModal = function(id) {
+    const m = document.getElementById(id);
+    if (m) {
+        m.classList.remove("hidden");
+        m.classList.add("flex");
+    }
+};
+
+// User Profile Dropdown Menü Toggle
+window.toggleUserProfileMenu = function() {
+    const menu = document.getElementById("user-profile-dropdown-menu");
+    const chevron = document.getElementById("user-profile-chevron");
+    if (!menu) return;
+
+    const isHidden = menu.classList.contains("hidden");
+    if (isHidden) {
+        menu.classList.remove("hidden");
+        if (chevron) chevron.classList.add("rotate-180");
+    } else {
+        menu.classList.add("hidden");
+        if (chevron) chevron.classList.remove("rotate-180");
+    }
+};
+
+// Profil-Modal öffnen mit speziellem Tab
+window.openProfileModal = function(tab = 'account') {
+    const menu = document.getElementById("user-profile-dropdown-menu");
+    const chevron = document.getElementById("user-profile-chevron");
+    if (menu) menu.classList.add("hidden");
+    if (chevron) chevron.classList.remove("rotate-180");
+
+    window.switchProfileModalTab(tab);
+    window.openModal("modal-user-profile");
+};
+
+// Tabs im Profil-Modal umschalten
+window.switchProfileModalTab = function(tab) {
+    const tabs = ['account', 'security', 'password'];
+    tabs.forEach(t => {
+        const btn = document.getElementById(`profile-tab-btn-${t}`);
+        const content = document.getElementById(`profile-tab-content-${t}`);
+        if (t === tab) {
+            if (content) content.classList.remove("hidden");
+            if (btn) {
+                btn.className = "profile-tab-btn px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold transition";
+            }
+        } else {
+            if (content) content.classList.add("hidden");
+            if (btn) {
+                btn.className = "profile-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition";
+            }
+        }
+    });
+};
+
+// Klicks außerhalb des Profil-Dropdowns abfangen
+document.addEventListener("click", (e) => {
+    const container = document.getElementById("user-profile-dropdown-container");
+    const menu = document.getElementById("user-profile-dropdown-menu");
+    const chevron = document.getElementById("user-profile-chevron");
+    if (container && menu && !menu.classList.contains("hidden") && !container.contains(e.target)) {
+        menu.classList.add("hidden");
+        if (chevron) chevron.classList.remove("rotate-180");
+    }
+});
+
 // Starten sobald DOM bereit
 document.addEventListener("DOMContentLoaded", () => {
     SysCore.init();
+
+    // Modal-Backdrop Klick schließt Modal
+    const profileModal = document.getElementById("modal-user-profile");
+    if (profileModal) {
+        profileModal.addEventListener("click", (e) => {
+            if (e.target === profileModal) {
+                window.closeModal("modal-user-profile");
+            }
+        });
+    }
 });

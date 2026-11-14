@@ -4,14 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SysCore // 2FA Verifizierung</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/syscore.css') }}">
 </head>
 <body class="bg-[#090d16] text-gray-200 min-h-screen flex items-center justify-center p-4 font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
 
     <div class="w-full max-w-md bg-[#111827] border border-[#1f2937] rounded-2xl p-8 shadow-2xl relative overflow-hidden">
-        <div class="flex items-center gap-3 mb-6">
-            <span class="w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_14px_#10b981]"></span>
+        <div class="flex items-center gap-3.5 mb-6">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="SysCore Logo" class="w-10 h-10 object-contain drop-shadow-[0_0_14px_rgba(16,185,129,0.35)] shrink-0">
             <div>
                 <h1 class="text-xl font-extrabold tracking-wider text-white">SYS<span class="text-emerald-400">CORE</span></h1>
                 <p class="text-xs text-gray-400 font-mono">2-Faktor-Authentifizierung</p>

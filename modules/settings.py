@@ -9,7 +9,7 @@ import threading
 import subprocess
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, Response
 from modules.auth_users import login_required, role_required, current_user
-from db import query_db, execute_db, log_audit, get_db
+from db import query_db, execute_db, log_audit, get_db, get_database_engine_info
 import config
 
 settings_bp = Blueprint("settings", __name__, url_prefix="/settings")
@@ -289,9 +289,9 @@ def index():
     user = current_user()
     user_role = session.get("role", "monitor")
 
-    # Nur root_admin hat Zugriff auf Server- & globale Diensttuning-Optionen
-    if user_role != "root_admin" and tab in ["server", "tuning", "users"]:
-        tab = "security"
+    # Nur root_admin hat Zugriff auf Server-, Tuning- & Datenbank-Backend-Optionen
+    if user_role != "root_admin" and tab in ["server", "tuning", "users", "database"]:
+        tab = "audit"
 
     users_list = []
     audit_logs = []
@@ -312,6 +312,7 @@ def index():
     updater_info = get_git_updater_status()
     panel_proxy = get_panel_proxy_status()
     alert_settings = get_alert_settings()
+    db_info = get_database_engine_info()
 
     return render_template(
         "settings.html",
@@ -324,6 +325,7 @@ def index():
         updater_info=updater_info,
         panel_proxy=panel_proxy,
         alert_settings=alert_settings,
+        db_info=db_info,
         user_role=user_role
     )
 
@@ -772,5 +774,123 @@ def test_alert():
         flash("Bitte trage zuerst eine gültige Discord Webhook-URL ein.", "warning")
 
     return redirect(url_for("settings.index", tab="alerts"))
+
+# ==============================================================================
+# SYSCORE DATENBANK-BACKEND VERWALTUNG (SQLITE / MYSQL)
+# ==============================================================================
+
+def update_env_file(updates: dict):
+    """Schreibt Konfigurationsänderungen persistent in die .env-Datei"""
+    env_path = config.BASE_DIR / ".env"
+    existing_lines = []
+    if env_path.exists():
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                existing_lines = f.readlines()
+        except Exception:
+            pass
+
+    keys_written = set()
+    new_lines = []
+    for line in existing_lines:
+        line_stripped = line.strip()
+        if line_stripped and not line_stripped.startswith("#") and "=" in line_stripped:
+            parts = line_stripped.split("=", 1)
+            k = parts[0].strip()
+            if k in updates:
+                new_lines.append(f"{k}={updates[k]}\n")
+                keys_written.add(k)
+                continue
+        new_lines.append(line)
+
+    for k, v in updates.items():
+        if k not in keys_written:
+            new_lines.append(f"{k}={v}\n")
+
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
+
+@settings_bp.route("/database/test", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def test_database_connection():
+    """Prüft eine angegebene MySQL/MariaDB Verbindung asynchron per AJAX"""
+    from db import test_mysql_connection
+    host = request.form.get("mysql_host", "127.0.0.1").strip()
+    port = request.form.get("mysql_port", "3306").strip() or 3306
+    user = request.form.get("mysql_user", "root").strip()
+    password = request.form.get("mysql_password", "").strip()
+    db_name = request.form.get("mysql_db", "syscore").strip()
+
+    ok, msg = test_mysql_connection(host, port, user, password, db_name)
+    return jsonify({"success": ok, "message": msg})
+
+@settings_bp.route("/database/save", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def save_database_configuration():
+    """Speichert die gewünschte Datenbank-Engine (SQLite oder MySQL) und migriert optional die Daten"""
+    from db import test_mysql_connection, migrate_db_data
+    engine = request.form.get("db_engine", "sqlite").strip().lower()
+    migrate_data = request.form.get("migrate_data") == "1"
+
+    if engine == "mysql":
+        host = request.form.get("mysql_host", "127.0.0.1").strip()
+        port = request.form.get("mysql_port", "3306").strip() or "3306"
+        user = request.form.get("mysql_user", "root").strip()
+        password = request.form.get("mysql_password", "").strip()
+        db_name = request.form.get("mysql_db", "syscore").strip()
+
+        ok, msg = test_mysql_connection(host, port, user, password, db_name)
+        if not ok:
+            flash(f"MySQL Verbindungsprüfung fehlgeschlagen: {msg}", "error")
+            return redirect(url_for("settings.index", tab="database"))
+
+        if migrate_data and getattr(config, "DB_TYPE", "sqlite") == "sqlite":
+            m_cfg = {
+                "host": host,
+                "port": int(port),
+                "user": user,
+                "password": password,
+                "database": db_name
+            }
+            try:
+                stats = migrate_db_data(target_type="mysql", mysql_config=m_cfg)
+                log_audit(session.get("username"), "DB_MIGRATE_SUCCESS", f"Daten erfolgreich nach MySQL migriert: {stats}", request.remote_addr, "success")
+                flash(f"Daten erfolgreich aus SQLite nach MySQL migriert!", "success")
+            except Exception as e:
+                flash(f"Hinweis bei Datenübertragung: {e}", "warning")
+
+        env_updates = {
+            "SYSCORE_DB_TYPE": "mysql",
+            "SYSCORE_MYSQL_HOST": host,
+            "SYSCORE_MYSQL_PORT": str(port),
+            "SYSCORE_MYSQL_USER": user,
+            "SYSCORE_MYSQL_PASS": password,
+            "SYSCORE_MYSQL_DB": db_name
+        }
+        update_env_file(env_updates)
+        log_audit(session.get("username"), "DB_ENGINE_SWITCH", f"SysCore Datenbank auf MySQL ({host}:{port}/{db_name}) umgestellt", request.remote_addr, "warning")
+        flash("Datenbank-Engine erfolgreich auf MySQL umgestellt! Der SysCore-Dienst startet in 2 Sekunden neu...", "success")
+        trigger_system_restart(delay_seconds=2)
+
+    else:
+        # SQLite aktivieren
+        if migrate_data and getattr(config, "DB_TYPE", "sqlite") == "mysql":
+            try:
+                stats = migrate_db_data(target_type="sqlite")
+                log_audit(session.get("username"), "DB_MIGRATE_SUCCESS", f"Daten erfolgreich nach SQLite migriert: {stats}", request.remote_addr, "success")
+                flash(f"Daten erfolgreich aus MySQL nach SQLite migriert!", "success")
+            except Exception as e:
+                flash(f"Hinweis bei Datenübertragung: {e}", "warning")
+
+        update_env_file({
+            "SYSCORE_DB_TYPE": "sqlite"
+        })
+        log_audit(session.get("username"), "DB_ENGINE_SWITCH", "SysCore Datenbank auf SQLite umgestellt", request.remote_addr, "warning")
+        flash("Datenbank-Engine erfolgreich auf SQLite umgestellt! Der SysCore-Dienst startet in 2 Sekunden neu...", "success")
+        trigger_system_restart(delay_seconds=2)
+
+    return redirect(url_for("settings.index", tab="database"))
 
 

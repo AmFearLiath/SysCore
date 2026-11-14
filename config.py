@@ -41,8 +41,15 @@ BOOTSTRAP_ADMIN_USER = os.getenv("SYSCORE_ADMIN_USER", "admin")
 BOOTSTRAP_ADMIN_PASS = os.getenv("SYSCORE_ADMIN_PASS", "")
 BOOTSTRAP_ADMIN_EMAIL = os.getenv("SYSCORE_ADMIN_EMAIL", "admin@localhost")
 
-# --- Datenbank ---
+# --- Datenbank Engine & Konfiguration (SQLite vs MySQL) ---
+DB_TYPE = os.getenv("SYSCORE_DB_TYPE", "sqlite").lower()
 DB_PATH = os.getenv("SYSCORE_DB_PATH", str(BASE_DIR / "syscore.db"))
+
+MYSQL_HOST = os.getenv("SYSCORE_MYSQL_HOST", "127.0.0.1")
+MYSQL_PORT = int(os.getenv("SYSCORE_MYSQL_PORT", "3306"))
+MYSQL_USER = os.getenv("SYSCORE_MYSQL_USER", "root")
+MYSQL_PASS = os.getenv("SYSCORE_MYSQL_PASS", "")
+MYSQL_DB = os.getenv("SYSCORE_MYSQL_DB", "syscore")
 
 # --- System- & Web-Pfade ---
 WEB_ROOT_BASE = os.getenv("SYSCORE_WEB_ROOT_BASE", "/var/www")

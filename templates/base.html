@@ -35,18 +35,19 @@
         }
     </script>
     <!-- Custom SysCore Styling & Fonts -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/syscore.css') }}">
 </head>
 <body class="bg-dark-950 text-gray-200 min-h-screen flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
 
     <!-- Top Navigation Header -->
-    <header class="bg-dark-850/90 backdrop-blur border-b border-dark-700 sticky top-0 z-40 px-4 lg:px-6 py-3 flex items-center justify-between">
+    <header class="bg-dark-850/90 backdrop-blur border-b border-dark-700 sticky top-0 z-40 px-4 lg:px-6 py-2.5 flex items-center justify-between">
         <!-- Brand & Host Indicator -->
         <div class="flex items-center gap-4">
             <a href="{{ url_for('system.index') }}" class="flex items-center gap-2.5 group">
-                <span class="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_12px_#10b981] group-hover:scale-110 transition"></span>
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="SysCore" class="h-8 w-auto object-contain drop-shadow-[0_0_8px_rgba(16,185,129,0.3)] group-hover:scale-105 transition">
                 <span class="font-extrabold text-lg tracking-wider text-white">SYS<span class="text-emerald-400 font-black">CORE</span></span>
-                <span class="hidden sm:inline-block text-[11px] font-mono tracking-tight text-gray-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-full">v2.5 Enterprise</span>
+                <span class="hidden sm:inline-block text-[10px] font-mono tracking-tight text-gray-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-full">v2.5</span>
             </a>
 
             <!-- Quick Command Palette Trigger -->
@@ -79,19 +80,106 @@
                 <span class="hidden lg:inline font-mono">Terminal</span>
             </button>
 
-            <!-- User Pill -->
-            <div class="flex items-center gap-2 bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5">
-                <span class="w-2 h-2 rounded-full {{ 'bg-emerald-400' if session.get('role') == 'root_admin' else 'bg-teal-400' }}"></span>
-                <span class="font-medium text-gray-200">{{ session.get('username', 'Admin') }}</span>
-                <span class="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded {{ 'badge-emerald' if session.get('role') == 'root_admin' else 'badge-teal' }}">
-                    {{ session.get('role', 'web_admin') }}
-                </span>
-            </div>
+            <!-- Vollwertiges Profilmenü & Dropdown -->
+            <div class="relative" id="user-profile-dropdown-container">
+                <button type="button" onclick="toggleUserProfileMenu()" id="btn-user-profile-menu"
+                        class="flex items-center gap-2.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 hover:border-dark-600 rounded-xl px-2.5 py-1.5 transition text-left cursor-pointer group select-none shadow-sm">
+                    <div class="relative">
+                        <div class="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
+                            {{ session.get('username', 'A')[:1].upper() }}
+                        </div>
+                        <span class="w-2 h-2 rounded-full absolute -bottom-0.5 -right-0.5 border border-dark-950 {{ 'bg-emerald-400' if session.get('role') == 'root_admin' else 'bg-teal-400' }}"></span>
+                    </div>
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-1">
+                            <span class="font-medium text-xs text-gray-200 group-hover:text-white leading-tight">{{ session.get('username', 'Admin') }}</span>
+                            <svg class="w-3 h-3 text-gray-400 group-hover:text-gray-200 transition-transform duration-200" id="user-profile-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <span class="text-[9px] uppercase font-mono tracking-wider {{ 'text-emerald-400 font-semibold' if session.get('role') == 'root_admin' else 'text-teal-400' }}">
+                            {{ session.get('role', 'web_admin') }}
+                        </span>
+                    </div>
+                </button>
 
-            <!-- Logout -->
-            <a href="{{ url_for('auth.logout') }}" class="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-dark-800 rounded-lg transition" title="Abmelden">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-            </a>
+                <!-- Dropdown Menü -->
+                <div id="user-profile-dropdown-menu" class="hidden absolute right-0 mt-2 w-72 bg-dark-900 border border-dark-700 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-dark-800 animate-in fade-in duration-150">
+                    <!-- Dropdown Header: Account Details -->
+                    <div class="p-4 bg-dark-950/70">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-extrabold text-base shrink-0">
+                                {{ session.get('username', 'A')[:2].upper() }}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-bold text-white truncate">{{ session.get('username') }}</div>
+                                <div class="text-[11px] text-gray-400 truncate">{{ current_user_obj.email if current_user_obj and current_user_obj.email else 'Keine E-Mail hinterlegt' }}</div>
+                                <div class="flex items-center gap-1.5 mt-1.5">
+                                    <span class="text-[9px] font-mono px-1.5 py-0.2 rounded uppercase {{ 'badge-emerald' if session.get('role') == 'root_admin' else 'badge-teal' }}">
+                                        {{ session.get('role') }}
+                                    </span>
+                                    {% if current_user_obj and current_user_obj.totp_enabled %}
+                                    <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                        2FA Aktiv
+                                    </span>
+                                    {% else %}
+                                    <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                        2FA Aus
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dropdown Navigation / Actions -->
+                    <div class="p-2 space-y-1 text-xs font-mono">
+                        <button type="button" onclick="openProfileModal('account')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left cursor-pointer">
+                            <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                            <div class="flex-1">
+                                <span class="font-medium text-gray-200">Profileinstellungen</span>
+                                <span class="block text-[10px] text-gray-500 font-sans">E-Mail & Account-Details</span>
+                            </div>
+                        </button>
+
+                        <button type="button" onclick="openProfileModal('security')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left cursor-pointer">
+                            <div class="flex items-center gap-2.5">
+                                <svg class="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                <div>
+                                    <span class="font-medium text-gray-200">2FA & Sicherheit</span>
+                                    <span class="block text-[10px] text-gray-500 font-sans">Authenticator-App koppeln</span>
+                                </div>
+                            </div>
+                            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded {{ 'text-emerald-400 bg-emerald-500/10' if current_user_obj and current_user_obj.totp_enabled else 'text-amber-400 bg-amber-500/10' }}">
+                                {{ 'Aktiv' if current_user_obj and current_user_obj.totp_enabled else 'Einrichten' }}
+                            </span>
+                        </button>
+
+                        <button type="button" onclick="openProfileModal('password')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left cursor-pointer">
+                            <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                            <div class="flex-1">
+                                <span class="font-medium text-gray-200">Passwort ändern</span>
+                                <span class="block text-[10px] text-gray-500 font-sans">Zugangspasswort erneuern</span>
+                            </div>
+                        </button>
+
+                        <a href="{{ url_for('settings.index', tab='audit') }}" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left">
+                            <svg class="w-4 h-4 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            <div class="flex-1">
+                                <span class="font-medium text-gray-200">Meine Audit-Logs</span>
+                                <span class="block text-[10px] text-gray-500 font-sans">Aktivitäts-Historie</span>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Abmelden Action -->
+                    <div class="p-2">
+                        <a href="{{ url_for('auth.logout') }}" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition font-mono text-xs">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                            <span class="font-bold">Sicher Abmelden</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
@@ -345,6 +433,138 @@
             <!-- Empty State -->
             <div id="cmd-palette-empty" class="hidden p-6 text-center text-sm text-gray-500 font-mono">
                 Keine passenden Befehle oder Seiten gefunden.
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Mein Profil & Sicherheit (Global verfügbar) -->
+    <div id="modal-user-profile" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm hidden">
+        <div class="sys-card w-full max-w-xl p-6 md:p-8 space-y-6 animate-in fade-in duration-200">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-dark-700 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-extrabold text-base">
+                        {{ session.get('username', 'A')[:2].upper() }}
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                            <span>Mein Benutzerprofil</span>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded uppercase {{ 'badge-emerald' if session.get('role') == 'root_admin' else 'badge-teal' }}">
+                                {{ session.get('role') }}
+                            </span>
+                        </h3>
+                        <p class="text-xs text-gray-400 font-mono mt-0.5">Account-Details, Sicherheit & Zwei-Faktor-Authentifizierung</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeModal('modal-user-profile')" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+            </div>
+
+            <!-- Profile Tabs -->
+            <div class="flex items-center gap-2 border-b border-dark-700 pb-2 text-xs font-mono">
+                <button type="button" onclick="switchProfileModalTab('account')" id="profile-tab-btn-account" class="profile-tab-btn px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold transition">
+                    👤 Account & E-Mail
+                </button>
+                <button type="button" onclick="switchProfileModalTab('security')" id="profile-tab-btn-security" class="profile-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">
+                    🔐 2FA Sicherheit
+                </button>
+                <button type="button" onclick="switchProfileModalTab('password')" id="profile-tab-btn-password" class="profile-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">
+                    🔑 Passwort ändern
+                </button>
+            </div>
+
+            <!-- TAB 1: ACCOUNT & EMAIL -->
+            <div id="profile-tab-content-account" class="profile-tab-content space-y-4 text-xs font-mono">
+                <form method="POST" action="{{ url_for('auth.update_profile') }}" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-400 mb-1 font-bold">Benutzername</label>
+                        <input type="text" value="{{ session.get('username') }}" disabled
+                               class="w-full px-3.5 py-2.5 bg-dark-950/60 border border-dark-800 rounded-xl text-gray-400 outline-none cursor-not-allowed">
+                        <p class="text-[10px] text-gray-500 mt-1">Der primäre Login-Name kann nicht geändert werden.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-gray-400 mb-1 font-bold">E-Mail-Adresse für Benachrichtigungen</label>
+                        <input type="email" name="email" value="{{ current_user_obj.email if current_user_obj and current_user_obj.email else '' }}" placeholder="deine-email@domain.de" required
+                               class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 p-3 bg-dark-950/50 border border-dark-800 rounded-xl text-[11px]">
+                        <div>
+                            <span class="text-gray-500 block">Mitglied seit:</span>
+                            <span class="text-gray-300">{{ current_user_obj.created_at[:10] if current_user_obj and current_user_obj.created_at else 'System-Start' }}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block">Letzter Login:</span>
+                            <span class="text-gray-300">{{ current_user_obj.last_login or 'Jetzt aktiv' }}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end pt-2">
+                        <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition">
+                            E-Mail speichern
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- TAB 2: 2FA SICHERHEIT -->
+            <div id="profile-tab-content-security" class="profile-tab-content space-y-4 text-xs font-mono hidden">
+                <div class="p-4 bg-dark-950/70 border border-dark-700 rounded-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-400 font-bold">2FA Schutz-Status:</span>
+                        {% if current_user_obj and current_user_obj.totp_enabled %}
+                        <span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg font-bold flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            Aktiviert & Geschützt
+                        </span>
+                        {% else %}
+                        <span class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg font-bold">
+                            Deaktiviert
+                        </span>
+                        {% endif %}
+                    </div>
+                    <p class="text-[11px] text-gray-400 leading-relaxed font-sans">
+                        Schützt deinen Account zusätzlich durch einen zeitbasierten Einmalcode (TOTP) von Google Authenticator, 2FAS, Bitwarden oder Ente Auth bei jeder Anmeldung.
+                    </p>
+                </div>
+
+                <div class="pt-2">
+                    {% if current_user_obj and current_user_obj.totp_enabled %}
+                    <form method="POST" action="{{ url_for('auth.disable_2fa') }}" onsubmit="return confirm('Möchtest du die Zwei-Faktor-Authentifizierung wirklich deaktivieren?');">
+                        <button type="submit" class="px-4 py-2 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/60 text-rose-300 rounded-xl transition font-bold">
+                            2FA jetzt deaktivieren
+                        </button>
+                    </form>
+                    {% else %}
+                    <a href="{{ url_for('auth.setup_2fa') }}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition shadow-lg shadow-emerald-900/20">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        <span>2FA Einrichtungs-Assistenten starten (QR-Code)</span>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- TAB 3: PASSWORT ÄNDERN -->
+            <div id="profile-tab-content-password" class="profile-tab-content space-y-4 text-xs font-mono hidden">
+                <form method="POST" action="{{ url_for('auth.change_own_password') }}" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-400 mb-1 font-bold">Bisheriges Passwort</label>
+                        <input type="password" name="old_password" required autocomplete="current-password" placeholder="••••••••"
+                               class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-gray-400 mb-1 font-bold">Neues Passwort (mind. 8 Zeichen)</label>
+                        <input type="password" name="new_password" required minlength="8" autocomplete="new-password" placeholder="••••••••"
+                               class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    </div>
+
+                    <div class="flex justify-end pt-2">
+                        <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition">
+                            Passwort jetzt aktualisieren
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

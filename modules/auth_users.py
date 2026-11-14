@@ -152,7 +152,7 @@ def setup_2fa():
 
     if not pyotp:
         flash("Das Python-Modul 'pyotp' ist nicht installiert. Bitte führe 'pip install pyotp qrcode' aus.", "error")
-        return redirect(url_for("settings.index", tab="security"))
+        return redirect(url_for("system.index"))
 
     if request.method == "POST":
         token = request.form.get("token", "").strip().replace(" ", "")
@@ -168,7 +168,7 @@ def setup_2fa():
             session.pop("temp_totp_secret", None)
             log_audit(user["username"], "2FA_ENABLED", "2FA erfolgreich aktiviert", request.remote_addr, "success")
             flash("Zwei-Faktor-Authentifizierung wurde erfolgreich aktiviert!", "success")
-            return redirect(url_for("settings.index", tab="security"))
+            return redirect(url_for("system.index"))
         else:
             flash("Ungültiger Bestätigungscode. Bitte prüfe deine Authenticator-App und die Systemzeit.", "error")
 
@@ -244,7 +244,21 @@ def disable_2fa():
     execute_db("UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?", (user["id"],))
     log_audit(user["username"], "2FA_DISABLED", "2FA deaktiviert", request.remote_addr, "warning")
     flash("Zwei-Faktor-Authentifizierung wurde deaktiviert.", "success")
-    return redirect(url_for("settings.index", tab="security"))
+    return redirect(request.referrer or url_for("system.index"))
+
+@auth_bp.route("/profile/update", methods=["POST"])
+@login_required
+def update_profile():
+    user = current_user()
+    email = request.form.get("email", "").strip()
+    if email and "@" not in email:
+        flash("Bitte eine gültige E-Mail-Adresse angeben.", "error")
+        return redirect(request.referrer or url_for("system.index"))
+
+    execute_db("UPDATE users SET email = ? WHERE id = ?", (email, user["id"]))
+    log_audit(user["username"], "PROFILE_UPDATE", f"Profil-E-Mail aktualisiert auf '{email}'", request.remote_addr, "success")
+    flash("Profil-Einstellungen erfolgreich gespeichert.", "success")
+    return redirect(request.referrer or url_for("system.index"))
 
 @auth_bp.route("/profile/change-password", methods=["POST"])
 @login_required
@@ -256,14 +270,14 @@ def change_own_password():
 
     if not check_password_hash(user["password_hash"], old_password):
         flash("Das bisherige Passwort ist nicht korrekt.", "error")
-        return redirect(url_for("settings.index", tab="security"))
+        return redirect(request.referrer or url_for("system.index"))
 
     if len(new_password) < 8:
         flash("Das neue Passwort muss mindestens 8 Zeichen lang sein.", "error")
-        return redirect(url_for("settings.index", tab="security"))
+        return redirect(request.referrer or url_for("system.index"))
 
     p_hash = generate_password_hash(new_password)
     execute_db("UPDATE users SET password_hash = ? WHERE id = ?", (p_hash, user_id))
     log_audit(user["username"], "PASSWORD_CHANGED", "Eigenes Passwort geändert", request.remote_addr)
     flash("Dein Passwort wurde erfolgreich aktualisiert.", "success")
-    return redirect(url_for("settings.index", tab="security"))
+    return redirect(request.referrer or url_for("system.index"))

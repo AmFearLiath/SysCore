@@ -40,10 +40,10 @@
             <span class="w-2 h-2 rounded-full bg-amber-400 inline-block ml-1"></span>
             {% endif %}
         </a>
-        {% endif %}
-        <a href="{{ url_for('settings.index', tab='security') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'security' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
-            Mein Profil & 2FA
+        <a href="{{ url_for('settings.index', tab='database') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'database' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            💾 SysCore Datenbank
         </a>
+        {% endif %}
     </div>
 
     <!-- TAB 1: SERVER & SYSTEM -->
@@ -424,64 +424,186 @@
     </div>
     {% endif %}
 
-    <!-- TAB 6: SECURITY & OWN 2FA -->
-    {% if active_tab == 'security' %}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
-        <!-- 2FA Management -->
-        <div class="sys-card p-6 space-y-4">
-            <div class="flex items-center gap-3">
-                <div class="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                </div>
-                <div>
-                    <h3 class="text-base font-bold text-white tracking-tight">Zwei-Faktor-Authentifizierung (2FA)</h3>
-                    <p class="text-xs text-gray-400 font-mono mt-0.5">TOTP (Google Authenticator / Bitwarden / 2FAS)</p>
+    <!-- TAB: SYSCORE DATENBANK-BACKEND (SQLITE / MYSQL) -->
+    {% if active_tab == 'database' and user_role == 'root_admin' %}
+    <div class="space-y-6">
+        <!-- Status-Banner -->
+        <div class="sys-card p-6 bg-gradient-to-r from-dark-900 to-dark-850 border-dark-700">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">💾</span>
+                        <h3 class="text-base font-bold text-white tracking-tight font-mono">SysCore Datenbank-Backend</h3>
+                        {% if db_info.is_sqlite %}
+                        <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-mono font-semibold flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            SQLite Aktiv (syscore.db)
+                        </span>
+                        {% else %}
+                        <span class="px-2.5 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-full text-xs font-mono font-semibold flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                            MySQL / MariaDB Aktiv
+                        </span>
+                        {% endif %}
+                    </div>
+                    <p class="text-xs text-gray-400 font-mono">Wähle, ob SysCore seine Benutzer, Einstellungen, Logs und Deployments in SQLite oder einem dedizierten MySQL/MariaDB Server sichert.</p>
                 </div>
             </div>
-
-            <div class="p-4 bg-dark-900/60 border border-dark-700 rounded-xl text-xs font-mono space-y-2">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-400">Status für <strong class="text-white">{{ user.username }}</strong>:</span>
-                    <span class="font-bold {{ 'text-emerald-400' if user.totp_enabled else 'text-gray-500' }}">
-                        {{ 'Aktiviert & Geschützt' if user.totp_enabled else 'Deaktiviert' }}
-                    </span>
-                </div>
-            </div>
-
-            {% if not user.totp_enabled %}
-            <a href="{{ url_for('auth.setup_2fa') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/20">
-                <span>2FA jetzt aktivieren</span>
-            </a>
-            {% else %}
-            <form method="POST" action="{{ url_for('auth.disable_2fa') }}" onsubmit="return confirm('Möchtest du die Zwei-Faktor-Authentifizierung wirklich deaktivieren?');">
-                <button type="submit" class="px-4 py-2 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/60 text-rose-300 rounded-xl text-xs font-mono transition">
-                    2FA deaktivieren
-                </button>
-            </form>
-            {% endif %}
         </div>
 
-        <!-- Password Change -->
-        <div class="sys-card p-6 space-y-4">
-            <h3 class="text-base font-bold text-white tracking-tight">Eigenes Passwort ändern</h3>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Linke Spalte: Konfiguration & Umschaltung (2 Cols) -->
+            <div class="lg:col-span-2 sys-card p-6 space-y-6">
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider font-mono border-b border-dark-700 pb-3 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                    <span>Datenbank-Engine & Zugangsdaten</span>
+                </h4>
 
-            <form method="POST" action="{{ url_for('auth.change_own_password') }}" class="space-y-3">
-                <div>
-                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Bisheriges Passwort</label>
-                    <input type="password" name="old_password" required autocomplete="current-password" placeholder="••••••••"
-                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                <form method="POST" action="{{ url_for('settings.save_database_configuration') }}" id="dbConfigForm" class="space-y-5 text-xs font-mono">
+                    <!-- Engine Auswahl -->
+                    <div>
+                        <label class="block text-gray-400 uppercase tracking-wider mb-2 font-bold">Bevorzugte Speicher-Engine</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label class="relative flex items-center gap-3 p-4 bg-dark-950 border rounded-xl cursor-pointer transition {{ 'border-emerald-500/60 bg-emerald-950/10' if db_info.is_sqlite else 'border-dark-700 hover:border-dark-600' }}">
+                                <input type="radio" name="db_engine" value="sqlite" {{ 'checked' if db_info.is_sqlite else '' }} onchange="toggleDbEngineFields('sqlite')" class="text-emerald-500 focus:ring-0">
+                                <div>
+                                    <div class="font-bold text-white flex items-center gap-1.5">
+                                        <span>SQLite 3 (Standard)</span>
+                                    </div>
+                                    <p class="text-[11px] text-gray-400 font-sans mt-0.5">Integrierte Datei-Datenbank (<code class="text-emerald-400">syscore.db</code>), wartungsfrei & unabhängig.</p>
+                                </div>
+                            </label>
+
+                            <label class="relative flex items-center gap-3 p-4 bg-dark-950 border rounded-xl cursor-pointer transition {{ 'border-cyan-500/60 bg-cyan-950/10' if db_info.is_mysql else 'border-dark-700 hover:border-dark-600' }}">
+                                <input type="radio" name="db_engine" value="mysql" {{ 'checked' if db_info.is_mysql else '' }} onchange="toggleDbEngineFields('mysql')" class="text-cyan-500 focus:ring-0">
+                                <div>
+                                    <div class="font-bold text-white flex items-center gap-1.5">
+                                        <span>MySQL / MariaDB</span>
+                                    </div>
+                                    <p class="text-[11px] text-gray-400 font-sans mt-0.5">Zentraler Datenbank-Dienst auf Port 3306 für Enterprise-Workloads & externe Replikation.</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- MySQL Konfigurations-Felder -->
+                    <div id="mysql-config-section" class="p-4 bg-dark-950/70 border border-dark-700 rounded-xl space-y-4 {{ '' if db_info.is_mysql else 'hidden' }}">
+                        <div class="flex items-center justify-between border-b border-dark-800 pb-2">
+                            <span class="text-xs font-bold text-cyan-400 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                                <span>MySQL / MariaDB Server Zugangsdaten</span>
+                            </span>
+                            <button type="button" onclick="testDbConnection()" id="btn-test-db" class="px-3 py-1 bg-dark-850 hover:bg-dark-800 border border-cyan-500/40 text-cyan-300 rounded-lg text-[11px] transition flex items-center gap-1.5">
+                                <span>🔌 Verbindung testen</span>
+                            </button>
+                        </div>
+
+                        <div id="db-test-result" class="hidden p-3 rounded-lg text-xs font-mono"></div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-gray-400 mb-1">Host / Server-IP</label>
+                                <input type="text" name="mysql_host" id="cfg_mysql_host" value="{{ db_info.mysql_host }}" placeholder="127.0.0.1" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 focus:border-cyan-500 rounded-lg text-white outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 mb-1">Port</label>
+                                <input type="number" name="mysql_port" id="cfg_mysql_port" value="{{ db_info.mysql_port }}" placeholder="3306" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 focus:border-cyan-500 rounded-lg text-white outline-none">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-gray-400 mb-1">Datenbankname</label>
+                                <input type="text" name="mysql_db" id="cfg_mysql_db" value="{{ db_info.mysql_db }}" placeholder="syscore" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 focus:border-cyan-500 rounded-lg text-white outline-none">
+                                <p class="text-[10px] text-gray-500 mt-1">Wird automatisch erstellt, falls sie noch nicht existiert.</p>
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 mb-1">Benutzername</label>
+                                <input type="text" name="mysql_user" id="cfg_mysql_user" value="{{ db_info.mysql_user }}" placeholder="root" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 focus:border-cyan-500 rounded-lg text-white outline-none">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-400 mb-1">Passwort</label>
+                            <input type="password" name="mysql_password" id="cfg_mysql_password" placeholder="{{ '•••••••• (Bestehendes Passwort beibehalten)' if db_info.mysql_pass_set else 'MySQL Passwort' }}" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 focus:border-cyan-500 rounded-lg text-white outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Migration Checkbox -->
+                    <div class="p-3.5 bg-dark-950 border border-dark-800 rounded-xl space-y-2">
+                        <label class="flex items-center gap-2.5 cursor-pointer">
+                            <input type="checkbox" name="migrate_data" value="1" id="cfg-migrate-data" checked class="w-4 h-4 rounded bg-dark-900 border-dark-700 text-emerald-500 focus:ring-0">
+                            <span class="text-gray-200 font-bold">Existierende Tabellen & Datensätze automatisch migrieren</span>
+                        </label>
+                        <p class="text-[11px] text-gray-400 font-sans pl-6.5 leading-relaxed">
+                            Kopiert alle vorhandenen Accounts, Einstellungen, Audit-Logs und Paketkonfigurationen ohne Datenverlust in das neu ausgewählte Backend.
+                        </p>
+                    </div>
+
+                    <!-- Submit Actions -->
+                    <div class="flex items-center justify-between pt-3 border-t border-dark-700">
+                        <div class="text-[11px] text-gray-500 font-sans">
+                            SysCore startet nach dem Speichern in 2 Sekunden automatisch neu.
+                        </div>
+                        <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition shadow-lg shadow-emerald-900/20 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            <span>Engine speichern & anwenden</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Rechte Spalte: Status & Tabellen-Metadaten (1 Col) -->
+            <div class="space-y-4">
+                <div class="sys-card p-5 space-y-4 text-xs font-mono">
+                    <h4 class="text-sm font-bold text-white uppercase tracking-wider font-mono border-b border-dark-700 pb-2">
+                        System-Status
+                    </h4>
+
+                    <div class="space-y-2.5">
+                        <div class="flex justify-between py-1 border-b border-dark-800">
+                            <span class="text-gray-400">Aktive Engine:</span>
+                            <span class="font-bold {{ 'text-emerald-400' if db_info.is_sqlite else 'text-cyan-400' }}">
+                                {{ db_info.active_engine.upper() }}
+                            </span>
+                        </div>
+                        <div class="flex justify-between py-1 border-b border-dark-800">
+                            <span class="text-gray-400">SQLite Datei:</span>
+                            <span class="text-gray-300 truncate max-w-[150px]" title="{{ db_info.sqlite_path }}">{{ db_info.sqlite_path }}</span>
+                        </div>
+                        <div class="flex justify-between py-1 border-b border-dark-800">
+                            <span class="text-gray-400">Dateigröße:</span>
+                            <span class="text-gray-300">{{ db_info.sqlite_size_kb }} KB</span>
+                        </div>
+                        <div class="flex justify-between py-1 border-b border-dark-800">
+                            <span class="text-gray-400">PyMySQL Driver:</span>
+                            <span class="font-bold {{ 'text-emerald-400' if db_info.pymysql_available else 'text-rose-400' }}">
+                                {{ 'Installiert' if db_info.pymysql_available else 'Fehlt' }}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
-                <div>
-                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Neues Passwort (mind. 8 Zeichen)</label>
-                    <input type="password" name="new_password" required minlength="8" autocomplete="new-password" placeholder="••••••••"
-                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                <div class="sys-card p-5 space-y-3 text-xs font-mono">
+                    <h4 class="text-sm font-bold text-white uppercase tracking-wider font-mono border-b border-dark-700 pb-2">
+                        Gespeicherte Datensätze
+                    </h4>
+
+                    <div class="space-y-2">
+                        {% for tbl, count in db_info.table_counts.items() %}
+                        <div class="flex justify-between items-center py-1 border-b border-dark-800/60">
+                            <span class="text-gray-400 font-mono">{{ tbl }}:</span>
+                            <span class="px-2 py-0.5 bg-dark-950 border border-dark-700 rounded text-emerald-400 font-bold">{{ count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
 
-                <div class="pt-2 flex justify-end">
-                    <button type="submit" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-200 rounded-xl text-xs font-mono transition">Passwort aktualisieren</button>
+                <div class="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-300/90 leading-relaxed font-sans space-y-1">
+                    <span class="font-bold block text-emerald-400">💡 Hinweis zu Backups</span>
+                    <p>Unabhängig von der Panel-Engine kannst du deine Kunden-Webspaces und Kunden-Datenbanken weiterhin wie gewohnt über das Backup-Modul sichern und wiederherstellen.</p>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
     {% endif %}
@@ -680,6 +802,63 @@ function triggerSystemUpdate() {
     const formData = new FormData();
     SysCore.runStreamingCommand("/settings/updater/update", formData, "SysCore System-Update & Deployment", () => {
         setTimeout(() => window.location.reload(), 3000);
+    });
+}
+
+function toggleDbEngineFields(engine) {
+    const mysqlSec = document.getElementById("mysql-config-section");
+    if (mysqlSec) {
+        if (engine === "mysql") {
+            mysqlSec.classList.remove("hidden");
+        } else {
+            mysqlSec.classList.add("hidden");
+        }
+    }
+}
+
+function testDbConnection() {
+    const btn = document.getElementById("btn-test-db");
+    const resBox = document.getElementById("db-test-result");
+    const host = document.getElementById("cfg_mysql_host").value;
+    const port = document.getElementById("cfg_mysql_port").value;
+    const user = document.getElementById("cfg_mysql_user").value;
+    const password = document.getElementById("cfg_mysql_password").value;
+    const db_name = document.getElementById("cfg_mysql_db").value;
+
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳ Prüfe...</span>`;
+    resBox.classList.add("hidden");
+
+    const formData = new FormData();
+    formData.append("mysql_host", host);
+    formData.append("mysql_port", port);
+    formData.append("mysql_user", user);
+    formData.append("mysql_password", password);
+    formData.append("mysql_db", db_name);
+
+    fetch("{{ url_for('settings.test_database_connection') }}", {
+        method: "POST",
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = `<span>🔌 Verbindung testen</span>`;
+        resBox.classList.remove("hidden");
+        if (data.success) {
+            resBox.className = "p-3 rounded-lg text-xs font-mono bg-emerald-950/60 border border-emerald-500/40 text-emerald-300";
+            resBox.innerHTML = `<strong>✅ Erfolg:</strong> ${data.message}`;
+        } else {
+            resBox.className = "p-3 rounded-lg text-xs font-mono bg-rose-950/60 border border-rose-500/40 text-rose-300";
+            resBox.innerHTML = `<strong>❌ Fehler:</strong> ${data.message}`;
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = `<span>🔌 Verbindung testen</span>`;
+        resBox.classList.remove("hidden");
+        resBox.className = "p-3 rounded-lg text-xs font-mono bg-rose-950/60 border border-rose-500/40 text-rose-300";
+        resBox.innerHTML = `<strong>❌ Netzwerkfehler:</strong> ${err.message}`;
     });
 }
 </script>
