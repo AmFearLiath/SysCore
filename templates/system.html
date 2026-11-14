@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Dashboard & Hardware-Cockpit // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Cockpit Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-extrabold text-white tracking-tight">System Cockpit</h1>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium badge-emerald">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Echtzeit aktiv
+                </span>
+            </div>
+            <p class="text-xs text-gray-400 font-mono mt-1">
+                Host: <span class="text-emerald-400 font-semibold">{{ stats.hostname }}</span> ·
+                OS: <span class="text-gray-300">{{ plat_info.os }} ({{ plat_info.arch }})</span> ·
+                Uptime: <span id="metric-uptime" class="text-gray-200">{{ stats.uptime }}</span>
+            </p>
+        </div>
+
+        <!-- Quick Actions Bar -->
+        <div class="flex items-center gap-2">
+            <button onclick="window.openCommandPalette()" class="px-3 py-1.5 bg-dark-850 hover:bg-dark-800 border border-dark-700 rounded-lg text-xs font-mono text-gray-300 hover:text-white transition flex items-center gap-2">
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <span>Quick Actions</span>
+            </button>
+            <button data-modal-open="modal-firewall-add" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/20">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>Port freigeben</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 4 Realtime Metric Cards with SVG Sparklines -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- CPU Card -->
+        <div class="sys-card p-5 relative overflow-hidden">
+            <div class="flex justify-between items-start">
+                <div>
+                    <span class="text-[11px] font-mono uppercase text-gray-400 tracking-wider">CPU Auslastung</span>
+                    <div class="text-2xl font-black text-white mt-1" id="metric-cpu-val">{{ stats.cpu }}%</div>
+                    <div class="text-[11px] text-gray-500 font-mono mt-0.5">{{ stats.cpu_cores }} Kerne / Threads</div>
+                </div>
+                <!-- Mini Sparkline SVG -->
+                <div class="w-28 h-10">
+                    <svg id="sparkline-cpu" class="w-full h-full sparkline-svg" viewBox="0 0 120 32">
+                        <defs>
+                            <linearGradient id="emerald-gradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#10b981" stop-opacity="0.5"/>
+                                <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
+                            </linearGradient>
+                        </defs>
+                        <path class="sparkline-path" d="M 0,30 L 120,30"></path>
+                    </svg>
+                </div>
+            </div>
+            <!-- Progress Bar -->
+            <div class="w-full bg-dark-950 h-1.5 rounded-full mt-4 overflow-hidden border border-dark-700">
+                <div id="metric-cpu-bar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-300" style="width: {{ stats.cpu }}%"></div>
+            </div>
+        </div>
+
+        <!-- RAM Card -->
+        <div class="sys-card p-5 relative overflow-hidden">
+            <div class="flex justify-between items-start">
+                <div>
+                    <span class="text-[11px] font-mono uppercase text-gray-400 tracking-wider">Arbeitsspeicher (RAM)</span>
+                    <div class="text-2xl font-black text-white mt-1" id="metric-ram-val">{{ stats.ram_percent }}%</div>
+                    <div class="text-[11px] text-gray-500 font-mono mt-0.5" id="metric-ram-detail">{{ stats.ram_used }} GB / {{ stats.ram_total }} GB</div>
+                </div>
+                <!-- Mini Sparkline SVG -->
+                <div class="w-28 h-10">
+                    <svg id="sparkline-ram" class="w-full h-full sparkline-svg" viewBox="0 0 120 32">
+                        <path class="sparkline-path stroke-teal-400" d="M 0,30 L 120,30"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="w-full bg-dark-950 h-1.5 rounded-full mt-4 overflow-hidden border border-dark-700">
+                <div id="metric-ram-bar" class="bg-gradient-to-r from-teal-400 to-cyan-400 h-full rounded-full transition-all duration-300" style="width: {{ stats.ram_percent }}%"></div>
+            </div>
+        </div>
+
+        <!-- NVMe / Disk Card -->
+        <div class="sys-card p-5 relative overflow-hidden">
+            <div class="flex justify-between items-start">
+                <div>
+                    <span class="text-[11px] font-mono uppercase text-gray-400 tracking-wider">NVMe Speicher (/)</span>
+                    <div class="text-2xl font-black text-white mt-1" id="metric-disk-val">{{ stats.disk_percent }}%</div>
+                    <div class="text-[11px] text-gray-500 font-mono mt-0.5" id="metric-disk-detail">{{ stats.disk_used }} GB / {{ stats.disk_total }} GB</div>
+                </div>
+                <div class="p-2.5 bg-dark-900 border border-dark-700 rounded-xl text-cyan-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                </div>
+            </div>
+            <div class="w-full bg-dark-950 h-1.5 rounded-full mt-4 overflow-hidden border border-dark-700">
+                <div id="metric-disk-bar" class="bg-gradient-to-r from-cyan-400 to-blue-500 h-full rounded-full transition-all duration-300" style="width: {{ stats.disk_percent }}%"></div>
+            </div>
+        </div>
+
+        <!-- Network & Load Card -->
+        <div class="sys-card p-5 relative overflow-hidden">
+            <div class="flex justify-between items-start">
+                <div>
+                    <span class="text-[11px] font-mono uppercase text-gray-400 tracking-wider">Netzwerk & Load</span>
+                    <div class="flex items-center gap-3 mt-1.5">
+                        <span class="text-xs font-mono text-emerald-400 flex items-center gap-1">
+                            ↓ <span id="metric-net-rx">0 KB/s</span>
+                        </span>
+                        <span class="text-xs font-mono text-teal-400 flex items-center gap-1">
+                            ↑ <span id="metric-net-tx">0 KB/s</span>
+                        </span>
+                    </div>
+                    <div class="text-[11px] text-gray-500 font-mono mt-1">
+                        Load: <span id="metric-load-avg" class="text-gray-300">{{ stats.load_avg[0] }} · {{ stats.load_avg[1] }} · {{ stats.load_avg[2] }}</span>
+                    </div>
+                </div>
+                <div class="p-2.5 bg-dark-900 border border-dark-700 rounded-xl text-emerald-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-[11px] text-gray-500 font-mono">
+                <span>Swap: {{ stats.swap_used }} / {{ stats.swap_total }} GB</span>
+                <span>{{ stats.swap_percent }}%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Grid: Services & Top Processes -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Column: Managed Services & Firewall (7 Cols) -->
+        <div class="lg:col-span-7 space-y-6">
+
+            <!-- System Services Box -->
+            <div class="sys-card p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                        <h2 class="text-base font-bold text-white tracking-tight">Verwaltete Systemdienste</h2>
+                    </div>
+                    <span class="text-xs text-gray-500 font-mono">{{ services|length }} überwacht</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {% for svc, active in services.items() %}
+                    <div class="flex items-center justify-between p-3 bg-dark-900/90 rounded-xl border border-dark-700/80 hover:border-dark-600 transition">
+                        <div class="flex items-center gap-3">
+                            <span class="w-2.5 h-2.5 rounded-full {{ 'bg-emerald-400 shadow-[0_0_8px_#10b981]' if active else 'bg-rose-500' }}"></span>
+                            <div>
+                                <span class="font-mono text-xs font-semibold text-white block">{{ svc }}</span>
+                                <span class="text-[10px] font-mono text-gray-500">{{ 'Läuft stabil' if active else 'Inaktiv / Gestoppt' }}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-1.5">
+                            <form method="POST" action="{{ url_for('system.control_service', name=svc, action='restart') }}">
+                                <button type="submit" class="px-2 py-1 bg-dark-800 hover:bg-dark-750 text-gray-300 hover:text-white rounded-md text-[11px] font-mono border border-dark-600/60 transition" title="Dienst neu starten">
+                                    Neustart
+                                </button>
+                            </form>
+
+                            <form method="POST" action="{{ url_for('system.control_service', name=svc, action='stop' if active else 'start') }}">
+                                <button type="submit" class="px-2 py-1 rounded-md text-[11px] font-mono border transition {{ 'bg-rose-950/30 border-rose-800/60 text-rose-400 hover:bg-rose-900/40' if active else 'bg-emerald-950/30 border-emerald-800/60 text-emerald-400 hover:bg-emerald-900/40' }}">
+                                    {{ 'Stop' if active else 'Start' }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- UFW Firewall Rules Box -->
+            <div class="sys-card p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-white tracking-tight">Firewall (UFW)</h2>
+                        <p class="text-xs text-gray-500 font-mono mt-0.5">Status: <span class="{{ 'text-emerald-400' if ufw_active else 'text-amber-400' }}">{{ 'Aktiv & Filternd' if ufw_active else 'Inaktiv / Nicht konfiguriert' }}</span></p>
+                    </div>
+                    <button data-modal-open="modal-firewall-add" class="px-2.5 py-1.5 bg-dark-850 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-gray-200 hover:text-white rounded-lg transition flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        <span>Regel hinzufügen</span>
+                    </button>
+                </div>
+
+                {% if ufw_rules %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                            <tr>
+                                <th class="py-2 px-3">#</th>
+                                <th class="py-2 px-3">Regel / Port</th>
+                                <th class="py-2 px-3 text-right">Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                            {% for r in ufw_rules %}
+                            <tr class="hover:bg-dark-900/50">
+                                <td class="py-2 px-3 text-gray-500">{{ r.id }}</td>
+                                <td class="py-2 px-3 font-semibold text-emerald-400">{{ r.rule }}</td>
+                                <td class="py-2 px-3 text-right">
+                                    <form method="POST" action="{{ url_for('system.firewall_delete', rule_id=r.id) }}" onsubmit="return confirm('Firewall-Regel #{{ r.id }} wirklich löschen?');">
+                                        <button type="submit" class="text-gray-500 hover:text-rose-400 transition" title="Regel löschen">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-6 bg-dark-900/50 rounded-xl text-center text-xs font-mono text-gray-500">
+                    Keine aktiven UFW Firewall-Regeln geladen oder UFW ist deaktiviert.
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+
+        <!-- Right Column: Top Processes & Specs (5 Cols) -->
+        <div class="lg:col-span-5 space-y-6">
+
+            <!-- Top Processes Live Monitor -->
+            <div class="sys-card p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-teal-400"></span>
+                        <h2 class="text-base font-bold text-white tracking-tight">Top Prozesse (Aktiv)</h2>
+                    </div>
+                    <span class="text-xs text-gray-500 font-mono">CPU / RAM</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                            <tr>
+                                <th class="py-2 px-2.5">PID</th>
+                                <th class="py-2 px-2.5">Prozess</th>
+                                <th class="py-2 px-2.5">CPU %</th>
+                                <th class="py-2 px-2.5 text-right">RAM %</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                            {% for p in processes %}
+                            <tr class="hover:bg-dark-900/50">
+                                <td class="py-2 px-2.5 text-gray-500">{{ p.pid }}</td>
+                                <td class="py-2 px-2.5 font-semibold text-white truncate max-w-[140px]" title="{{ p.name }}">{{ p.name }}</td>
+                                <td class="py-2 px-2.5 {{ 'text-amber-400 font-bold' if p.cpu > 20 else 'text-emerald-400' }}">{{ p.cpu }}%</td>
+                                <td class="py-2 px-2.5 text-right text-gray-400">{{ p.mem }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Server Specs & Environment Card -->
+            <div class="sys-card p-6 space-y-4">
+                <h2 class="text-base font-bold text-white tracking-tight">Server-Spezifikationen</h2>
+
+                <div class="space-y-2.5 text-xs font-mono">
+                    <div class="flex justify-between py-1.5 border-b border-dark-700/60">
+                        <span class="text-gray-400">Prozessor:</span>
+                        <span class="text-gray-200">{{ stats.cpu_cores }} vCPU Cores</span>
+                    </div>
+                    <div class="flex justify-between py-1.5 border-b border-dark-700/60">
+                        <span class="text-gray-400">Betriebssystem:</span>
+                        <span class="text-gray-200">{{ plat_info.os }}</span>
+                    </div>
+                    <div class="flex justify-between py-1.5 border-b border-dark-700/60">
+                        <span class="text-gray-400">Architektur:</span>
+                        <span class="text-gray-200">{{ plat_info.arch }}</span>
+                    </div>
+                    <div class="flex justify-between py-1.5 border-b border-dark-700/60">
+                        <span class="text-gray-400">Python Laufzeit:</span>
+                        <span class="text-emerald-400">{{ plat_info.python }}</span>
+                    </div>
+                    <div class="flex justify-between py-1.5">
+                        <span class="text-gray-400">Panel Modus:</span>
+                        <span class="text-teal-400">Plesk-Klasse Daemon</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Modal: Port Freigeben -->
+<div id="modal-firewall-add" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white tracking-tight">Firewall-Port freigeben</h3>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('system.firewall_add') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Port-Nummer (1-65535)</label>
+                <input type="number" name="port" required min="1" max="65535" placeholder="z.B. 8080"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Protokoll</label>
+                <select name="proto" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                    <option value="tcp">TCP (Standard für Web & API)</option>
+                    <option value="udp">UDP (Gameserver / DNS / VPN)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Kommentar (Optional)</label>
+                <input type="text" name="comment" placeholder="z.B. SysCore-API"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div class="pt-2 flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Freigeben</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Paket- & Stack-Installer // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">Paket- & Stack-Installer</h1>
+            <p class="text-xs text-gray-400 font-mono mt-1">Geführte Installation gängiger Web-Stacks, Runtimes und Server-Tools mit Live-Terminal-Stream.</p>
+        </div>
+
+        <button onclick="SysCore.openTerminal('SysCore Paket-Manager')" class="px-3.5 py-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-gray-300 hover:text-white rounded-xl transition flex items-center gap-2">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span>Live-Konsole öffnen</span>
+        </button>
+    </div>
+
+    <!-- Category Tabs Filter -->
+    <div class="flex items-center gap-2 border-b border-dark-700 pb-3 text-xs font-mono">
+        <button onclick="filterPackages('all')" class="pkg-tab-btn active px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">Alle Pakete</button>
+        <button onclick="filterPackages('Runtimes')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Runtimes (PHP, Node)</button>
+        <button onclick="filterPackages('Tools')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Tools & phpMyAdmin</button>
+        <button onclick="filterPackages('Databases')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Datenbanken & Cache</button>
+        <button onclick="filterPackages('Security')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Sicherheit (Fail2Ban, SSL)</button>
+    </div>
+
+    <!-- Package Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {% for p in packages %}
+        <div class="sys-card p-5 pkg-card flex flex-col justify-between" data-category="{{ p.category }}">
+            <div class="space-y-3">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <span class="text-[10px] font-mono uppercase tracking-wider text-gray-500 font-semibold block">{{ p.category }}</span>
+                        <h3 class="text-base font-bold text-white tracking-tight mt-0.5">{{ p.name }}</h3>
+                    </div>
+
+                    {% if p.installed %}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-emerald shrink-0 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        Aktiv
+                    </span>
+                    {% else %}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-gray shrink-0">
+                        Nicht installiert
+                    </span>
+                    {% endif %}
+                </div>
+
+                <p class="text-xs text-gray-400 leading-relaxed font-sans">{{ p.desc }}</p>
+            </div>
+
+            <div class="pt-4 mt-4 border-t border-dark-700 flex items-center justify-between">
+                <div class="text-[11px] font-mono text-gray-500 truncate max-w-[170px]" title="{{ p.version }}">
+                    {{ p.version }}
+                </div>
+
+                <button type="button" onclick="triggerInstall('{{ p.key }}', '{{ p.name }}')"
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-mono font-medium transition flex items-center gap-1.5 {{ 'bg-dark-800 hover:bg-dark-750 text-gray-200 border border-dark-600' if p.installed else 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20' }}">
+                    <span>{{ 'Erneut / Update' if p.installed else 'Installieren' }}</span>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterPackages(category) {
+    document.querySelectorAll(".pkg-tab-btn").forEach(btn => {
+        btn.classList.remove("bg-emerald-500/10", "text-emerald-400", "border", "border-emerald-500/20", "font-semibold");
+        btn.classList.add("text-gray-400");
+    });
+    event.target.classList.remove("text-gray-400");
+    event.target.classList.add("bg-emerald-500/10", "text-emerald-400", "border", "border-emerald-500/20", "font-semibold");
+
+    document.querySelectorAll(".pkg-card").forEach(card => {
+        if (category === "all" || card.getAttribute("data-category") === category) {
+            card.classList.remove("hidden");
+        } else {
+            card.classList.add("hidden");
+        }
+    });
+}
+
+function triggerInstall(pkgKey, pkgName) {
+    if (!confirm(`Soll die Installation / Aktualisierung von "${pkgName}" jetzt gestartet werden?`)) {
+        return;
+    }
+    const formData = new FormData();
+    SysCore.runStreamingCommand(`/packages/install/${pkgKey}`, formData, `Installation: ${pkgName}`);
+}
+</script>
+{% endblock %}

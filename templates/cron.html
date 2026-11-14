@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Cronjobs & Aufgaben // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">Cronjobs & Geplante Aufgaben</h1>
+            <p class="text-xs text-gray-400 font-mono mt-1">Verwaltung von Hintergrundaufgaben. SysCore sichert bestehende System-Cronjobs strikt ab.</p>
+        </div>
+
+        <button data-modal-open="modal-cron-add" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-mono font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>Neuen Cronjob anlegen</span>
+        </button>
+    </div>
+
+    <!-- Managed Cronjobs List -->
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <span class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider">SysCore Verwaltete Aufgaben ({{ managed_jobs|length }})</span>
+            <span class="text-xs font-mono text-gray-500">Marker: # SYSCORE_MANAGED</span>
+        </div>
+
+        {% if managed_jobs %}
+        <div class="sys-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3 px-4">Zeitplan (Schedule)</th>
+                            <th class="py-3 px-4">Ausgeführter Befehl</th>
+                            <th class="py-3 px-4 text-right">Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for j in managed_jobs %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-3 px-4 font-bold text-emerald-400">{{ j.schedule }}</td>
+                            <td class="py-3 px-4 text-gray-200 select-all font-mono">{{ j.command }}</td>
+                            <td class="py-3 px-4 text-right">
+                                <form method="POST" action="{{ url_for('cron.delete_job', line_idx=j.line_idx) }}" onsubmit="return confirm('Diesen Cronjob wirklich löschen?');">
+                                    <button type="submit" class="p-1 text-gray-500 hover:text-rose-400 transition" title="Löschen">
+                                        <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="sys-card p-10 text-center text-xs font-mono text-gray-500">
+            Keine verwalteten Cronjobs eingerichtet.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- System / Unmanaged Cronjobs Readonly View -->
+    {% if system_jobs %}
+    <div class="space-y-4 pt-4">
+        <span class="text-xs font-mono uppercase text-gray-500 font-semibold tracking-wider block">Bestehende System-Crontab (Geschützt / Read-Only)</span>
+
+        <div class="sys-card p-4 space-y-2 bg-dark-950/60">
+            {% for sj in system_jobs %}
+            <div class="text-xs font-mono text-gray-400 py-1 border-b border-dark-800 last:border-none truncate select-text">
+                {{ sj }}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Modal: Cronjob anlegen -->
+<div id="modal-cron-add" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white tracking-tight">Neuen Cronjob erstellen</h3>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('cron.add_job') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Schnell-Vorlage (Presets)</label>
+                <select id="cron-preset-select" onchange="applyCronPreset(this.value)" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                    <option value="">-- Vorlage auswählen --</option>
+                    <option value="* * * * *">Jede Minute (* * * * *)</option>
+                    <option value="*/5 * * * *">Alle 5 Minuten (*/5 * * * *)</option>
+                    <option value="0 * * * *">Jede volle Stunde (0 * * * *)</option>
+                    <option value="0 0 * * *">Täglich um Mitternacht (0 0 * * *)</option>
+                    <option value="0 3 * * *">Täglich um 03:00 Uhr nachts (0 3 * * *)</option>
+                    <option value="0 0 * * 0">Wöchentlich am Sonntag (0 0 * * 0)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Zeitplan (5 Felder: Min Std Tag Mon Wochentag)</label>
+                <input type="text" id="cron-schedule-input" name="schedule" required placeholder="z.B. 0 3 * * *"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Befehl (Command)</label>
+                <input type="text" name="command" required placeholder="z.B. php /var/www/domain.de/artisan schedule:run"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div class="pt-2 flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Hinzufügen</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function applyCronPreset(val) {
+    if (val) {
+        document.getElementById("cron-schedule-input").value = val;
+    }
+}
+</script>
+{% endblock %}

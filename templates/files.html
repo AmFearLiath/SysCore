@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block title %}Dateimanager (/var/www) // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    {% if edit_file %}
+    <!-- ========================================== -->
+    <!-- Code Editor Ansicht                       -->
+    <!-- ========================================== -->
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <a href="{{ url_for('files.index', path=current_path) }}" class="p-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 rounded-xl text-gray-400 hover:text-white transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                        <span>{{ edit_file.name }}</span>
+                        <span class="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">{{ edit_file.ext }}</span>
+                    </h1>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">/var/www/{{ edit_file.path }}</p>
+                </div>
+            </div>
+
+            <button onclick="document.getElementById('code-editor-form').submit()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                <span>Speichern</span>
+            </button>
+        </div>
+
+        <div class="sys-card overflow-hidden">
+            <form id="code-editor-form" method="POST" action="{{ url_for('files.edit', path=edit_file.path) }}">
+                <textarea name="content" id="code-textarea" rows="24"
+                          class="w-full p-4 bg-dark-950 font-mono text-xs text-gray-200 leading-relaxed outline-none resize-y select-text border-none focus:ring-0"
+                          spellcheck="false">{{ edit_file.content }}</textarea>
+            </form>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- ========================================== -->
+    <!-- Explorer Ansicht                           -->
+    <!-- ========================================== -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">Dateimanager</h1>
+            <!-- Breadcrumbs -->
+            <div class="flex items-center gap-1.5 text-xs font-mono text-gray-400 mt-1">
+                <a href="{{ url_for('files.index') }}" class="text-emerald-400 hover:underline">/var/www</a>
+                {% for b in breadcrumbs %}
+                <span>/</span>
+                <a href="{{ url_for('files.index', path=b.path) }}" class="hover:text-white transition">{{ b.name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Action Toolbar -->
+        <div class="flex flex-wrap items-center gap-2">
+            <button data-modal-open="modal-mkfile" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-gray-300 hover:text-white rounded-lg transition flex items-center gap-1.5">
+                + Datei
+            </button>
+            <button data-modal-open="modal-mkdir" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-gray-300 hover:text-white rounded-lg transition flex items-center gap-1.5">
+                + Ordner
+            </button>
+            <button data-modal-open="modal-upload" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/20">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                <span>Upload</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- File Table -->
+    <div class="sys-card overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                    <tr>
+                        <th class="py-3 px-4">Name</th>
+                        <th class="py-3 px-4">Größe</th>
+                        <th class="py-3 px-4">Rechte</th>
+                        <th class="py-3 px-4 text-right">Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                    {% if current_path %}
+                    <tr class="hover:bg-dark-900/50">
+                        <td colspan="4" class="py-2.5 px-4">
+                            <a href="{{ url_for('files.index', path=current_path.rsplit('/', 1)[0] if '/' in current_path else '') }}" class="text-emerald-400 hover:underline flex items-center gap-2">
+                                <span>.. (Übergeordnetes Verzeichnis)</span>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endif %}
+
+                    {% for item in entries %}
+                    <tr class="hover:bg-dark-900/50">
+                        <!-- Name & Icon -->
+                        <td class="py-2.5 px-4">
+                            {% if item.is_dir %}
+                            <a href="{{ url_for('files.index', path=item.rel_path) }}" class="font-bold text-white hover:text-emerald-400 transition flex items-center gap-2">
+                                <span class="text-amber-400">📁</span>
+                                <span>{{ item.name }}</span>
+                            </a>
+                            {% else %}
+                            <div class="flex items-center gap-2">
+                                <span class="{{ 'text-emerald-400' if item.is_zip else 'text-gray-400' }}">{{ '📦' if item.is_zip else '📄' }}</span>
+                                {% if item.editable %}
+                                <a href="{{ url_for('files.edit', path=item.rel_path) }}" class="text-gray-200 hover:text-emerald-400 transition underline decoration-dark-600 underline-offset-4">
+                                    {{ item.name }}
+                                </a>
+                                {% else %}
+                                <span class="text-gray-300">{{ item.name }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- Size -->
+                        <td class="py-2.5 px-4 text-gray-400">{{ item.size }}</td>
+
+                        <!-- Permissions -->
+                        <td class="py-2.5 px-4">
+                            <button onclick="openChmodModal('{{ item.rel_path }}', '{{ item.permissions }}')" class="hover:text-emerald-400 transition" title="Rechte bearbeiten">
+                                <code class="px-1.5 py-0.5 bg-dark-900 border border-dark-700 rounded text-gray-400">{{ item.permissions }}</code>
+                            </button>
+                        </td>
+
+                        <!-- Action Toolbar -->
+                        <td class="py-2.5 px-4 text-right space-x-2">
+                            {% if item.editable %}
+                            <a href="{{ url_for('files.edit', path=item.rel_path) }}" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 transition">
+                                Bearbeiten
+                            </a>
+                            {% endif %}
+
+                            {% if not item.is_dir %}
+                            <a href="{{ url_for('files.download', path=item.rel_path) }}" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 transition" title="Herunterladen">
+                                Download
+                            </a>
+                            {% endif %}
+
+                            {% if item.is_zip %}
+                            <form class="inline" method="POST" action="{{ url_for('files.unzip_file') }}">
+                                <input type="hidden" name="path" value="{{ item.rel_path }}">
+                                <button type="submit" class="px-2 py-1 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 rounded transition">
+                                    Entpacken
+                                </button>
+                            </form>
+                            {% endif %}
+
+                            <!-- Rename -->
+                            <button onclick="openRenameModal('{{ item.rel_path }}', '{{ item.name }}')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 transition">
+                                Umbenennen
+                            </button>
+
+                            <!-- Delete -->
+                            <form class="inline" method="POST" action="{{ url_for('files.delete') }}" onsubmit="return confirm('Soll {{ item.name }} wirklich gelöscht werden?');">
+                                <input type="hidden" name="path" value="{{ item.rel_path }}">
+                                <button type="submit" class="p-1 text-gray-500 hover:text-rose-400 transition" title="Löschen">
+                                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Modal: Neuer Ordner -->
+<div id="modal-mkdir" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <h3 class="text-base font-bold text-white mb-4">Neuen Ordner erstellen</h3>
+        <form method="POST" action="{{ url_for('files.mkdir') }}" class="space-y-4">
+            <input type="hidden" name="current_path" value="{{ current_path }}">
+            <input type="text" name="folder_name" required placeholder="Ordnername (z.B. assets)"
+                   class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            <div class="flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-3 py-1.5 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Abbrechen</button>
+                <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium">Erstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Neue Datei -->
+<div id="modal-mkfile" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <h3 class="text-base font-bold text-white mb-4">Neue Datei erstellen</h3>
+        <form method="POST" action="{{ url_for('files.mkfile') }}" class="space-y-4">
+            <input type="hidden" name="current_path" value="{{ current_path }}">
+            <input type="text" name="file_name" required placeholder="z.B. index.php oder .env"
+                   class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            <div class="flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-3 py-1.5 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Abbrechen</button>
+                <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium">Anlegen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Upload -->
+<div id="modal-upload" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <h3 class="text-base font-bold text-white mb-4">Dateien hochladen</h3>
+        <form method="POST" action="{{ url_for('files.upload') }}" enctype="multipart/form-data" class="space-y-4">
+            <input type="hidden" name="current_path" value="{{ current_path }}">
+            <input type="file" name="files" multiple required
+                   class="w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-mono file:bg-dark-800 file:text-emerald-400 hover:file:bg-dark-700 cursor-pointer">
+            <div class="flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-3 py-1.5 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Abbrechen</button>
+                <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium">Hochladen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Umbenennen -->
+<div id="modal-rename" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <h3 class="text-base font-bold text-white mb-4">Element umbenennen</h3>
+        <form method="POST" action="{{ url_for('files.rename') }}" class="space-y-4">
+            <input type="hidden" id="rename-path-input" name="path">
+            <input type="text" id="rename-name-input" name="new_name" required
+                   class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            <div class="flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-3 py-1.5 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Abbrechen</button>
+                <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Chmod -->
+<div id="modal-chmod" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <h3 class="text-base font-bold text-white mb-4">Berechtigungen (chmod)</h3>
+        <form method="POST" action="{{ url_for('files.chmod_entry') }}" class="space-y-4">
+            <input type="hidden" id="chmod-path-input" name="path">
+            <input type="text" id="chmod-perm-input" name="permissions" required pattern="[0-7]{3,4}" placeholder="755"
+                   class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            <div class="flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-3 py-1.5 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Abbrechen</button>
+                <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium">Anwenden</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openRenameModal(path, currentName) {
+    document.getElementById("rename-path-input").value = path;
+    document.getElementById("rename-name-input").value = currentName;
+    const modal = document.getElementById("modal-rename");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function openChmodModal(path, currentPerm) {
+    document.getElementById("chmod-path-input").value = path;
+    document.getElementById("chmod-perm-input").value = currentPerm;
+    const modal = document.getElementById("modal-chmod");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+</script>
+{% endblock %}

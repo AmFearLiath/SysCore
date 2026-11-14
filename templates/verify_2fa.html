@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SysCore // 2FA Verifizierung</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/syscore.css') }}">
+</head>
+<body class="bg-[#090d16] text-gray-200 min-h-screen flex items-center justify-center p-4 font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
+
+    <div class="w-full max-w-md bg-[#111827] border border-[#1f2937] rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+        <div class="flex items-center gap-3 mb-6">
+            <span class="w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_14px_#10b981]"></span>
+            <div>
+                <h1 class="text-xl font-extrabold tracking-wider text-white">SYS<span class="text-emerald-400">CORE</span></h1>
+                <p class="text-xs text-gray-400 font-mono">2-Faktor-Authentifizierung</p>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="mb-5 p-3 rounded-xl border text-xs font-medium {{ 'bg-emerald-950/40 border-emerald-700/60 text-emerald-300' if category == 'success' else 'bg-rose-950/40 border-rose-700/60 text-rose-300' }}">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <p class="text-sm text-gray-400 mb-6">
+            Hallo <span class="text-emerald-400 font-semibold">{{ username }}</span>, bitte gib den 6-stelligen Sicherheitscode aus deiner Authenticator-App ein:
+        </p>
+
+        <form method="POST" class="space-y-4">
+            <div>
+                <input type="text" name="code" required autofocus maxlength="7" pattern="[0-9 ]*"
+                       placeholder="000 000"
+                       class="w-full text-center tracking-[0.5em] text-2xl font-mono px-3.5 py-3 bg-[#090d16] border border-[#1f2937] focus:border-emerald-500 rounded-xl text-white outline-none transition">
+            </div>
+
+            <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold rounded-xl text-sm transition shadow-lg shadow-emerald-900/30">
+                Code bestätigen
+            </button>
+        </form>
+
+        <div class="mt-6 text-center">
+            <a href="{{ url_for('auth.logout') }}" class="text-xs text-gray-500 hover:text-gray-300 font-mono transition">Zurück zum Login</a>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+{% block title %}Einstellungen & System-Hub // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div>
+        <h1 class="text-2xl font-extrabold text-white tracking-tight">Zentrales Einstellungs-Hub</h1>
+        <p class="text-xs text-gray-400 font-mono mt-1">Globale Server-Konfiguration, PHP/NGINX Tuning, PM2, RBAC-Benutzer und Audit-Logs.</p>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center gap-2 border-b border-dark-700 pb-3 text-xs font-mono overflow-x-auto">
+        {% if user_role == 'root_admin' %}
+        <a href="{{ url_for('settings.index', tab='server') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'server' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            Server & System
+        </a>
+        <a href="{{ url_for('settings.index', tab='tuning') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'tuning' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            NGINX & PHP Limits
+        </a>
+        <a href="{{ url_for('settings.index', tab='pm2') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'pm2' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            Node.js / PM2
+        </a>
+        <a href="{{ url_for('settings.index', tab='users') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'users' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            Benutzer & RBAC
+        </a>
+        <a href="{{ url_for('settings.index', tab='audit') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'audit' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            Audit-Log
+        </a>
+        {% endif %}
+        <a href="{{ url_for('settings.index', tab='security') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'security' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            Mein Profil & 2FA
+        </a>
+    </div>
+
+    <!-- TAB 1: SERVER & SYSTEM -->
+    {% if active_tab == 'server' and user_role == 'root_admin' %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Hostname & Timezone -->
+        <div class="sys-card p-6 space-y-4">
+            <h3 class="text-base font-bold text-white tracking-tight">Server-Identität & Zeitzone</h3>
+
+            <form method="POST" action="{{ url_for('system.set_hostname') }}" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Hostname</label>
+                    <div class="flex gap-2">
+                        <input type="text" name="hostname" value="{{ server_info.hostname }}" required placeholder="z.B. root-server-01"
+                               class="flex-1 px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none transition">
+                        <button type="submit" class="px-3 py-2 bg-dark-800 hover:bg-dark-700 text-gray-200 rounded-xl text-xs font-mono transition">Ändern</button>
+                    </div>
+                </div>
+            </form>
+
+            <form method="POST" action="{{ url_for('settings.set_timezone') }}" class="space-y-3 pt-3 border-t border-dark-700">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">System-Zeitzone</label>
+                    <div class="flex gap-2">
+                        <input type="text" name="timezone" value="{{ server_info.timezone }}" required placeholder="Europe/Berlin"
+                               class="flex-1 px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none transition">
+                        <button type="submit" class="px-3 py-2 bg-dark-800 hover:bg-dark-700 text-gray-200 rounded-xl text-xs font-mono transition">Speichern</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Swap & Let's Encrypt -->
+        <div class="sys-card p-6 space-y-5">
+            <div>
+                <h3 class="text-base font-bold text-white tracking-tight">Swap-Speicher</h3>
+                <p class="text-xs text-gray-400 font-mono mt-1">Status: <span class="{{ 'text-emerald-400' if server_info.swap_active else 'text-amber-400' }}">{{ 'Aktiv' if server_info.swap_active else 'Kein Swap konfiguriert' }}</span></p>
+
+                <form method="POST" action="{{ url_for('settings.configure_swap') }}" class="mt-3 flex gap-2">
+                    {% if not server_info.swap_active %}
+                    <input type="hidden" name="action" value="create_2g">
+                    <button type="submit" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono transition">
+                        2 GB Swapfile anlegen
+                    </button>
+                    {% else %}
+                    <input type="hidden" name="action" value="disable">
+                    <button type="submit" class="px-3.5 py-2 bg-dark-800 hover:bg-rose-950 text-gray-300 hover:text-rose-400 rounded-xl text-xs font-mono transition">
+                        Swap deaktivieren
+                    </button>
+                    {% endif %}
+                </form>
+            </div>
+
+            <div class="pt-4 border-t border-dark-700 space-y-3">
+                <h3 class="text-base font-bold text-white tracking-tight">Let's Encrypt Auto-Renewal</h3>
+                <div class="text-xs font-mono text-gray-400 space-y-1">
+                    <div>Systemd Renewal Timer: <span class="text-emerald-400">{{ 'Aktiv (Zertifikate erneuern sich automatisch)' if server_info.certbot_timer else 'Inaktiv' }}</span></div>
+                    <div>Admin-E-Mail: <span class="text-white">{{ server_info.certbot_email }}</span></div>
+                </div>
+
+                <form method="POST" action="{{ url_for('settings.certbot_dry_run') }}">
+                    <button type="submit" class="px-3.5 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition flex items-center gap-2">
+                        <span>🔄 Renewal Dry-Run Testlauf ausführen</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- TAB 2: NGINX & PHP LIMITS -->
+    {% if active_tab == 'tuning' and user_role == 'root_admin' %}
+    <div class="sys-card p-6 md:p-8 max-w-2xl">
+        <h3 class="text-base font-bold text-white tracking-tight mb-2">Globale Server-Limits (Drop-In Konfiguration)</h3>
+        <p class="text-xs text-gray-400 font-mono mb-6">Werte werden sauber in isolierte Drop-In-Dateien (<code class="text-emerald-400">/etc/nginx/conf.d/99-syscore.conf</code> & <code class="text-emerald-400">99-syscore.ini</code>) geschrieben.</p>
+
+        <form method="POST" action="{{ url_for('settings.save_tuning') }}" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">NGINX client_max_body_size</label>
+                    <input type="text" name="client_max_body_size" value="{{ server_info.nginx_limits.client_max_body_size }}" required
+                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">PHP memory_limit</label>
+                    <input type="text" name="memory_limit" value="{{ server_info.php_limits.memory_limit }}" required
+                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">PHP upload_max_filesize</label>
+                    <input type="text" name="upload_max_filesize" value="{{ server_info.php_limits.upload_max_filesize }}" required
+                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">PHP post_max_size</label>
+                    <input type="text" name="post_max_size" value="{{ server_info.php_limits.post_max_size }}" required
+                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">PHP max_execution_time (Sekunden)</label>
+                <input type="number" name="max_execution_time" value="{{ server_info.php_limits.max_execution_time }}" required
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div class="pt-4 flex justify-end">
+                <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">
+                    Limits speichern & FPM neuladen
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- TAB 3: PM2 PROCESSES -->
+    {% if active_tab == 'pm2' and user_role == 'root_admin' %}
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-base font-bold text-white tracking-tight">PM2 Node.js Prozesse</h3>
+            <span class="text-xs font-mono text-gray-500">{{ pm2_procs|length }} Prozesse registriert</span>
+        </div>
+
+        {% if pm2_procs %}
+        <div class="sys-card overflow-hidden">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                    <tr>
+                        <th class="py-3 px-4">ID</th>
+                        <th class="py-3 px-4">Name</th>
+                        <th class="py-3 px-4">Status</th>
+                        <th class="py-3 px-4">CPU</th>
+                        <th class="py-3 px-4">RAM</th>
+                        <th class="py-3 px-4 text-right">Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                    {% for p in pm2_procs %}
+                    <tr class="hover:bg-dark-900/50">
+                        <td class="py-3 px-4 text-gray-500">{{ p.id }}</td>
+                        <td class="py-3 px-4 font-bold text-white">{{ p.name }}</td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] {{ 'badge-emerald' if p.status == 'online' else 'badge-rose' }}">
+                                {{ p.status }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4">{{ p.cpu }}%</td>
+                        <td class="py-3 px-4">{{ p.memory }} MB</td>
+                        <td class="py-3 px-4 text-right space-x-1">
+                            <form class="inline" method="POST" action="{{ url_for('settings.pm2_action', pm_id=p.id, action='restart') }}">
+                                <button class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300">Neustart</button>
+                            </form>
+                            <form class="inline" method="POST" action="{{ url_for('settings.pm2_action', pm_id=p.id, action='stop') }}">
+                                <button class="px-2 py-1 bg-dark-800 hover:bg-rose-950 text-gray-300 hover:text-rose-400 rounded">Stop</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="sys-card p-10 text-center text-xs font-mono text-gray-500">
+            Keine aktiven PM2 Prozesse gefunden oder PM2 ist nicht installiert.
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- TAB 4: USERS & RBAC -->
+    {% if active_tab == 'users' and user_role == 'root_admin' %}
+    <div class="space-y-6">
+        <div class="flex items-center justify-between">
+            <h3 class="text-base font-bold text-white tracking-tight">Benutzer & Rollen (RBAC)</h3>
+            <button data-modal-open="modal-user-create" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/20">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>Neuen Benutzer anlegen</span>
+            </button>
+        </div>
+
+        <div class="sys-card overflow-hidden">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                    <tr>
+                        <th class="py-3 px-4">Benutzername</th>
+                        <th class="py-3 px-4">Rolle</th>
+                        <th class="py-3 px-4">E-Mail</th>
+                        <th class="py-3 px-4">2FA Status</th>
+                        <th class="py-3 px-4">Letzter Login</th>
+                        <th class="py-3 px-4 text-right">Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                    {% for u in users_list %}
+                    <tr class="hover:bg-dark-900/50">
+                        <td class="py-3 px-4 font-bold text-white flex items-center gap-2">
+                            <span>{{ u.username }}</span>
+                            {% if u.id == user.id %}
+                            <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">(Du)</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] {{ 'badge-emerald' if u.role == 'root_admin' else ('badge-teal' if u.role == 'web_admin' else 'badge-cyan') }}">
+                                {{ u.role }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-gray-400">{{ u.email or '-' }}</td>
+                        <td class="py-3 px-4">
+                            {% if u.totp_enabled %}
+                            <span class="text-emerald-400">🔒 Aktiv</span>
+                            {% else %}
+                            <span class="text-gray-500">Inaktiv</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-4 text-gray-500">{{ u.last_login or 'Noch nie' }}</td>
+                        <td class="py-3 px-4 text-right space-x-2">
+                            {% if u.id != user.id %}
+                            <form class="inline" method="POST" action="{{ url_for('auth.delete_user', user_id=u.id) }}" onsubmit="return confirm('Benutzer {{ u.username }} wirklich löschen?');">
+                                <button type="submit" class="text-gray-500 hover:text-rose-400 transition" title="Löschen">
+                                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- TAB 5: AUDIT LOG -->
+    {% if active_tab == 'audit' and user_role == 'root_admin' %}
+    <div class="space-y-4">
+        <h3 class="text-base font-bold text-white tracking-tight">Sicherheits- & Audit-Log (Letzte 50 Aktionen)</h3>
+
+        <div class="sys-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3 px-4">Zeitpunkt</th>
+                            <th class="py-3 px-4">Benutzer</th>
+                            <th class="py-3 px-4">Aktion</th>
+                            <th class="py-3 px-4">Details</th>
+                            <th class="py-3 px-4">IP</th>
+                            <th class="py-3 px-4 text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for log in audit_logs %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-2.5 px-4 text-gray-500 whitespace-nowrap">{{ log.timestamp }}</td>
+                            <td class="py-2.5 px-4 font-semibold text-white">{{ log.username }}</td>
+                            <td class="py-2.5 px-4 text-emerald-400">{{ log.action }}</td>
+                            <td class="py-2.5 px-4 text-gray-400 max-w-xs truncate" title="{{ log.details }}">{{ log.details }}</td>
+                            <td class="py-2.5 px-4 text-gray-500">{{ log.ip_address }}</td>
+                            <td class="py-2.5 px-4 text-right">
+                                <span class="px-2 py-0.5 rounded text-[10px] {{ 'badge-emerald' if log.status == 'success' else ('badge-amber' if log.status == 'warning' else 'badge-rose') }}">
+                                    {{ log.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- TAB 6: SECURITY & OWN 2FA -->
+    {% if active_tab == 'security' %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+        <!-- 2FA Management -->
+        <div class="sys-card p-6 space-y-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white tracking-tight">Zwei-Faktor-Authentifizierung (2FA)</h3>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">TOTP (Google Authenticator / Bitwarden / 2FAS)</p>
+                </div>
+            </div>
+
+            <div class="p-4 bg-dark-900/60 border border-dark-700 rounded-xl text-xs font-mono space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Status für <strong class="text-white">{{ user.username }}</strong>:</span>
+                    <span class="font-bold {{ 'text-emerald-400' if user.totp_enabled else 'text-gray-500' }}">
+                        {{ 'Aktiviert & Geschützt' if user.totp_enabled else 'Deaktiviert' }}
+                    </span>
+                </div>
+            </div>
+
+            {% if not user.totp_enabled %}
+            <a href="{{ url_for('auth.setup_2fa') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/20">
+                <span>2FA jetzt aktivieren</span>
+            </a>
+            {% else %}
+            <form method="POST" action="{{ url_for('auth.disable_2fa') }}" onsubmit="return confirm('Möchtest du die Zwei-Faktor-Authentifizierung wirklich deaktivieren?');">
+                <button type="submit" class="px-4 py-2 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/60 text-rose-300 rounded-xl text-xs font-mono transition">
+                    2FA deaktivieren
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- Password Change -->
+        <div class="sys-card p-6 space-y-4">
+            <h3 class="text-base font-bold text-white tracking-tight">Eigenes Passwort ändern</h3>
+
+            <form method="POST" action="{{ url_for('auth.change_own_password') }}" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Bisheriges Passwort</label>
+                    <input type="password" name="old_password" required placeholder="••••••••"
+                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Neues Passwort (mind. 8 Zeichen)</label>
+                    <input type="password" name="new_password" required minlength="8" placeholder="••••••••"
+                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+
+                <div class="pt-2 flex justify-end">
+                    <button type="submit" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-200 rounded-xl text-xs font-mono transition">Passwort aktualisieren</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Modal: User anlegen (root_admin only) -->
+<div id="modal-user-create" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white tracking-tight">Neuen Benutzer anlegen</h3>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.create_user') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Benutzername</label>
+                <input type="text" name="username" required placeholder="z.B. webdev"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Passwort</label>
+                <input type="password" name="password" required minlength="8" placeholder="••••••••"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Rolle (RBAC)</label>
+                <select name="role" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                    <option value="web_admin">web_admin (Domains, DB, Files, Backups)</option>
+                    <option value="monitor">monitor (Nur-Lese-Zugriff Metriken & Logs)</option>
+                    <option value="root_admin">root_admin (Vollzugriff System & Pakete)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">E-Mail (Optional)</label>
+                <input type="email" name="email" placeholder="dev@example.com"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div class="pt-2 flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Anlegen</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

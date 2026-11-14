@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Backups & Wiederherstellung // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">Backups & Wiederherstellung</h1>
+            <p class="text-xs text-gray-400 font-mono mt-1">Kombinierte Sicherung von Webroot-Dateien (.tar.gz) und MySQL-Dumps (.sql) mit 1-Klick-Restore.</p>
+        </div>
+
+        <button data-modal-open="modal-backup-create" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-mono font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>Neue Sicherung erstellen</span>
+        </button>
+    </div>
+
+    <!-- Backups List -->
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <span class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider">Vorhandene Sicherungen ({{ backups|length }})</span>
+            <span class="text-xs font-mono text-gray-500">Speicherort: {{ backup_dir }}</span>
+        </div>
+
+        {% if backups %}
+        <div class="sys-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3 px-4">Domain</th>
+                            <th class="py-3 px-4">Dateiname</th>
+                            <th class="py-3 px-4">Inhalt</th>
+                            <th class="py-3 px-4">Größe</th>
+                            <th class="py-3 px-4">Erstellt am</th>
+                            <th class="py-3 px-4 text-right">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for b in backups %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-3 px-4 font-bold text-white">{{ b.domain }}</td>
+                            <td class="py-3 px-4 text-gray-400 truncate max-w-xs" title="{{ b.filename }}">{{ b.filename }}</td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-0.5 rounded text-[10px] badge-emerald">Webroot</span>
+                                {% if b.includes_db %}
+                                <span class="px-2 py-0.5 rounded text-[10px] badge-cyan ml-1">MySQL</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 px-4 text-emerald-400 font-medium">{{ (b.size_bytes / 1024 / 1024)|round(2) }} MB</td>
+                            <td class="py-3 px-4 text-gray-500">{{ b.created_at }}</td>
+                            <td class="py-3 px-4 text-right space-x-2">
+                                <!-- Download -->
+                                <a href="{{ url_for('backups.download_backup', backup_id=b.id) }}" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 hover:text-white transition inline-block">
+                                    Download
+                                </a>
+
+                                <!-- Restore -->
+                                <form class="inline" method="POST" action="{{ url_for('backups.restore_backup', backup_id=b.id) }}" onsubmit="return confirm('Soll die Domain {{ b.domain }} wirklich auf den Stand dieses Backups zurückgesetzt werden? Bestehende neuere Daten werden überschrieben.');">
+                                    <button type="submit" class="px-2.5 py-1 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-700/60 text-emerald-300 rounded transition">
+                                        Wiederherstellen
+                                    </button>
+                                </form>
+
+                                <!-- Delete -->
+                                <form class="inline" method="POST" action="{{ url_for('backups.delete_backup', backup_id=b.id) }}" onsubmit="return confirm('Backup unwiderruflich löschen?');">
+                                    <button type="submit" class="p-1 text-gray-500 hover:text-rose-400 transition" title="Löschen">
+                                        <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="sys-card p-12 text-center space-y-4">
+            <div class="text-3xl">💾</div>
+            <h3 class="text-base font-bold text-white">Noch keine Backups vorhanden</h3>
+            <p class="text-xs font-mono text-gray-400 max-w-md mx-auto">Erstelle eine kombinierte Sicherung deiner Webspaces und Datenbanken mit 1-Klick-Wiederherstellung.</p>
+            <button data-modal-open="modal-backup-create" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono transition shadow-lg shadow-emerald-900/30">
+                Erstes Backup anlegen
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Modal: Backup erstellen -->
+<div id="modal-backup-create" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white tracking-tight">Neue Sicherung anlegen</h3>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('backups.create_backup') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Domain / Webspace</label>
+                <select name="domain" required class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                    {% for d in domains %}
+                    <option value="{{ d }}">{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="p-3.5 bg-dark-950 border border-dark-700 rounded-xl space-y-3">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="include_db" value="1" checked class="w-4 h-4 rounded text-emerald-500 focus:ring-0 bg-dark-900 border-dark-600">
+                    <span class="text-xs font-mono text-gray-200">MySQL Datenbank ebenfalls mitsichern</span>
+                </label>
+
+                <div>
+                    <input type="text" name="db_name" placeholder="DB-Name (Optional, wird sonst auto-erkannt)"
+                           class="w-full px-3 py-1.5 bg-dark-900 border border-dark-700 focus:border-emerald-500 rounded-lg text-white font-mono text-xs outline-none transition">
+                </div>
+            </div>
+
+            <div class="pt-2 flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Sicherung starten</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+{% block title %}Webserver & Domains // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header & Action Bar -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">Webserver & Domain-Manager</h1>
+            <p class="text-xs text-gray-400 font-mono mt-1">NGINX VHost-Verwaltung mit strikter Pterodactyl- & System-Isolation (.panel.conf).</p>
+        </div>
+        <button data-modal-open="modal-domain-add" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-mono font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>Neue Domain anlegen</span>
+        </button>
+    </div>
+
+    <!-- Health & Port Conflict Warnungen -->
+    {% if health.apache_conflict %}
+    <div class="p-4 bg-amber-950/40 border border-amber-700/60 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <span class="text-amber-400 text-xl">⚠️</span>
+            <div>
+                <h3 class="text-sm font-bold text-amber-200">Port-Konflikt erkannt: Apache blockiert Port 80</h3>
+                <p class="text-xs text-amber-400/80 font-mono mt-0.5">Apache2 belegt Port 80. NGINX benötigt Port 80, um als Haupt-Reverse-Proxy arbeiten zu können.</p>
+            </div>
+        </div>
+        <form method="POST" action="{{ url_for('webserver.fix_apache_port') }}">
+            <button type="submit" class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-black font-semibold rounded-lg text-xs font-mono transition">
+                1-Klick Fix: Apache auf Port 8080 verschieben
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if health.default_site_enabled %}
+    <div class="p-4 bg-dark-900 border border-dark-700 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono">
+        <span class="text-gray-400">NGINX Standardseite ('default') ist aktiv und fängt ungepaarte Requests ab.</span>
+        <form method="POST" action="{{ url_for('webserver.disable_default') }}">
+            <button type="submit" class="px-3 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-lg transition border border-dark-600">
+                Standardseite deaktivieren
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Domain Cards Grid -->
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <span class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider">Aktive VHosts ({{ domains|length }})</span>
+            <span class="text-xs font-mono text-gray-500">DocumentRoot Basis: {{ web_root_base }}</span>
+        </div>
+
+        {% if domains %}
+        <div class="grid grid-cols-1 gap-4">
+            {% for d in domains %}
+            <div class="sys-card p-5 hover:border-dark-600 transition">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <!-- Domain Info -->
+                    <div class="space-y-1.5">
+                        <div class="flex items-center gap-3">
+                            <a href="http{{ 's' if d.ssl else '' }}://{{ d.name }}" target="_blank" class="text-lg font-bold text-white hover:text-emerald-400 transition flex items-center gap-1.5">
+                                <span>{{ d.name }}</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                            </a>
+
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono {{ 'badge-emerald' if d.mode == 'webspace' else 'badge-teal' }}">
+                                {{ d.mode_label }}
+                            </span>
+
+                            <!-- SSL Status Badge -->
+                            {% if d.ssl %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-cyan flex items-center gap-1" title="Zertifikat gültig">
+                                🔒 SSL aktiv {% if d.ssl_info.expires %}(bis {{ d.ssl_info.expires }}){% endif %}
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-amber">
+                                ⚠️ Kein SSL
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <div class="text-xs font-mono text-gray-400 flex flex-wrap items-center gap-3">
+                            <span>Ziel: <strong class="text-gray-200">{{ d.target }}</strong></span>
+                            {% if d.mode == 'webspace' %}
+                            <span>· PHP-FPM: <span class="text-emerald-400">{{ d.php_version }}</span></span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Action Toolbar -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        {% if not d.ssl %}
+                        <form method="POST" action="{{ url_for('webserver.enable_ssl', domain=d.name) }}">
+                            <button type="submit" class="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+                                🔒 1-Klick SSL
+                            </button>
+                        </form>
+                        {% endif %}
+
+                        <!-- Custom Direktiven Button -->
+                        <button onclick="openDirectivesModal('{{ d.name }}', {{ d.custom_directives|tojson }})" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition">
+                            Direktiven
+                        </button>
+
+                        <!-- Log-Viewer Button -->
+                        <button onclick="openDomainLogsModal('{{ d.name }}')" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition">
+                            Logs
+                        </button>
+
+                        {% if d.mode == 'webspace' %}
+                        <a href="{{ url_for('files.index', path=d.name + '/public') }}" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition" title="Dateimanager für diese Domain öffnen">
+                            Dateien
+                        </a>
+                        {% endif %}
+
+                        <!-- Delete Domain -->
+                        <form method="POST" action="{{ url_for('webserver.delete_domain', domain=d.name) }}" onsubmit="return confirm('Soll der VHost für {{ d.name }} wirklich gelöscht werden? Die Webspace-Dateien bleiben unberührt.');">
+                            <button type="submit" class="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-dark-800 rounded-lg transition" title="Domain löschen">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="sys-card p-12 text-center space-y-4">
+            <div class="text-3xl">🌐</div>
+            <h3 class="text-base font-bold text-white">Noch keine Domains eingerichtet</h3>
+            <p class="text-xs font-mono text-gray-400 max-w-md mx-auto">Lege deine erste Domain oder Subdomain an, um eine Website mit PHP-FPM bereitzustellen oder einen Reverse-Proxy auf einen lokalen Port einzurichten.</p>
+            <button data-modal-open="modal-domain-add" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono transition shadow-lg shadow-emerald-900/30">
+                Erste Domain anlegen
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Modal: Neue Domain anlegen -->
+<div id="modal-domain-add" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white tracking-tight">Neue Domain anlegen</h3>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('webserver.add_domain') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Domain- oder Subdomain-Name</label>
+                <input type="text" name="domain" required placeholder="z.B. amfearliath.de oder api.domain.com"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Betriebsmodus</label>
+                <select name="mode" id="domain-mode-select" onchange="toggleDomainModeFields(this.value)" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                    <option value="webspace">Webspace & PHP-FPM (Standard)</option>
+                    <option value="proxy">Reverse-Proxy (Node.js, Docker, FastAPI, Python)</option>
+                </select>
+            </div>
+
+            <!-- Webspace-spezifische Felder -->
+            <div id="fields-webspace" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">PHP Version</label>
+                    <select name="php_version" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                        {% for v in health.php_versions %}
+                        <option value="{{ v }}">PHP {{ v }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Benutzerdefinierter DocumentRoot (Optional)</label>
+                    <input type="text" name="root_path" placeholder="Standard: /var/www/[domain]/public"
+                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+            </div>
+
+            <!-- Proxy-spezifische Felder -->
+            <div id="fields-proxy" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Ziel-Port (Lokaler Dienst auf 127.0.0.1)</label>
+                    <input type="number" name="proxy_port" placeholder="z.B. 3000 oder 8080"
+                           class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+            </div>
+
+            <div class="pt-2 flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">VHost erstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Custom Direktiven Editor -->
+<div id="modal-directives" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-3">
+            <div>
+                <h3 class="text-lg font-bold text-white tracking-tight">NGINX VHost-Direktiven</h3>
+                <p id="directives-domain-label" class="text-xs text-gray-400 font-mono mt-0.5"></p>
+            </div>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <p class="text-xs text-gray-400 mb-3">Direktiven werden vor dem Speichern mit <code class="text-emerald-400">nginx -t</code> geprüft. Bei Syntaxfehlern greift ein automatischer Rollback.</p>
+
+        <form id="directives-form" method="POST" class="space-y-4">
+            <div>
+                <textarea id="directives-editor" name="custom_directives" rows="10"
+                          class="w-full p-4 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs leading-relaxed outline-none transition select-text"
+                          placeholder="client_max_body_size 128M;&#10;gzip on;&#10;add_header X-Frame-Options SAMEORIGIN;"></textarea>
+            </div>
+
+            <!-- Quick Snippets -->
+            <div class="flex flex-wrap gap-2 text-xs font-mono">
+                <button type="button" onclick="insertSnippet('client_max_body_size 100M;\n')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded border border-dark-600">+ Upload 100M</button>
+                <button type="button" onclick="insertSnippet('add_header X-Frame-Options SAMEORIGIN;\nadd_header X-Content-Type-Options nosniff;\n')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded border border-dark-600">+ Security Headers</button>
+                <button type="button" onclick="insertSnippet('gzip on;\ngzip_types text/plain text/css application/json application/javascript;\n')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded border border-dark-600">+ Gzip</button>
+            </div>
+
+            <div class="pt-2 flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Prüfen & Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Domain Log Viewer -->
+<div id="modal-domain-logs" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-4xl w-full p-6 shadow-2xl animate-fade-in flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h3 class="text-lg font-bold text-white tracking-tight">Domain Live-Logs</h3>
+                <span id="log-viewer-domain" class="text-xs font-mono text-emerald-400"></span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btn-log-access" onclick="switchLogType('access')" class="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-mono">Access Log</button>
+                <button id="btn-log-error" onclick="switchLogType('error')" class="px-3 py-1 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Error Log</button>
+                <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg ml-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <div id="domain-logs-body" class="flex-1 bg-dark-950 border border-dark-700 rounded-xl p-4 overflow-y-auto font-mono text-xs text-gray-300 space-y-1 select-text">
+            <div class="text-gray-500">Lade Logfiles...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleDomainModeFields(mode) {
+    document.getElementById("fields-webspace").classList.toggle("hidden", mode !== "webspace");
+    document.getElementById("fields-proxy").classList.toggle("hidden", mode !== "proxy");
+}
+
+function openDirectivesModal(domain, currentDirectives) {
+    document.getElementById("directives-domain-label").textContent = domain;
+    document.getElementById("directives-form").action = `/web/domain/directives/${domain}`;
+    document.getElementById("directives-editor").value = currentDirectives || "";
+    const modal = document.getElementById("modal-directives");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function insertSnippet(snippet) {
+    const editor = document.getElementById("directives-editor");
+    editor.value += (editor.value.endsWith("\n") || editor.value === "" ? "" : "\n") + snippet;
+    editor.focus();
+}
+
+let activeLogDomain = "";
+let activeLogType = "access";
+
+function openDomainLogsModal(domain) {
+    activeLogDomain = domain;
+    activeLogType = "access";
+    document.getElementById("log-viewer-domain").textContent = domain;
+    const modal = document.getElementById("modal-domain-logs");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    loadDomainLogs();
+}
+
+function switchLogType(type) {
+    activeLogType = type;
+    document.getElementById("btn-log-access").className = type === "access" ? "px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-mono" : "px-3 py-1 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono";
+    document.getElementById("btn-log-error").className = type === "error" ? "px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-mono" : "px-3 py-1 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono";
+    loadDomainLogs();
+}
+
+async function loadDomainLogs() {
+    const body = document.getElementById("domain-logs-body");
+    body.innerHTML = '<div class="text-gray-500">Lade Einträge...</div>';
+    try {
+        const res = await fetch(`/web/domain/logs/${activeLogDomain}/${activeLogType}`);
+        const data = await res.json();
+        body.innerHTML = "";
+        if (!data.lines || data.lines.length === 0) {
+            body.innerHTML = '<div class="text-gray-500">Keine aktuellen Log-Einträge vorhanden.</div>';
+            return;
+        }
+        data.lines.forEach(line => {
+            const row = document.createElement("div");
+            row.className = "py-0.5 leading-relaxed truncate " + (activeLogType === "error" ? "text-rose-400" : "text-gray-300");
+            row.textContent = line;
+            body.appendChild(row);
+        });
+        body.scrollTop = body.scrollHeight;
+    } catch (err) {
+        body.innerHTML = `<div class="text-rose-400">Fehler beim Laden: ${err.message}</div>`;
+    }
+}
+</script>
+{% endblock %}

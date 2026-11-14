@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}404 Nicht Gefunden // SysCore{% endblock %}
+
+{% block content %}
+<div class="sys-card p-12 text-center max-w-lg mx-auto my-12 space-y-4">
+    <div class="text-4xl font-extrabold text-emerald-400 font-mono">404</div>
+    <h1 class="text-xl font-bold text-white tracking-tight">Ressource nicht gefunden</h1>
+    <p class="text-xs font-mono text-gray-400">Der angeforderte Pfad existiert nicht auf diesem Server-Panel.</p>
+    <div class="pt-4">
+        <a href="{{ url_for('system.index') }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono transition">
+            Zurück zum Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

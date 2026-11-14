@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}App-Importer // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">App-Importer via ZIP & Manifest</h1>
+            <p class="text-xs text-gray-400 font-mono mt-1">Automatisiertes Deployment kompletter Webanwendungen mit Datenbank, .env-Mapping und Skripten.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('apps.download_starter_template') }}" class="px-3.5 py-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-emerald-400 hover:text-emerald-300 rounded-xl transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <span>Starter-Template .ZIP</span>
+            </a>
+            <button data-modal-open="modal-app-deploy" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-mono font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                <span>App hochladen & deployen</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Tab Toggle -->
+    <div class="flex items-center gap-2 border-b border-dark-700 pb-3 text-xs font-mono">
+        <button id="tab-btn-deployments" onclick="switchAppTab('deployments')" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">Aktive Deployments</button>
+        <button id="tab-btn-docs" onclick="switchAppTab('docs')" class="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Manifest-Spezifikation (Doku)</button>
+    </div>
+
+    <!-- Section 1: Deployments History -->
+    <div id="section-deployments" class="space-y-4">
+        {% if deployments %}
+        <div class="sys-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3 px-4">Domain</th>
+                            <th class="py-3 px-4">Anwendung</th>
+                            <th class="py-3 px-4">Version</th>
+                            <th class="py-3 px-4">Typ</th>
+                            <th class="py-3 px-4">Bereitgestellt am</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4 text-right">Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for dep in deployments %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-3 px-4 font-bold text-white">
+                                <a href="http://{{ dep.domain }}" target="_blank" class="hover:text-emerald-400 transition flex items-center gap-1.5">
+                                    {{ dep.domain }}
+                                    <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                </a>
+                            </td>
+                            <td class="py-3 px-4 text-gray-200">{{ dep.app_name }}</td>
+                            <td class="py-3 px-4 text-emerald-400 font-semibold">{{ dep.version }}</td>
+                            <td class="py-3 px-4 uppercase text-gray-400">{{ dep.app_type }}</td>
+                            <td class="py-3 px-4 text-gray-500">{{ dep.deployed_at }}</td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] badge-emerald">
+                                    {{ dep.status }}
+                                </span>
+                            </td>
+                            <td class="py-3 px-4 text-right">
+                                <a href="{{ url_for('files.index', path=dep.domain) }}" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 hover:text-white transition">
+                                    Dateien
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="sys-card p-12 text-center space-y-4">
+            <div class="text-3xl">🚀</div>
+            <h3 class="text-base font-bold text-white">Noch keine Anwendungen über den App-Importer bereitgestellt</h3>
+            <p class="text-xs font-mono text-gray-400 max-w-md mx-auto">Packe deine Web-Applikation als ZIP-Datei mit einer <code class="text-emerald-400">syscore.manifest.json</code> im Root-Verzeichnis und lade sie hier hoch.</p>
+            <div class="flex items-center justify-center gap-3 pt-2">
+                <a href="{{ url_for('apps.download_starter_template') }}" class="px-4 py-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-emerald-400 rounded-xl text-xs font-mono transition">
+                    Starter-Template herunterladen
+                </a>
+                <button data-modal-open="modal-app-deploy" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono transition shadow-lg shadow-emerald-900/30">
+                    ZIP hochladen & deployen
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section 2: Documentation & Manifest Specification -->
+    <div id="section-docs" class="space-y-6 hidden">
+        <div class="sys-card p-6 md:p-8 space-y-6">
+            <div>
+                <h2 class="text-lg font-bold text-white tracking-tight">Spezifikation der syscore.manifest.json</h2>
+                <p class="text-xs text-gray-400 font-mono mt-1">Platziere diese JSON-Datei direkt im Root-Ordner deines ZIP-Archivs.</p>
+            </div>
+
+            <div class="relative">
+                <pre class="bg-dark-950 border border-dark-700 p-4 rounded-xl text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed select-text">{{ sample_manifest_json }}</pre>
+                <button onclick="SysCore.copyToClipboard({{ sample_manifest_json|tojson }}, 'Manifest JSON')" class="absolute top-3 right-3 px-2 py-1 bg-dark-800 hover:bg-dark-700 border border-dark-600 text-[11px] font-mono text-gray-300 rounded transition">
+                    Kopieren
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                <div class="p-4 bg-dark-900/60 border border-dark-700 rounded-xl space-y-2">
+                    <span class="text-emerald-400 font-bold block">Platzhalter in .env.example:</span>
+                    <ul class="space-y-1 text-gray-300">
+                        <li><code class="text-white">{% raw %}{{DB_NAME}}{% endraw %}</code> : Automatischer Datenbankname</li>
+                        <li><code class="text-white">{% raw %}{{DB_USER}}{% endraw %}</code> : Automatischer DB-Benutzer</li>
+                        <li><code class="text-white">{% raw %}{{DB_PASS}}{% endraw %}</code> : Sicheres Zufalls-Passwort</li>
+                        <li><code class="text-white">{% raw %}{{DOMAIN}}{% endraw %}</code> : Die gewählte Zieldomain</li>
+                        <li><code class="text-white">{% raw %}{{APP_KEY}}{% endraw %}</code> : Generierter 32-Hex Secret Token</li>
+                    </ul>
+                </div>
+
+                <div class="p-4 bg-dark-900/60 border border-dark-700 rounded-xl space-y-2">
+                    <span class="text-teal-400 font-bold block">Automatisierte Schritte bei Deployment:</span>
+                    <ul class="space-y-1 text-gray-300">
+                        <li>1. Entpacken in <code class="text-white">/var/www/[domain]</code></li>
+                        <li>2. Optional: MySQL DB & User anlegen</li>
+                        <li>3. SQL Schema-Import (falls definiert)</li>
+                        <li>4. .env aus Template erzeugen</li>
+                        <li>5. Post-Install Commands (Composer, NPM)</li>
+                        <li>6. Berechtigungen auf <code class="text-white">www-data</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: App Deployen -->
+<div id="modal-app-deploy" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white tracking-tight">App-Paket hochladen & deployen</h3>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('apps.deploy') }}" enctype="multipart/form-data" class="space-y-4">
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Zieldomain</label>
+                <input type="text" name="domain" required placeholder="z.B. app.meinedomain.de"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                <span class="text-[10px] text-gray-500 font-mono mt-1 block">Die App wird unter /var/www/[domain] entpackt.</span>
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">ZIP-Archiv mit syscore.manifest.json</label>
+                <input type="file" name="app_zip" required accept=".zip"
+                       class="w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-mono file:bg-dark-800 file:text-emerald-400 hover:file:bg-dark-700 cursor-pointer">
+            </div>
+
+            <div class="pt-2 flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Automatisches Deployment starten</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchAppTab(tab) {
+    const isDeployments = tab === 'deployments';
+    document.getElementById("section-deployments").classList.toggle("hidden", !isDeployments);
+    document.getElementById("section-docs").classList.toggle("hidden", isDeployments);
+
+    const btnDeployments = document.getElementById("tab-btn-deployments");
+    const btnDocs = document.getElementById("tab-btn-docs");
+
+    if (isDeployments) {
+        btnDeployments.className = "px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold";
+        btnDocs.className = "px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition";
+    } else {
+        btnDocs.className = "px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold";
+        btnDeployments.className = "px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition";
+    }
+}
+</script>
+{% endblock %}

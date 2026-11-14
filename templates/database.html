@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}MySQL Datenbanken // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">MySQL & MariaDB Datenbanken</h1>
+            <p class="text-xs text-gray-400 font-mono mt-1">Verwaltung isolierter Datenbanken und Benutzer mit phpMyAdmin-Integration.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+            {% if pma_installed %}
+            <a href="/phpmyadmin" target="_blank" class="px-3.5 py-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-cyan-400 hover:text-cyan-300 rounded-xl transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                <span>phpMyAdmin öffnen</span>
+            </a>
+            {% endif %}
+
+            <button data-modal-open="modal-db-create" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-mono font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>Neue Datenbank anlegen</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Grid: Databases & DB Users -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Databases List (8 Cols) -->
+        <div class="lg:col-span-8 space-y-4">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider">Vorhandene Datenbanken ({{ databases|length }})</span>
+                <span class="text-xs font-mono text-gray-500">System-DBs geschützt</span>
+            </div>
+
+            {% if databases %}
+            <div class="sys-card overflow-hidden">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3 px-4">Datenbank</th>
+                            <th class="py-3 px-4">Tabellen</th>
+                            <th class="py-3 px-4">Größe</th>
+                            <th class="py-3 px-4 text-right">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for db in databases %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-3 px-4 font-bold text-white flex items-center gap-2">
+                                <span class="text-emerald-400">🗄️</span>
+                                <span>{{ db.name }}</span>
+                            </td>
+                            <td class="py-3 px-4 text-gray-400">{{ db.tables }}</td>
+                            <td class="py-3 px-4 text-emerald-400 font-semibold">{{ db.size_mb }} MB</td>
+                            <td class="py-3 px-4 text-right space-x-2">
+                                <!-- Export SQL Dump -->
+                                <a href="{{ url_for('database.export_db', db_name=db.name) }}" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 hover:text-white transition inline-block">
+                                    Export
+                                </a>
+
+                                <!-- Import Modal Trigger -->
+                                <button onclick="openImportModal('{{ db.name }}')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 hover:text-white transition">
+                                    Import
+                                </button>
+
+                                <!-- Drop Database -->
+                                <form class="inline" method="POST" action="{{ url_for('database.delete_db', db_name=db.name) }}" onsubmit="return confirm('Soll die Datenbank {{ db.name }} wirklich unwiderruflich gelöscht werden?');">
+                                    <button type="submit" class="p-1 text-gray-500 hover:text-rose-400 transition" title="Löschen">
+                                        <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="sys-card p-10 text-center text-xs font-mono text-gray-500">
+                Keine benutzerdefinierten Datenbanken vorhanden.
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Database Users List (4 Cols) -->
+        <div class="lg:col-span-4 space-y-4">
+            <span class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider block">DB-Benutzer ({{ users|length }})</span>
+
+            <div class="sys-card overflow-hidden">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3 px-4">User @ Host</th>
+                            <th class="py-3 px-4 text-right">Passwort</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for u in users %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-3 px-4">
+                                <span class="font-bold text-white block">{{ u.user }}</span>
+                                <span class="text-[10px] text-gray-500">Host: {{ u.host }}</span>
+                            </td>
+                            <td class="py-3 px-4 text-right">
+                                <button onclick="openPassResetModal('{{ u.user }}', '{{ u.host }}')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-[11px] text-gray-300 hover:text-white transition">
+                                    Reset
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Modal: Neue Datenbank -->
+<div id="modal-db-create" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white tracking-tight">Neue Datenbank & Benutzer</h3>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('database.create_db') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Datenbankname</label>
+                <input type="text" name="db_name" required pattern="[a-zA-Z0-9_]{2,32}" placeholder="z.B. app_db"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Benutzername</label>
+                <input type="text" name="db_user" required pattern="[a-zA-Z0-9_]{2,32}" placeholder="z.B. app_user"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Passwort (mind. 6 Zeichen)</label>
+                <input type="password" name="db_pass" required minlength="6" placeholder="••••••••••••"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div class="pt-2 flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Erstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: SQL Import -->
+<div id="modal-db-import" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-base font-bold text-white">SQL-Dump importieren</h3>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form id="db-import-form" method="POST" enctype="multipart/form-data" class="space-y-4">
+            <p class="text-xs text-gray-400 font-mono">Zieldatenbank: <strong id="import-target-label" class="text-emerald-400"></strong></p>
+            <input type="file" name="sql_file" required accept=".sql"
+                   class="w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-mono file:bg-dark-800 file:text-emerald-400 hover:file:bg-dark-700 cursor-pointer">
+            <div class="flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-3 py-1.5 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Abbrechen</button>
+                <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium">Importieren</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: DB User Passwort Reset -->
+<div id="modal-user-pass-reset" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <h3 class="text-base font-bold text-white mb-2">DB-Passwort zurücksetzen</h3>
+        <p id="reset-user-label" class="text-xs text-gray-400 font-mono mb-4"></p>
+
+        <form method="POST" action="{{ url_for('database.reset_db_password') }}" class="space-y-4">
+            <input type="hidden" id="reset-db-user-input" name="db_user">
+            <input type="hidden" id="reset-db-host-input" name="db_host">
+            <input type="password" name="new_pass" required minlength="6" placeholder="Neues Passwort"
+                   class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            <div class="flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-3 py-1.5 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Abbrechen</button>
+                <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium">Zurücksetzen</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openImportModal(dbName) {
+    document.getElementById("import-target-label").textContent = dbName;
+    document.getElementById("db-import-form").action = `/db/import/${dbName}`;
+    const modal = document.getElementById("modal-db-import");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function openPassResetModal(user, host) {
+    document.getElementById("reset-user-label").textContent = `${user}@${host}`;
+    document.getElementById("reset-db-user-input").value = user;
+    document.getElementById("reset-db-host-input").value = host;
+    const modal = document.getElementById("modal-user-pass-reset");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+</script>
+{% endblock %}
