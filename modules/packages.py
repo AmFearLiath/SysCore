@@ -7,8 +7,9 @@ from db import log_audit
 
 packages_bp = Blueprint("packages", __name__, url_prefix="/packages")
 
-# Paket-Definitionen & Installations-Rezepte
+# Umfassende Paket-Definitionen & Installations-Rezepte
 PACKAGES_REGISTRY = {
+    # --- Runtimes ---
     "php8.2": {
         "name": "PHP 8.2 & Extensions",
         "category": "Runtimes",
@@ -46,8 +47,8 @@ PACKAGES_REGISTRY = {
         ]
     },
     "composer": {
-        "name": "Composer (PHP Dependency Manager)",
-        "category": "Tools",
+        "name": "Composer (PHP Manager)",
+        "category": "Runtimes",
         "desc": "Global installierter PHP Composer für Laravel, Symfony & WordPress",
         "check_cmd": ["composer", "--version"],
         "install_cmds": [
@@ -59,7 +60,7 @@ PACKAGES_REGISTRY = {
         ]
     },
     "nodejs": {
-        "name": "Node.js LTS & PM2",
+        "name": "Node.js 20 LTS & PM2",
         "category": "Runtimes",
         "desc": "Node.js 20 LTS (NodeSource) + globaler PM2 Process Manager",
         "check_cmd": ["node", "-v"],
@@ -74,10 +75,41 @@ PACKAGES_REGISTRY = {
             "npm install -g pm2"
         ]
     },
+
+    # --- Monitoring & Analyse ---
+    "goaccess": {
+        "name": "GoAccess (Log-Analyzer)",
+        "category": "Monitoring",
+        "desc": "Visueller NGINX Realtime Log-Analyzer. Erzeugt interaktive Dashboards über Traffic, Besucher und Bots",
+        "check_cmd": ["goaccess", "--version"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "apt-get update",
+            "apt-get install -y goaccess"
+        ]
+    },
+    "uptime_kuma": {
+        "name": "Uptime Kuma",
+        "category": "Monitoring",
+        "desc": "Modernes, selbst gehostetes Monitoring-Tool mit Statusseiten und Discord/Mail-Alarmierung auf Port 3001",
+        "check_cmd": ["test", "-d", "/opt/uptime-kuma"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "apt-get update && apt-get install -y git curl",
+            "mkdir -p /opt",
+            "if [ ! -d /opt/uptime-kuma ]; then git clone https://github.com/louislam/uptime-kuma.git /opt/uptime-kuma; fi",
+            "cd /opt/uptime-kuma && npm run setup",
+            "pm2 start /opt/uptime-kuma/server/server.js --name uptime-kuma",
+            "pm2 save"
+        ],
+        "port": 3001
+    },
+
+    # --- Datenbanken & Cache ---
     "redis": {
-        "name": "Redis In-Memory Database",
+        "name": "Redis In-Memory Server",
         "category": "Databases",
-        "desc": "Hochperformanter Redis Cache & Key-Value Server",
+        "desc": "Hochperformanter In-Memory Cache & Key-Value Store für Sessions und Caching",
         "check_cmd": ["redis-server", "-v"],
         "install_cmds": [
             "export DEBIAN_FRONTEND=noninteractive",
@@ -86,10 +118,37 @@ PACKAGES_REGISTRY = {
             "systemctl enable --now redis-server"
         ]
     },
+    "postgresql": {
+        "name": "PostgreSQL Database Server",
+        "category": "Databases",
+        "desc": "Die führende relationale Open-Source Enterprise-Datenbank neben MySQL/MariaDB",
+        "check_cmd": ["psql", "--version"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "apt-get update",
+            "apt-get install -y postgresql postgresql-contrib",
+            "systemctl enable --now postgresql"
+        ]
+    },
+
+    # --- Web-GUIs & Tools ---
+    "adminer": {
+        "name": "Adminer (Lightweight DB GUI)",
+        "category": "Tools",
+        "desc": "1-Datei-Alternative zu phpMyAdmin für MySQL, PostgreSQL und SQLite unter /var/www/adminer",
+        "check_cmd": ["test", "-f", "/var/www/adminer/index.php"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "mkdir -p /var/www/adminer",
+            "wget -q https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php -O /var/www/adminer/index.php",
+            "chown -R www-data:www-data /var/www/adminer"
+        ],
+        "url_path": "/adminer"
+    },
     "phpmyadmin": {
         "name": "phpMyAdmin (Web Database GUI)",
         "category": "Tools",
-        "desc": "phpMyAdmin automatisch unter /var/www/phpmyadmin installiert und bereitgestellt",
+        "desc": "Vollwertige phpMyAdmin Web-Oberfläche unter /var/www/phpmyadmin bereitgestellt",
         "check_cmd": ["test", "-d", "/var/www/phpmyadmin"],
         "install_cmds": [
             "export DEBIAN_FRONTEND=noninteractive",
@@ -100,12 +159,27 @@ PACKAGES_REGISTRY = {
             "rm -f /tmp/pma.tar.gz",
             "cp /var/www/phpmyadmin/config.sample.inc.php /var/www/phpmyadmin/config.inc.php",
             "chown -R www-data:www-data /var/www/phpmyadmin"
+        ],
+        "url_path": "/phpmyadmin"
+    },
+
+    # --- Sicherheit & Netzwerk ---
+    "crowdsec": {
+        "name": "CrowdSec & Firewall Bouncer",
+        "category": "Security",
+        "desc": "Moderner Fail2Ban-Nachfolger mit Community-Threat-Intelligence und Verhaltensanalyse",
+        "check_cmd": ["crowdsec", "-version"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "curl -s https://packagecloud.io/install/repositories/crowdsec/crowdsec/script.deb.sh | bash",
+            "apt-get install -y crowdsec crowdsec-firewall-bouncer-iptables",
+            "systemctl enable --now crowdsec"
         ]
     },
     "fail2ban": {
         "name": "Fail2Ban Brute-Force Schutz",
         "category": "Security",
-        "desc": "Schützt SSH, NGINX und Web-Ports vor Brute-Force-Angriffen",
+        "desc": "Schützt SSH, NGINX und Web-Ports vor Brute-Force-Angriffen durch automatische IP-Bans",
         "check_cmd": ["fail2ban-client", "version"],
         "install_cmds": [
             "export DEBIAN_FRONTEND=noninteractive",
@@ -114,16 +188,53 @@ PACKAGES_REGISTRY = {
             "systemctl enable --now fail2ban"
         ]
     },
+    "wireguard": {
+        "name": "WireGuard VPN",
+        "category": "Security",
+        "desc": "Ultraschnelles, modernes VPN-Protokoll zur sicheren Fernverwaltung interner Dienste",
+        "check_cmd": ["which", "wg"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "apt-get update",
+            "apt-get install -y wireguard wireguard-tools"
+        ]
+    },
     "certbot": {
         "name": "Certbot & NGINX Plugin",
         "category": "Security",
-        "desc": "Offizielles Let's Encrypt Tool für automatische SSL-Zertifikate",
+        "desc": "Offizielles Let's Encrypt Tool für automatische SSL/TLS-Zertifikate",
         "check_cmd": ["certbot", "--version"],
         "install_cmds": [
             "export DEBIAN_FRONTEND=noninteractive",
             "apt-get update",
             "apt-get install -y certbot python3-certbot-nginx"
         ]
+    },
+
+    # --- DevOps & Container ---
+    "docker": {
+        "name": "Docker & Compose v2",
+        "category": "DevOps",
+        "desc": "Führende Container-Engine zur isolierten Ausführung von Web-Apps und Microservices",
+        "check_cmd": ["docker", "--version"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "apt-get update",
+            "apt-get install -y docker.io docker-compose-v2",
+            "systemctl enable --now docker"
+        ]
+    },
+    "gitea": {
+        "name": "Gitea (Self-Hosted Git)",
+        "category": "DevOps",
+        "desc": "Leichtgewichtige, private GitHub-Alternative in Go (<40 MB RAM) für eigene Repositories auf Port 3000",
+        "check_cmd": ["test", "-f", "/usr/local/bin/gitea"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "wget -q -O /usr/local/bin/gitea https://dl.gitea.com/gitea/1.22.0/gitea-1.22.0-linux-amd64",
+            "chmod +x /usr/local/bin/gitea"
+        ],
+        "port": 3000
     }
 }
 
@@ -133,10 +244,16 @@ def check_installed(pkg_key):
         return False, "Unbekannt"
 
     cmd = cfg["check_cmd"]
+    if cmd[0] == "test":
+        flag = cmd[1]
+        path = cmd[2]
+        if flag == "-d" and os.path.isdir(path):
+            return True, "Installiert & Bereit"
+        elif flag == "-f" and os.path.isfile(path):
+            return True, "Installiert & Bereit"
+        return False, "Nicht installiert"
+
     if not shutil.which(cmd[0]):
-        # Prüfen ob zweites Token ein Pfad ist (z.B. test -d)
-        if cmd[0] == "test" and os.path.exists(cmd[2]):
-            return True, "Installiert"
         return False, "Nicht installiert"
 
     try:
@@ -162,7 +279,9 @@ def index():
             "category": data["category"],
             "desc": data["desc"],
             "installed": installed,
-            "version": version_info
+            "version": version_info,
+            "port": data.get("port"),
+            "url_path": data.get("url_path")
         })
 
     return render_template("packages.html", packages=packages_status)

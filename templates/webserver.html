@@ -109,6 +109,11 @@
                             Logs
                         </button>
 
+                        <!-- GoAccess Traffic Button -->
+                        <a href="{{ url_for('webserver.domain_traffic_report', domain=d.name) }}" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition" title="GoAccess Traffic-Report">
+                            Traffic ↗
+                        </a>
+
                         {% if d.mode == 'webspace' %}
                         <a href="{{ url_for('files.index', path=d.name + '/public') }}" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition" title="Dateimanager für diese Domain öffnen">
                             Dateien

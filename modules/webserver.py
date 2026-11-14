@@ -4,7 +4,7 @@ import glob
 import shutil
 import subprocess
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_file
 from config import WEB_ROOT_BASE, NGINX_AVAILABLE, NGINX_ENABLED, APACHE_PORTS_CONF, CERTBOT_EMAIL
 from modules.auth_users import login_required, role_required
 from db import log_audit
@@ -421,6 +421,31 @@ def domain_logs(domain, log_type):
         lines = [f"Log-Datei {log_file} existiert noch nicht."]
 
     return jsonify({"domain": domain, "type": log_type, "lines": lines})
+
+@webserver_bp.route("/domain/traffic/<domain>")
+@login_required
+@role_required(["root_admin", "web_admin"])
+def domain_traffic_report(domain):
+    if not re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", domain):
+        flash("Ungültige Domain.", "error")
+        return redirect(url_for("webserver.index"))
+
+    log_file = f"/var/log/nginx/{domain}.access.log"
+    if not os.path.exists(log_file):
+        log_file = "/var/log/nginx/access.log"
+
+    if shutil.which("goaccess") and os.path.exists(log_file):
+        report_file = f"/tmp/goaccess_{domain}.html"
+        subprocess.run(["goaccess", log_file, "-o", report_file, "--log-format=COMBINED"], capture_output=True)
+        if os.path.exists(report_file):
+            return send_file(report_file)
+
+    # Fallback / Info View
+    return render_template(
+        "traffic_report.html",
+        domain=domain,
+        goaccess_installed=shutil.which("goaccess") is not None
+    )
 
 @webserver_bp.route("/domain/delete/<domain>", methods=["POST"])
 @login_required

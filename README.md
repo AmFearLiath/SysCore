@@ -43,11 +43,14 @@ SysCore ist ein hochmodernes, eigenständiges Server- und Webspace-Management-Sy
 
 ### 4. Paket- & Stack-Installer (`modules/packages.py`)
 - Geführter 1-Klick-Installer mit Live-Konsolenausgabe im Terminal-Drawer für:
-  - **Runtimes:** PHP 8.2, 8.3, 8.4 + Extensions (`curl`, `mbstring`, `xml`, `zip`, `gd`, `mysql`, `intl`), Composer, Node.js 20 LTS + PM2.
-  - **Tools:** phpMyAdmin (unter `/var/www/phpmyadmin` bereitgestellt), Fail2Ban, UFW, Certbot.
-  - **Datenbanken:** Redis In-Memory Server.
+  - **Runtimes:** PHP 8.2, 8.3, 8.4 + Extensions, Composer, Node.js 20 LTS + PM2.
+  - **Monitoring:** GoAccess (visueller NGINX Realtime Log-Analyzer), Uptime Kuma (Status Pages & Alerts auf Port 3001).
+  - **Datenbanken & Cache:** Redis In-Memory Server, PostgreSQL Enterprise Database.
+  - **Tools & Web-GUIs:** Adminer (leichte 1-Datei DB-GUI), phpMyAdmin (Vollwertige MySQL-Suite).
+  - **Sicherheit & VPN:** CrowdSec & Firewall Bouncer (Threat-Intelligence), WireGuard VPN, Fail2Ban, Certbot.
+  - **DevOps & Container:** Docker & Docker Compose v2, Gitea (privater Self-Hosted Git-Server auf Port 3000).
 
-### 4. App-Importer via ZIP & Manifest (`modules/apps.py`)
+### 5. App-Importer via ZIP & Manifest (`modules/apps.py`)
 - Upload und schlüsselfertiges Deployment eigener Web-Apps als `.zip`-Archiv mit `syscore.manifest.json`.
 - **Automatische Schritte:**
   - Zip-Slip-sicheres Entpacken in `/var/www/<domain>`.
@@ -57,31 +60,31 @@ SysCore ist ein hochmodernes, eigenständiges Server- und Webspace-Management-Sy
   - Berechtigungsanpassung auf `www-data:www-data`.
 - 1-Klick-Download eines Starter-Templates direkt im Panel.
 
-### 5. Zentrales Einstellungs-Hub (`modules/settings.py`)
+### 6. Zentrales Einstellungs-Hub (`modules/settings.py`)
 - **Server:** Hostname, Zeitzone (`timedatectl`), Swapfile-Verwaltung, Certbot-Renewal-Test (`--dry-run`).
 - **Tuning:** Globale Limits (`client_max_body_size`, `memory_limit`, `upload_max_filesize`, `max_execution_time`) über saubere Drop-In-Dateien (`/etc/nginx/conf.d/99-syscore.conf` bzw. `99-syscore.ini`).
 - **Node.js / PM2:** Statusanzeige aller PM2-Prozesse mit Neustart- und Stop-Möglichkeit.
 - **RBAC & Sicherheit:** Benutzer erstellen, Passwörter zurücksetzen und Audit-Logs einsehen.
 
-### 6. Dateimanager (`modules/files.py`)
+### 7. Dateimanager (`modules/files.py`)
 - Vollwertiger Explorer für `/var/www` mit Path-Traversal-Schutz (`os.path.realpath`).
 - Datei- und Ordner-Erstellung, Multi-Upload, Download und Löschen.
 - Umbenennen (`rename`) und Berechtigungs-Editor (`chmod`).
 - ZIP-Archive direkt im Browser erstellen und entpacken.
 - Integrierter Code-Editor mit Zeilennummerierung und Dark-Cockpit-Theme.
 
-### 7. Datenbanken (`modules/database.py`)
+### 8. Datenbanken (`modules/database.py`)
 - Erstellung und Verwaltung von MySQL/MariaDB-Datenbanken und isolierten Benutzern.
 - Passwort-Reset für DB-Benutzer.
 - SQL-Dumps per 1-Klick exportieren und importieren.
-- Direkte Verknüpfung zu phpMyAdmin.
+- Direkte Verknüpfung zu phpMyAdmin & Adminer.
 
-### 8. Backups & Restore (`modules/backups.py`)
+### 9. Backups & Restore (`modules/backups.py`)
 - Kombinierte Sicherung (Webroot `.tar.gz` + MySQL `.sql`) pro Domain.
 - 1-Klick-Wiederherstellung mit automatischem Entpacken und DB-Import.
 - Download und Verwaltung aller Sicherungsdateien.
 
-### 9. Cronjobs & Aufgaben (`modules/cron.py`)
+### 10. Cronjobs & Aufgaben (`modules/cron.py`)
 - Zeitplan-Vorlagen (Jede Minute, Alle 5 Min, Stündlich, Täglich um Mitternacht, Wöchentlich).
 - Schützt System-Cronjobs und kennzeichnet eigene Jobs mit `# SYSCORE_MANAGED`.
 

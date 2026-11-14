@@ -42,10 +42,11 @@ def index():
                 u, h = line.split("\t")
                 users.append({"user": u, "host": h})
 
-    # Prüfen ob phpMyAdmin verfügbar ist
+    # Prüfen ob phpMyAdmin oder Adminer verfügbar sind
     pma_installed = os.path.exists("/var/www/phpmyadmin")
+    adminer_installed = os.path.exists("/var/www/adminer/index.php")
 
-    return render_template("database.html", databases=databases, users=users, pma_installed=pma_installed)
+    return render_template("database.html", databases=databases, users=users, pma_installed=pma_installed, adminer_installed=adminer_installed)
 
 @database_bp.route("/create", methods=["POST"])
 @login_required
