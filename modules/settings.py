@@ -145,9 +145,43 @@ def get_alert_settings():
         alerts[key_short] = r["value"]
     return alerts
 
-def get_git_updater_status():
+# In-Memory Cache für Git Updater & Commit Hash (verhindert netzwerkbedingte Ladeverzögerungen)
+_UPDATER_CACHE = {"timestamp": 0, "data": None}
+_COMMIT_CACHE = {"timestamp": 0, "short": "v2.5"}
+UPDATER_CACHE_TTL = 300  # 5 Minuten Cache für Git Remote-Prüfungen
+
+def get_cached_git_commit():
+    """Liefert die lokale Git-Commit-Kurzkennung (ultraschnell aus Cache/Disk)"""
+    global _COMMIT_CACHE
+    now = time.time()
+    if _COMMIT_CACHE["timestamp"] > 0 and (now - _COMMIT_CACHE["timestamp"] < UPDATER_CACHE_TTL):
+        return _COMMIT_CACHE["short"]
+
+    base_dir = str(config.BASE_DIR)
+    try:
+        res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=base_dir, capture_output=True, text=True, timeout=2)
+        if res.returncode == 0 and res.stdout.strip():
+            _COMMIT_CACHE["short"] = res.stdout.strip()
+            _COMMIT_CACHE["timestamp"] = now
+            return _COMMIT_CACHE["short"]
+    except Exception:
+        pass
+    return _COMMIT_CACHE.get("short", "v2.5")
+
+def clear_updater_cache():
+    global _UPDATER_CACHE, _COMMIT_CACHE
+    _UPDATER_CACHE["timestamp"] = 0
+    _UPDATER_CACHE["data"] = None
+    _COMMIT_CACHE["timestamp"] = 0
+
+def get_git_updater_status(force_refresh=False):
+    global _UPDATER_CACHE
+    now = time.time()
+    if not force_refresh and _UPDATER_CACHE["data"] is not None and (now - _UPDATER_CACHE["timestamp"] < UPDATER_CACHE_TTL):
+        return _UPDATER_CACHE["data"]
+
     local_hash = ""
-    local_short = "v2.5"
+    local_short = get_cached_git_commit()
     remote_hash = ""
     remote_short = ""
     is_up_to_date = True
@@ -169,11 +203,13 @@ def get_git_updater_status():
         if res_loc.returncode == 0 and res_loc.stdout.strip():
             local_hash = res_loc.stdout.strip()
             local_short = local_hash[:7]
+            _COMMIT_CACHE["short"] = local_short
+            _COMMIT_CACHE["timestamp"] = now
 
         # Check remote main branch (mit Fallback auf direkte HTTPS URL)
-        res_rem = subprocess.run(["git", "ls-remote", "origin", "-h", "refs/heads/main"], cwd=base_dir, capture_output=True, text=True, timeout=6)
+        res_rem = subprocess.run(["git", "ls-remote", "origin", "-h", "refs/heads/main"], cwd=base_dir, capture_output=True, text=True, timeout=5)
         if res_rem.returncode != 0 or not res_rem.stdout.strip():
-            res_rem = subprocess.run(["git", "ls-remote", "https://github.com/AmFearLiath/SysCore.git", "-h", "refs/heads/main"], cwd=base_dir, capture_output=True, text=True, timeout=6)
+            res_rem = subprocess.run(["git", "ls-remote", "https://github.com/AmFearLiath/SysCore.git", "-h", "refs/heads/main"], cwd=base_dir, capture_output=True, text=True, timeout=5)
 
         if res_rem.returncode == 0 and res_rem.stdout.strip():
             remote_hash = res_rem.stdout.strip().split()[0]
@@ -200,7 +236,7 @@ def get_git_updater_status():
     except Exception as e:
         print(f"[Updater Error] {e}")
 
-    return {
+    result = {
         "local_hash": local_hash,
         "local_short": local_short,
         "remote_hash": remote_hash,
@@ -208,6 +244,9 @@ def get_git_updater_status():
         "is_up_to_date": is_up_to_date,
         "recent_commits": recent_commits
     }
+    _UPDATER_CACHE["data"] = result
+    _UPDATER_CACHE["timestamp"] = now
+    return result
 
 def read_global_nginx_limits():
     limits = {"client_max_body_size": "64M"}
@@ -450,6 +489,7 @@ def run_system_update():
             yield f"data: [WARNUNG] DB Init: {e}\n\n"
 
         # 4. Service Reload mit Verzögerung (damit HTTP Stream sauber beendet wird)
+        clear_updater_cache()
         yield "data: [4/4] Aktualisierung abgeschlossen! Server-Dienst startet in 2 Sekunden automatisch neu...\n\n"
         yield "data: [ERFOLG] SysCore erfolgreich auf die neueste Version aktualisiert!\n\n"
         log_audit(session.get("username"), "SYSTEM_UPDATE_FINISH", "SysCore Update erfolgreich abgeschlossen", request.remote_addr)
@@ -465,6 +505,23 @@ def run_system_update():
 
     return Response(safe_generate(), mimetype="text/event-stream")
 
+@settings_bp.route("/api/updater/check", methods=["GET"])
+@login_required
+def api_updater_check():
+    """Asynchrone API-Abfrage für Header & Update-Banner (kein Page-Blocking)"""
+    force = request.args.get("force") == "1"
+    status = get_git_updater_status(force_refresh=force)
+    is_up_to_date = status.get("is_up_to_date", True)
+    has_update = (not is_up_to_date) and bool(status.get("remote_short"))
+    return jsonify({
+        "success": True,
+        "is_up_to_date": is_up_to_date,
+        "has_update": has_update,
+        "local_short": status.get("local_short", "v2.5"),
+        "remote_short": status.get("remote_short", ""),
+        "commits_behind": 1 if has_update else 0
+    })
+
 @settings_bp.route("/updater/rollback/<commit_hash>", methods=["POST"])
 @login_required
 @role_required(["root_admin"])
@@ -474,6 +531,7 @@ def run_system_rollback(commit_hash):
         flash("Ungültiger Commit-Hash.", "error")
         return redirect(url_for("settings.index", tab="updates"))
 
+    clear_updater_cache()
     base_dir = str(config.BASE_DIR)
     res = subprocess.run(["git", "checkout", commit_hash], cwd=base_dir, capture_output=True, text=True)
     if res.returncode == 0:

@@ -11,7 +11,10 @@ try:
 except ImportError:
     pass
 
-# Basis-Verzeichnis des SysCore-Projekts
+# --- Basis-Version ---
+SYSCORE_VERSION = "v2.5"
+
+# --- Basis-Verzeichnis des SysCore-Projekts ---
 BASE_DIR = Path(__file__).resolve().parent
 
 # --- Sicherheit & Flask Secret ---

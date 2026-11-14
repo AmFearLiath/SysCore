@@ -343,6 +343,33 @@ def index():
         php_versions=php_versions
     )
 
+def create_mysql_admin_user(username, password):
+    """
+    Erstellt oder aktualisiert einen MySQL/MariaDB Administrator mit Superuser-Rechten:
+    GRANT ALL PRIVILEGES ON *.* ... WITH GRANT OPTION sowohl auf 'localhost' als auch auf '127.0.0.1'
+    """
+    from modules.database import run_mysql
+
+    username = username.strip()
+    if not re.match(r"^[a-zA-Z0-9_]{2,32}$", username):
+        return False, "Der Benutzername darf nur aus 2-32 alphanumerischen Zeichen und Unterstrichen bestehen."
+    if len(password) < 6 or "'" in password or "\\" in password:
+        return False, "Das Passwort muss mindestens 6 Zeichen lang sein und darf keine einfachen Anführungszeichen (') oder Backslashes enthalten."
+
+    sql = (
+        f"CREATE USER IF NOT EXISTS '{username}'@'localhost' IDENTIFIED BY '{password}'; "
+        f"ALTER USER '{username}'@'localhost' IDENTIFIED BY '{password}'; "
+        f"GRANT ALL PRIVILEGES ON *.* TO '{username}'@'localhost' WITH GRANT OPTION; "
+        f"CREATE USER IF NOT EXISTS '{username}'@'127.0.0.1' IDENTIFIED BY '{password}'; "
+        f"ALTER USER '{username}'@'127.0.0.1' IDENTIFIED BY '{password}'; "
+        f"GRANT ALL PRIVILEGES ON *.* TO '{username}'@'127.0.0.1' WITH GRANT OPTION; "
+        f"FLUSH PRIVILEGES;"
+    )
+    ok, out, err = run_mysql(sql)
+    if not ok:
+        return False, f"MySQL Fehler: {err or out}"
+    return True, f"MySQL Administrator '{username}' erfolgreich mit vollen Rechten (ALL PRIVILEGES ... WITH GRANT OPTION) eingerichtet."
+
 @packages_bp.route("/configure/<pkg_key>", methods=["POST"])
 @login_required
 @role_required(["root_admin"])
@@ -444,6 +471,41 @@ def configure_package(pkg_key):
 
     log_audit(session.get("username"), "PACKAGE_CONFIGURE", f"{pkg_data['name']} erfolgreich an Subdomain '{domain}' angebunden", request.remote_addr, "success")
     flash(f"{pkg_data['name']} wurde erfolgreich unter https://{domain} bereitgestellt!", "success")
+
+    # 5. Falls es phpMyAdmin ist und die Erstellung eines MySQL-Admins gewünscht wurde
+    if pkg_key == "phpmyadmin" and request.form.get("create_pma_admin") == "1":
+        pma_user = request.form.get("pma_admin_user", "pma_admin").strip()
+        pma_pass = request.form.get("pma_admin_pass", "").strip()
+        if pma_user and pma_pass:
+            admin_ok, admin_msg = create_mysql_admin_user(pma_user, pma_pass)
+            if admin_ok:
+                flash(f"phpMyAdmin Admin-Benutzer '{pma_user}' wurde erfolgreich mit Superuser-Rechten eingerichtet!", "success")
+                log_audit(session.get("username"), "PMA_ADMIN_CREATE", f"MySQL Admin '{pma_user}' für phpMyAdmin angelegt", request.remote_addr, "success")
+            else:
+                flash(f"Hinweis zu phpMyAdmin Admin: {admin_msg}", "warning")
+
+    return redirect(url_for("packages.index"))
+
+@packages_bp.route("/phpmyadmin/create-admin-user", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def create_pma_admin_standalone():
+    """Erstellt oder aktualisiert einen MySQL Superuser für phpMyAdmin"""
+    username = request.form.get("username", "pma_admin").strip()
+    password = request.form.get("password", "").strip()
+
+    if not username or not password:
+        flash("Benutzername und Passwort sind erforderlich.", "error")
+        return redirect(url_for("packages.index"))
+
+    ok, msg = create_mysql_admin_user(username, password)
+    if ok:
+        log_audit(session.get("username"), "PMA_ADMIN_CREATE", f"MySQL Admin '{username}' angelegt", request.remote_addr, "success")
+        flash(f"{msg} Du kannst dich nun in phpMyAdmin mit '{username}' anmelden.", "success")
+    else:
+        log_audit(session.get("username"), "PMA_ADMIN_FAIL", msg, request.remote_addr, "error")
+        flash(f"Fehler beim Erstellen des MySQL-Admins: {msg}", "error")
+
     return redirect(url_for("packages.index"))
 
 @packages_bp.route("/install/<pkg_key>", methods=["POST"])

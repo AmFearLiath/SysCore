@@ -13,7 +13,7 @@ from modules.cron import cron_bp
 from modules.packages import packages_bp
 from modules.apps import apps_bp
 from modules.backups import backups_bp
-from modules.settings import settings_bp
+from modules.settings import settings_bp, get_cached_git_commit
 from modules.mail import mail_bp
 from modules.security import security_bp
 from modules.users import users_bp
@@ -48,7 +48,9 @@ def inject_global_template_vars():
         "current_user_obj": user,
         "current_user_role": session.get("role", "monitor"),
         "panel_host": config.PANEL_HOST,
-        "panel_port": config.PANEL_PORT
+        "panel_port": config.PANEL_PORT,
+        "syscore_version": getattr(config, "SYSCORE_VERSION", "v2.5"),
+        "syscore_commit": get_cached_git_commit()
     }
 
 # Authentifizierungs-Guard

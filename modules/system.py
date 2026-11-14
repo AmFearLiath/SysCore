@@ -31,24 +31,25 @@ def get_platform_info():
     }
 
 def get_active_services():
-    services = {}
-    has_systemctl = shutil.which("systemctl") is not None
+    services = {svc: False for svc in MANAGED_SERVICES}
+    if not shutil.which("systemctl"):
+        return services
 
-    for svc in MANAGED_SERVICES:
-        if has_systemctl:
+    try:
+        # systemctl is-active akzeptiert mehrere Units auf einmal und gibt die Stati zeilenweise zurück (1 Subprozess statt 16!)
+        res = subprocess.run(["systemctl", "is-active"] + MANAGED_SERVICES, capture_output=True, text=True, timeout=3)
+        lines = res.stdout.strip().splitlines()
+        for idx, svc in enumerate(MANAGED_SERVICES):
+            if idx < len(lines):
+                services[svc] = (lines[idx].strip() == "active")
+    except Exception:
+        # Fallback falls kombiniertes systemctl unerwartet fehlschlägt
+        for svc in MANAGED_SERVICES:
             try:
-                # Prüfen ob Service unit existiert
-                check = subprocess.run(["systemctl", "list-unit-files", f"{svc}.service"], capture_output=True, text=True, timeout=2)
-                if svc in check.stdout:
-                    res = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True, timeout=2)
-                    services[svc] = res.stdout.strip() == "active"
-                else:
-                    services[svc] = False
+                res = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True, timeout=1)
+                services[svc] = (res.stdout.strip() == "active")
             except Exception:
                 services[svc] = False
-        else:
-            # Fallback für Development-Modus
-            services[svc] = False
     return services
 
 def get_ufw_rules():

@@ -183,7 +183,17 @@ def get_certificate_details(cert_file):
 
     return info
 
-def scan_all_system_certificates():
+# In-Memory Cache für Zertifikate (drastische Beschleunigung der Ladezeiten)
+_SSL_CERTS_CACHE = {"timestamp": 0, "certs": []}
+_SSL_CACHE_TTL = 45  # 45 Sekunden TTL
+
+def clear_ssl_cache():
+    """Invalidiert den systemweiten SSL-Zertifikats-Cache"""
+    global _SSL_CERTS_CACHE
+    _SSL_CERTS_CACHE["timestamp"] = 0
+    _SSL_CERTS_CACHE["certs"] = []
+
+def scan_all_system_certificates(force_refresh=False):
     """
     Sucht auf dem gesamten System gründlich nach allen vorhandenen Zertifikaten:
     1. Certbot-Registry via 'certbot certificates'
@@ -193,6 +203,11 @@ def scan_all_system_certificates():
     5. /etc/nginx/ssl/
     6. In bestehenden NGINX-VHosts referenzierte Pfade
     """
+    global _SSL_CERTS_CACHE
+    now = time.time()
+    if not force_refresh and _SSL_CERTS_CACHE["certs"] and (now - _SSL_CERTS_CACHE["timestamp"] < _SSL_CACHE_TTL):
+        return _SSL_CERTS_CACHE["certs"]
+
     found_certs = []
     seen_paths = set()
 
@@ -296,15 +311,19 @@ def scan_all_system_certificates():
             except Exception:
                 pass
 
+    _SSL_CERTS_CACHE["certs"] = found_certs
+    _SSL_CERTS_CACHE["timestamp"] = now
     return found_certs
 
-def find_ssl_cert_for_domain(domain):
+def find_ssl_cert_for_domain(domain, system_certs=None):
     """
     Sucht das bestmögliche, gültige SSL-Zertifikat für eine Domain oder Subdomain.
     Prüft exakte Übereinstimmungen und Wildcards (*.domain.tld) systemweit.
     """
+    if not domain:
+        return None
     domain = domain.lower().strip()
-    all_certs = scan_all_system_certificates()
+    all_certs = system_certs if system_certs is not None else scan_all_system_certificates()
 
     # 1. Prio: Exakte Domain-Übereinstimmung
     for cert in all_certs:
@@ -334,7 +353,7 @@ def find_ssl_cert_for_domain(domain):
 
     return None
 
-def get_ssl_cert_info(domain, vhost_content=""):
+def get_ssl_cert_info(domain, vhost_content="", system_certs=None):
     """Liefert Zertifikats-Infos für eine Domain (berücksichtigt VHost-Inhalt und Dateisystem)"""
     # Zuerst prüfen ob VHost einen expliziten Pfad definiert
     if vhost_content:
@@ -347,7 +366,7 @@ def get_ssl_cert_info(domain, vhost_content=""):
                     return details
 
     # Automatische Suche im System
-    found = find_ssl_cert_for_domain(domain)
+    found = find_ssl_cert_for_domain(domain, system_certs=system_certs)
     if found:
         return found
 
@@ -459,7 +478,7 @@ server {{
 }}
 """
 
-def parse_domain_config(domain_name, content):
+def parse_domain_config(domain_name, content, system_certs=None):
     """Parst eine .panel.conf Datei und extrahiert Modus, Ports, PHP und SSL Status"""
     ssl_active_in_conf = ("listen 443 ssl" in content) or ("ssl_certificate" in content)
     is_proxy = "proxy_pass" in content
@@ -483,12 +502,15 @@ def parse_domain_config(domain_name, content):
         except Exception:
             pass
 
-    # SSL Info ermitteln
-    ssl_info = get_ssl_cert_info(domain_name, content)
+    # SSL Info ermitteln (effizient mit übergebenen oder gecachten Zertifikaten)
+    ssl_info = get_ssl_cert_info(domain_name, content, system_certs=system_certs)
     
     # Existiert ein Zertifikat auf Disk, das im VHost noch nicht verknüpft ist?
-    cert_on_disk = find_ssl_cert_for_domain(domain_name)
-    has_cert_on_disk = cert_on_disk is not None
+    if ssl_info.get("active") and not ssl_active_in_conf:
+        cert_on_disk = ssl_info
+    else:
+        cert_on_disk = find_ssl_cert_for_domain(domain_name, system_certs=system_certs)
+    has_cert_on_disk = cert_on_disk is not None and cert_on_disk.get("active", False)
     missing_ssl_block = has_cert_on_disk and not ssl_active_in_conf
 
     return {
@@ -600,7 +622,7 @@ def fix_certbot_conflict_core():
         return True, "Python-Systembibliotheken erfolgreich bereinigt. Certbot ist wieder einsatzbereit."
     return False, f"Reparatur versucht, aber Certbot meldet weiterhin: {msg}"
 
-def diagnose_webserver_issues():
+def diagnose_webserver_issues(system_certs=None):
     """
     Führt ein umfassendes Audit über alle VHosts und System-Komponenten durch.
     Erkennt:
@@ -611,6 +633,9 @@ def diagnose_webserver_issues():
     - Nicht erreichbare PHP-FPM Sockets
     - Ungültige Dateiberechtigungen
     """
+    if system_certs is None:
+        system_certs = scan_all_system_certificates()
+
     issues = []
     health = check_webserver_health()
 
@@ -700,7 +725,7 @@ def diagnose_webserver_issues():
             try:
                 with open(os.path.join(NGINX_AVAILABLE, filename), "r", encoding="utf-8") as f:
                     content = f.read()
-                d_info = parse_domain_config(domain, content)
+                d_info = parse_domain_config(domain, content, system_certs=system_certs)
 
                 # Problem A: SSL im VHost aktiv, aber Zertifikatsdatei fehlt auf der Festplatte
                 if d_info["ssl"]:
@@ -721,8 +746,8 @@ def diagnose_webserver_issues():
 
                 # Problem B: Kein SSL im VHost, aber passendes Zertifikat liegt auf dem Server
                 elif not d_info["ssl"]:
-                    cert_found = find_ssl_cert_for_domain(domain)
-                    if cert_found:
+                    cert_found = d_info.get("cert_on_disk") or find_ssl_cert_for_domain(domain, system_certs=system_certs)
+                    if cert_found and cert_found.get("active"):
                         issues.append({
                             "id": f"unlinked_cert_{domain}",
                             "domain": domain,
@@ -790,7 +815,8 @@ def diagnose_webserver_issues():
 def index():
     tab = request.args.get("tab", "domains")
     health = check_webserver_health()
-    issues = diagnose_webserver_issues()
+    all_certs = scan_all_system_certificates()
+    issues = diagnose_webserver_issues(system_certs=all_certs)
 
     domains = []
     if os.path.exists(NGINX_AVAILABLE):
@@ -801,7 +827,7 @@ def index():
             try:
                 with open(os.path.join(NGINX_AVAILABLE, filename), "r", encoding="utf-8") as f:
                     content = f.read()
-                domains.append(parse_domain_config(domain_name, content))
+                domains.append(parse_domain_config(domain_name, content, system_certs=all_certs))
             except Exception:
                 continue
 
@@ -815,9 +841,6 @@ def index():
 
     for d in domains:
         d["deploy_hook"] = hooks.get(d["name"])
-
-    # Alle auf dem Server installierten Zertifikate scannen (Certbot, Live, Archive, System SSL)
-    all_certs = scan_all_system_certificates()
 
     critical_count = sum(1 for i in issues if i["severity"] == "critical")
     warning_count = sum(1 for i in issues if i["severity"] == "warning")
@@ -890,6 +913,7 @@ def repair_domain_ssl_core(domain):
         if res1.returncode != 0:
             last_error = (res1.stderr or res1.stdout).strip()
 
+        clear_ssl_cache()
         cert_info = find_ssl_cert_for_domain(domain)
 
         # Versuch 2: Falls VHost ein eigenes Webroot hat (z.B. /var/www/phpmyadmin)
@@ -904,6 +928,7 @@ def repair_domain_ssl_core(domain):
                 res2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=90)
                 if res2.returncode != 0 and not last_error:
                     last_error = (res2.stderr or res2.stdout).strip()
+                clear_ssl_cache()
                 cert_info = find_ssl_cert_for_domain(domain)
 
         # Versuch 3: NGINX Plugin Fallback
@@ -912,6 +937,7 @@ def repair_domain_ssl_core(domain):
             res3 = subprocess.run(cmd3, capture_output=True, text=True, timeout=90)
             if res3.returncode != 0 and not last_error:
                 last_error = (res3.stderr or res3.stdout).strip()
+            clear_ssl_cache()
             cert_info = find_ssl_cert_for_domain(domain)
 
         # Versuch 4: Automatische Selbstheilung bei pyOpenSSL / GEN_EMAIL Kollision!
@@ -921,6 +947,7 @@ def repair_domain_ssl_core(domain):
             res_heal = subprocess.run(cmd1, capture_output=True, text=True, timeout=90)
             if res_heal.returncode != 0:
                 last_error = (res_heal.stderr or res_heal.stdout).strip()
+            clear_ssl_cache()
             cert_info = find_ssl_cert_for_domain(domain)
 
         if not cert_info:
@@ -1082,6 +1109,7 @@ def assign_custom_or_existing_cert():
         reload_nginx()
         flash(f"Zuweisung fehlgeschlagen (NGINX Syntaxfehler): {msg}", "error")
     else:
+        clear_ssl_cache()
         log_audit(session.get("username"), "SSL_ASSIGN_SUCCESS", f"Zertifikat ({cert_path}) erfolgreich für '{domain}' verknüpft", request.remote_addr, "success")
         flash(f"Zertifikat erfolgreich für '{domain}' aktiviert und NGINX neu geladen!", "success")
 
@@ -1389,6 +1417,7 @@ def add_domain():
         flash(f"NGINX Syntax-Fehler: {msg}", "error")
         return redirect(url_for("webserver.index"))
 
+    clear_ssl_cache()
     log_audit(session.get("username"), "DOMAIN_CREATE", f"Domain '{domain}' ({mode}) angelegt", request.remote_addr)
     flash(f"Domain '{domain}' erfolgreich eingerichtet.", "success")
 
@@ -1509,6 +1538,7 @@ def delete_domain(domain):
                     os.remove(p)
                 except Exception:
                     pass
+        clear_ssl_cache()
         reload_nginx()
         log_audit(session.get("username"), "DOMAIN_DELETE", f"VHost für '{domain}' entfernt", request.remote_addr, "warning")
         flash(f"VHost für {domain} entfernt.", "success")

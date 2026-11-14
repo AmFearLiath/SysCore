@@ -17,6 +17,27 @@ const SysCore = {
         this.initRealtimeMetrics();
         this.initKeybindings();
         this.initModals();
+        this.checkSystemUpdates();
+    },
+
+    checkSystemUpdates() {
+        // Asynchrone Abfrage des Update-Status im Hintergrund (blockiert kein Page-Rendering)
+        fetch('/settings/api/updater/check')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.has_update) {
+                    const badge = document.getElementById('header-update-badge');
+                    const tag = document.getElementById('header-update-tag');
+                    if (badge && tag) {
+                        tag.textContent = data.remote_short || 'Neu';
+                        badge.classList.remove('hidden');
+                        badge.classList.add('flex');
+                    }
+                }
+            })
+            .catch(() => {
+                // Background check fail-safe
+            });
     },
 
     // ==========================================
@@ -381,6 +402,15 @@ const SysCore = {
             this.toast("Kopieren fehlgeschlagen", "error");
         });
     }
+};
+
+// Globaler Update-Trigger für Header-Button
+window.triggerGlobalUpdate = function() {
+    if (!confirm("Möchtest du das SysCore System-Update jetzt starten? Der Server wird dabei auf den neuesten Stand aktualisiert und der Dienst sicher neu gestartet.")) {
+        return;
+    }
+    const formData = new FormData();
+    SysCore.runStreamingCommand('/settings/updater/update', formData, 'SysCore System-Update');
 };
 
 // Starten sobald DOM bereit
