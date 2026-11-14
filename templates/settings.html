@@ -712,7 +712,9 @@ function triggerSystemUpdate() {
         return;
     }
     const formData = new FormData();
-    SysCore.runStreamingCommand("/settings/updater/update", formData, "SysCore System-Update & Deployment");
+    SysCore.runStreamingCommand("/settings/updater/update", formData, "SysCore System-Update & Deployment", () => {
+        setTimeout(() => window.location.reload(), 3000);
+    });
 }
 </script>
 {% endblock %}

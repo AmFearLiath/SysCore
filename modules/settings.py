@@ -1,8 +1,10 @@
 import os
 import re
+import time
 import json
 import glob
 import shutil
+import threading
 import subprocess
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, Response
 from modules.auth_users import login_required, role_required, current_user
@@ -103,25 +105,36 @@ def get_git_updater_status():
     remote_short = ""
     is_up_to_date = True
     recent_commits = []
+    base_dir = str(config.BASE_DIR)
 
     try:
-        res_loc = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=3)
-        if res_loc.returncode == 0:
+        # Sicherstellen dass safe.directory konfiguriert ist
+        subprocess.run(["git", "config", "--global", "--add", "safe.directory", base_dir], capture_output=True, timeout=2)
+
+        # Prüfen ob origin existiert, andernfalls setzen
+        rem_check = subprocess.run(["git", "remote", "get-url", "origin"], cwd=base_dir, capture_output=True, text=True, timeout=2)
+        if rem_check.returncode != 0:
+            subprocess.run(["git", "remote", "add", "origin", "https://github.com/AmFearLiath/SysCore.git"], cwd=base_dir, capture_output=True, timeout=2)
+
+        res_loc = subprocess.run(["git", "rev-parse", "HEAD"], cwd=base_dir, capture_output=True, text=True, timeout=3)
+        if res_loc.returncode == 0 and res_loc.stdout.strip():
             local_hash = res_loc.stdout.strip()
             local_short = local_hash[:7]
 
         # Check remote main branch
-        res_rem = subprocess.run(["git", "ls-remote", "origin", "-h", "refs/heads/main"], capture_output=True, text=True, timeout=5)
+        res_rem = subprocess.run(["git", "ls-remote", "origin", "-h", "refs/heads/main"], cwd=base_dir, capture_output=True, text=True, timeout=5)
         if res_rem.returncode == 0 and res_rem.stdout.strip():
             remote_hash = res_rem.stdout.strip().split()[0]
             remote_short = remote_hash[:7]
 
         if remote_hash and local_hash:
             is_up_to_date = (remote_hash == local_hash)
+        elif not local_hash:
+            is_up_to_date = False
 
         # Letzte 10 Commits für Rollback auflisten
-        res_log = subprocess.run(["git", "log", "-n", "10", "--pretty=format:%h|%s|%ad|%ar", "--date=short"], capture_output=True, text=True, timeout=3)
-        if res_log.returncode == 0:
+        res_log = subprocess.run(["git", "log", "-n", "10", "--pretty=format:%h|%s|%ad|%ar", "--date=short"], cwd=base_dir, capture_output=True, text=True, timeout=3)
+        if res_log.returncode == 0 and res_log.stdout.strip():
             for line in res_log.stdout.splitlines():
                 parts = line.split("|")
                 if len(parts) == 4:
@@ -334,25 +347,40 @@ def pm2_action(pm_id, action):
 def run_system_update():
     """Führt ein 1-Klick Git-Update mit Live-Streaming im Terminal Drawer aus"""
     log_audit(session.get("username"), "SYSTEM_UPDATE_START", "SysCore Auto-Update von GitHub gestartet", request.remote_addr)
+    base_dir = str(config.BASE_DIR)
 
     def generate():
         yield "data: === Starte SysCore System-Update von GitHub ===\n\n"
         
+        # Sicherstellen dass safe.directory konfiguriert ist
+        subprocess.run(["git", "config", "--global", "--add", "safe.directory", base_dir], capture_output=True)
+
         # 1. Snapshot Tag anlegen zur Rollback-Sicherheit
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         tag_name = f"syscore-backup-{timestamp}"
         yield f"data: [1/4] Erstelle Sicherheits-Snapshot Tag: {tag_name}...\n\n"
-        subprocess.run(["git", "tag", tag_name], capture_output=True)
+        subprocess.run(["git", "tag", tag_name], cwd=base_dir, capture_output=True)
 
         # 2. Git Pull
         yield "data: [2/4] Ziehe neuesten Code von origin/main...\n\n"
-        proc = subprocess.Popen(["git", "pull", "origin", "main"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.Popen(["git", "pull", "--rebase=false", "origin", "main"], cwd=base_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in proc.stdout:
             yield f"data: {line.strip()}\n\n"
         proc.wait()
 
         # 3. Pip dependencies & DB migration
         yield "data: [3/4] Prüfe Abhängigkeiten & führe Datenbank-Migrationen aus...\n\n"
+        if shutil.which("pip3"):
+            pip_cmd = ["pip3", "install", "-r", "requirements.txt", "--break-system-packages"]
+            try:
+                pip_res = subprocess.run(pip_cmd, cwd=base_dir, capture_output=True, text=True, timeout=60)
+                if pip_res.returncode == 0:
+                    yield "data: Python Abhängigkeiten verifiziert.\n\n"
+                else:
+                    yield f"data: Pip Info: {pip_res.stderr[:100]}\n\n"
+            except Exception as e:
+                yield f"data: Pip Warnung: {e}\n\n"
+
         try:
             import db
             db.init_db()
@@ -360,15 +388,18 @@ def run_system_update():
         except Exception as e:
             yield f"data: [WARNUNG] DB Init: {e}\n\n"
 
-        # 4. Service Reload
-        yield "data: [4/4] Starte SysCore Daemon neu...\n\n"
-        if shutil.which("systemctl"):
-            subprocess.run(["systemctl", "restart", "syscore-panel"], check=False)
-            subprocess.run(["systemctl", "restart", "syscore"], check=False)
-            yield "data: Systemd Service ('syscore' / 'syscore-panel') neu gestartet.\n\n"
-
+        # 4. Service Reload mit Verzögerung (damit HTTP Stream sauber beendet wird)
+        yield "data: [4/4] Aktualisierung abgeschlossen! Server-Dienst startet in 2 Sekunden neu...\n\n"
         yield "data: [ERFOLG] SysCore erfolgreich auf die neueste Version aktualisiert!\n\n"
         log_audit(session.get("username"), "SYSTEM_UPDATE_FINISH", "SysCore Update erfolgreich abgeschlossen", request.remote_addr)
+
+        def delayed_restart():
+            time.sleep(2)
+            if shutil.which("systemctl"):
+                subprocess.run(["systemctl", "restart", "syscore-panel"], check=False)
+                subprocess.run(["systemctl", "restart", "syscore"], check=False)
+
+        threading.Thread(target=delayed_restart, daemon=True).start()
 
     return Response(generate(), mimetype="text/event-stream")
 
@@ -381,13 +412,18 @@ def run_system_rollback(commit_hash):
         flash("Ungültiger Commit-Hash.", "error")
         return redirect(url_for("settings.index", tab="updates"))
 
-    res = subprocess.run(["git", "checkout", commit_hash], capture_output=True, text=True)
+    base_dir = str(config.BASE_DIR)
+    res = subprocess.run(["git", "checkout", commit_hash], cwd=base_dir, capture_output=True, text=True)
     if res.returncode == 0:
-        if shutil.which("systemctl"):
-            subprocess.run(["systemctl", "restart", "syscore-panel"], check=False)
-            subprocess.run(["systemctl", "restart", "syscore"], check=False)
+        def delayed_restart():
+            time.sleep(2)
+            if shutil.which("systemctl"):
+                subprocess.run(["systemctl", "restart", "syscore-panel"], check=False)
+                subprocess.run(["systemctl", "restart", "syscore"], check=False)
+
+        threading.Thread(target=delayed_restart, daemon=True).start()
         log_audit(session.get("username"), "SYSTEM_ROLLBACK", f"SysCore auf Commit '{commit_hash}' zurückgesetzt", request.remote_addr, "warning")
-        flash(f"SysCore erfolgreich auf Commit {commit_hash} zurückgesetzt!", "success")
+        flash(f"SysCore erfolgreich auf Commit {commit_hash} zurückgesetzt! Dienst startet neu...", "success")
     else:
         flash(f"Rollback fehlgeschlagen: {res.stderr}", "error")
 

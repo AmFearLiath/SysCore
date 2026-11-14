@@ -314,9 +314,11 @@ const SysCore = {
         bodyEl.scrollTop = bodyEl.scrollHeight;
     },
 
-    runStreamingCommand(url, formData, title = "Aktion wird ausgeführt...") {
+    runStreamingCommand(url, formData, title = "Aktion wird ausgeführt...", onComplete = null) {
         this.openTerminal(title);
         this.appendTerminalOutput(`[SysCore] Sende Anfrage an ${url}...`);
+
+        let hasSucceeded = false;
 
         fetch(url, {
             method: "POST",
@@ -335,6 +337,7 @@ const SysCore = {
                     if (done) {
                         this.appendTerminalOutput("[SysCore] Vorgang beendet.");
                         this.toast("Vorgang erfolgreich beendet", "success");
+                        if (onComplete) onComplete();
                         return;
                     }
                     const chunk = decoder.decode(value, { stream: true });
@@ -343,17 +346,30 @@ const SysCore = {
                         if (l.trim()) {
                             // Support SSE format (data: ...)
                             const clean = l.startsWith("data: ") ? l.substring(6) : l;
+                            if (clean.includes("[ERFOLG]") || clean.includes("erfolgreich")) {
+                                hasSucceeded = true;
+                            }
                             this.appendTerminalOutput(clean);
                         }
                     });
                     readChunk();
                 }).catch(err => {
-                    this.appendTerminalOutput(`[Fehler] ${err.message}`, true);
+                    if (hasSucceeded || err.message.includes("network error")) {
+                        this.appendTerminalOutput("[SysCore] Dienst wird neu gestartet. Seite lädt in 3 Sekunden neu...");
+                        setTimeout(() => window.location.reload(), 3000);
+                    } else {
+                        this.appendTerminalOutput(`[Fehler] ${err.message}`, true);
+                    }
                 });
             };
             readChunk();
         }).catch(err => {
-            this.appendTerminalOutput(`[Netzwerkfehler] ${err.message}`, true);
+            if (hasSucceeded) {
+                this.appendTerminalOutput("[SysCore] Dienst wird neu gestartet. Seite lädt in 3 Sekunden neu...");
+                setTimeout(() => window.location.reload(), 3000);
+            } else {
+                this.appendTerminalOutput(`[Netzwerkfehler] ${err.message}`, true);
+            }
         });
     },
 
