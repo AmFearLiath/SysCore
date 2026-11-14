@@ -100,9 +100,10 @@
                         {% endif %}
 
                         <!-- Custom Direktiven Button -->
-                        <button onclick="openDirectivesModal('{{ d.name }}', {{ d.custom_directives|tojson }})" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition">
+                        <button type="button" onclick="openDirectivesModal('{{ d.name }}', this.nextElementSibling.value)" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition">
                             Direktiven
                         </button>
+                        <textarea class="hidden">{{ d.custom_directives or '' }}</textarea>
 
                         <!-- Log-Viewer Button -->
                         <button onclick="openDomainLogsModal('{{ d.name }}')" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition">
