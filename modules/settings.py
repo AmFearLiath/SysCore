@@ -121,25 +121,30 @@ def get_git_updater_status():
         # Sicherstellen dass safe.directory konfiguriert ist
         subprocess.run(["git", "config", "--global", "--add", "safe.directory", base_dir], capture_output=True, timeout=2)
 
-        # Prüfen ob origin existiert, andernfalls setzen
+        # Prüfen ob origin existiert und auf das richtige Repo zeigt
         rem_check = subprocess.run(["git", "remote", "get-url", "origin"], cwd=base_dir, capture_output=True, text=True, timeout=2)
         if rem_check.returncode != 0:
             subprocess.run(["git", "remote", "add", "origin", "https://github.com/AmFearLiath/SysCore.git"], cwd=base_dir, capture_output=True, timeout=2)
+        elif "AmFearLiath/SysCore" not in rem_check.stdout:
+            subprocess.run(["git", "remote", "set-url", "origin", "https://github.com/AmFearLiath/SysCore.git"], cwd=base_dir, capture_output=True, timeout=2)
 
         res_loc = subprocess.run(["git", "rev-parse", "HEAD"], cwd=base_dir, capture_output=True, text=True, timeout=3)
         if res_loc.returncode == 0 and res_loc.stdout.strip():
             local_hash = res_loc.stdout.strip()
             local_short = local_hash[:7]
 
-        # Check remote main branch
-        res_rem = subprocess.run(["git", "ls-remote", "origin", "-h", "refs/heads/main"], cwd=base_dir, capture_output=True, text=True, timeout=5)
+        # Check remote main branch (mit Fallback auf direkte HTTPS URL)
+        res_rem = subprocess.run(["git", "ls-remote", "origin", "-h", "refs/heads/main"], cwd=base_dir, capture_output=True, text=True, timeout=6)
+        if res_rem.returncode != 0 or not res_rem.stdout.strip():
+            res_rem = subprocess.run(["git", "ls-remote", "https://github.com/AmFearLiath/SysCore.git", "-h", "refs/heads/main"], cwd=base_dir, capture_output=True, text=True, timeout=6)
+
         if res_rem.returncode == 0 and res_rem.stdout.strip():
             remote_hash = res_rem.stdout.strip().split()[0]
             remote_short = remote_hash[:7]
 
         if remote_hash and local_hash:
             is_up_to_date = (remote_hash == local_hash)
-        elif not local_hash:
+        elif remote_hash and not local_hash:
             is_up_to_date = False
 
         # Letzte 10 Commits für Rollback auflisten
@@ -362,21 +367,30 @@ def run_system_update():
     def generate():
         yield "data: === Starte SysCore System-Update von GitHub ===\n\n"
         
-        # Sicherstellen dass safe.directory konfiguriert ist
+        # Sicherstellen dass safe.directory und origin sauber konfiguriert sind
         subprocess.run(["git", "config", "--global", "--add", "safe.directory", base_dir], capture_output=True)
+        subprocess.run(["git", "remote", "set-url", "origin", "https://github.com/AmFearLiath/SysCore.git"], cwd=base_dir, capture_output=True)
 
         # 1. Snapshot Tag anlegen zur Rollback-Sicherheit
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
         tag_name = f"syscore-backup-{timestamp}"
         yield f"data: [1/4] Erstelle Sicherheits-Snapshot Tag: {tag_name}...\n\n"
         subprocess.run(["git", "tag", tag_name], cwd=base_dir, capture_output=True)
 
-        # 2. Git Pull
+        # 2. Git Fetch & Pull
         yield "data: [2/4] Ziehe neuesten Code von origin/main...\n\n"
+        subprocess.run(["git", "fetch", "origin", "main"], cwd=base_dir, capture_output=True, timeout=15)
         proc = subprocess.Popen(["git", "pull", "--rebase=false", "origin", "main"], cwd=base_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in proc.stdout:
             yield f"data: {line.strip()}\n\n"
         proc.wait()
+
+        if proc.returncode != 0:
+            yield "data: [Hinweis] Synchronisiere Arbeitskopie mit origin/main...\n\n"
+            reset_proc = subprocess.Popen(["git", "reset", "--hard", "origin/main"], cwd=base_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            for line in reset_proc.stdout:
+                yield f"data: {line.strip()}\n\n"
+            reset_proc.wait()
 
         # 3. Pip dependencies & DB migration
         yield "data: [3/4] Prüfe Abhängigkeiten & führe Datenbank-Migrationen aus...\n\n"
