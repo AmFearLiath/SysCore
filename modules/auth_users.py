@@ -1,9 +1,10 @@
 import io
 import re
 import base64
+import secrets
 import functools
-from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from datetime import datetime, timedelta
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from db import query_db, execute_db, log_audit
 
@@ -112,7 +113,7 @@ def verify_2fa():
 
         if not pyotp:
             flash("2FA-Modul (pyotp) ist nicht verfügbar.", "error")
-            return render_template("verify_2fa.html", username=user["username"])
+            return redirect(url_for("auth.verify_2fa"))
 
         totp = pyotp.TOTP(user["totp_secret"])
 
@@ -124,14 +125,134 @@ def verify_2fa():
             session["authenticated"] = True
 
             execute_db("UPDATE users SET last_login = ? WHERE id = ?", (datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), user["id"]))
-            log_audit(user["username"], "2FA_VERIFY_SUCCESS", "Zwei-Faktor-Authentifizierung erfolgreich", request.remote_addr, "success")
+            execute_db("DELETE FROM qr_login_tokens WHERE user_id = ?", (user["id"],))
+            log_audit(user["username"], "2FA_VERIFY_SUCCESS", "Zwei-Faktor-Authentifizierung via Code erfolgreich", request.remote_addr, "success")
             flash(f"Willkommen zurück, {user['username']}!", "success")
             return redirect(url_for("system.index"))
 
         log_audit(user["username"], "2FA_VERIFY_FAILED", "Ungültiger 2FA Token eingegeben", request.remote_addr, "warning")
         flash("Ungültiger 2FA Code. Bitte erneut versuchen.", "error")
+        return redirect(url_for("auth.verify_2fa"))
 
-    return render_template("verify_2fa.html", username=user["username"])
+    # --- GET: Vorbereitung des Login-QR-Codes (1-Klick Freigabe) ---
+    now = datetime.utcnow()
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    expires_at = (now + timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Veraltete Tokens aufräumen
+    execute_db("DELETE FROM qr_login_tokens WHERE expires_at < ?", (now_str,))
+
+    qr_token = session.get("pending_2fa_qr_token")
+    if qr_token:
+        existing = query_db("SELECT * FROM qr_login_tokens WHERE token = ? AND expires_at > ?", (qr_token, now_str), one=True)
+        if not existing:
+            qr_token = None
+
+    if not qr_token:
+        qr_token = secrets.token_urlsafe(32)
+        session["pending_2fa_qr_token"] = qr_token
+        execute_db(
+            "INSERT INTO qr_login_tokens (token, user_id, username, ip_address, approved, created_at, expires_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
+            (qr_token, user["id"], user["username"], request.remote_addr, now_str, expires_at)
+        )
+
+    qr_approval_url = url_for("auth.approve_qr", token=qr_token, _external=True)
+    qr_base64 = None
+
+    if qrcode:
+        try:
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=10,
+                border=3
+            )
+            qr.add_data(qr_approval_url)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            buffered = io.BytesIO()
+            img.save(buffered, format="PNG")
+            qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+        except Exception as e:
+            print(f"[SysCore 2FA QR Error] {e}")
+
+    return render_template(
+        "verify_2fa.html",
+        username=user["username"],
+        qr_base64=qr_base64,
+        qr_token=qr_token,
+        qr_url=qr_approval_url
+    )
+
+@auth_bp.route("/login/2fa/qr-status")
+def qr_status():
+    """Prüft asynchron, ob die mobile QR-Freigabe erteilt wurde."""
+    qr_token = session.get("pending_2fa_qr_token")
+    user_id = session.get("pending_2fa_user_id")
+
+    if not qr_token or not user_id:
+        return jsonify({"approved": False, "expired": True})
+
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    row = query_db("SELECT * FROM qr_login_tokens WHERE token = ? AND expires_at > ?", (qr_token, now_str), one=True)
+
+    if not row:
+        return jsonify({"approved": False, "expired": True})
+
+    if row["approved"] == 1:
+        user = query_db("SELECT * FROM users WHERE id = ? AND is_active = 1", (row["user_id"],), one=True)
+        if user:
+            session.clear()
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            session["role"] = user["role"]
+            session["authenticated"] = True
+
+            execute_db("UPDATE users SET last_login = ? WHERE id = ?", (now_str, user["id"]))
+            execute_db("DELETE FROM qr_login_tokens WHERE token = ?", (qr_token,))
+            log_audit(user["username"], "2FA_QR_LOGIN_SUCCESS", f"Zwei-Faktor-Login via QR-Scan freigegeben (Desktop-IP: {row['ip_address']})", request.remote_addr, "success")
+            flash(f"Willkommen zurück, {user['username']}! (Erfolgreich via QR-Code autorisiert)", "success")
+            return jsonify({"approved": True, "redirect": url_for("system.index")})
+
+    return jsonify({"approved": False})
+
+@auth_bp.route("/login/2fa/approve/<token>", methods=["GET", "POST"])
+def approve_qr(token):
+    """Mobile Seite: Erlaubt das Freigeben des Desktop-Logins per Smartphone-Klick."""
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    row = query_db("SELECT * FROM qr_login_tokens WHERE token = ? AND expires_at > ?", (token, now_str), one=True)
+
+    if not row:
+        return render_template(
+            "approve_qr.html",
+            error="Diese Anmeldeanforderung ist ungültig oder abgelaufen. Bitte lade die Login-Seite am Desktop neu."
+        )
+
+    user = query_db("SELECT * FROM users WHERE id = ? AND is_active = 1", (row["user_id"],), one=True)
+    if not user:
+        return render_template("approve_qr.html", error="Benutzerkonto nicht aktiv oder nicht gefunden.")
+
+    if row["approved"] == 1:
+        return render_template("approve_qr.html", success=True, already_approved=True, username=row["username"])
+
+    if request.method == "POST":
+        # Bestätigung speichern
+        execute_db("UPDATE qr_login_tokens SET approved = 1 WHERE token = ?", (token,))
+        log_audit(user["username"], "2FA_QR_APPROVED", f"QR-Login freigegeben für Rechner-IP {row['ip_address']}", request.remote_addr, "success")
+        return render_template(
+            "approve_qr.html",
+            success=True,
+            username=row["username"],
+            requester_ip=row["ip_address"]
+        )
+
+    return render_template(
+        "approve_qr.html",
+        row=row,
+        username=row["username"],
+        requester_ip=row["ip_address"],
+        token=token
+    )
 
 @auth_bp.route("/logout")
 def logout():

@@ -4,15 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SysCore // 2FA Verifizierung</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_vertical.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/syscore.css') }}">
 </head>
 <body class="bg-[#090d16] text-gray-200 min-h-screen flex items-center justify-center p-4 font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
 
-    <div class="w-full max-w-md bg-[#111827] border border-[#1f2937] rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+    <div class="w-full max-w-md bg-[#111827] border border-[#1f2937] rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        <!-- Subtle Glow Background Header -->
+        <div class="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Brand Identity mit vertikalem Logo -->
         <div class="flex items-center gap-3.5 mb-6">
-            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="SysCore Logo" class="h-11 w-auto max-w-[140px] object-contain drop-shadow-[0_0_14px_rgba(16,185,129,0.35)] shrink-0">
+            <img src="{{ url_for('static', filename='img/logo_vertical.png') }}" alt="SysCore Logo" class="w-14 h-14 object-contain drop-shadow-[0_0_16px_rgba(16,185,129,0.35)] shrink-0">
             <div>
                 <h1 class="text-xl font-extrabold tracking-wider text-white">SYS<span class="text-emerald-400">CORE</span></h1>
                 <p class="text-xs text-gray-400 font-mono">2-Faktor-Authentifizierung</p>
@@ -29,26 +34,104 @@
           {% endif %}
         {% endwith %}
 
-        <p class="text-sm text-gray-400 mb-6">
-            Hallo <span class="text-emerald-400 font-semibold">{{ username }}</span>, bitte gib den 6-stelligen Sicherheitscode aus deiner Authenticator-App ein:
-        </p>
+        <!-- Tab Selector: Code vs. QR-Code -->
+        <div class="grid grid-cols-2 gap-2 bg-[#090d16] p-1.5 rounded-xl border border-[#1f2937] mb-6 text-xs font-mono">
+            <button type="button" id="tab-btn-code" onclick="switch2FaTab('code')"
+                    class="py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                <span>🔢</span>
+                <span>Code eingeben</span>
+            </button>
+            <button type="button" id="tab-btn-qr" onclick="switch2FaTab('qr')"
+                    class="py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 text-gray-400 hover:text-white hover:bg-dark-800">
+                <span>📱</span>
+                <span>QR-Code Scan</span>
+            </button>
+        </div>
 
-        <form method="POST" class="space-y-4">
-            <div>
-                <input type="text" name="code" required autofocus maxlength="7" pattern="[0-9 ]*"
-                       placeholder="000 000"
-                       class="w-full text-center tracking-[0.5em] text-2xl font-mono px-3.5 py-3 bg-[#090d16] border border-[#1f2937] focus:border-emerald-500 rounded-xl text-white outline-none transition">
+        <!-- OPTION 1: 6-Stelliger TOTP Code -->
+        <div id="tab-content-code" class="space-y-4">
+            <p class="text-xs text-gray-400">
+                Gib den 6-stelligen Sicherheitscode aus deiner Authenticator-App (z.B. Google Authenticator, 2FAS, Bitwarden) ein:
+            </p>
+
+            <form method="POST" class="space-y-4">
+                <div>
+                    <input type="text" name="code" required autofocus maxlength="7" pattern="[0-9 ]*"
+                           placeholder="000 000"
+                           class="w-full text-center tracking-[0.5em] text-2xl font-mono px-3.5 py-3 bg-[#090d16] border border-[#1f2937] focus:border-emerald-500 rounded-xl text-white outline-none transition">
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold rounded-xl text-sm transition shadow-lg shadow-emerald-900/30">
+                    Code bestätigen
+                </button>
+            </form>
+        </div>
+
+        <!-- OPTION 2: QR-Code Live-Freigabe -->
+        <div id="tab-content-qr" class="hidden space-y-4 text-center">
+            <p class="text-xs text-gray-400">
+                Scanne diesen QR-Code mit deiner Smartphone-Kamera oder einem QR-Scanner. Nach der 1-Klick-Freigabe loggt sich dieser Browser automatisch ein:
+            </p>
+
+            <div class="relative inline-block mx-auto p-4 bg-white rounded-2xl shadow-xl border-2 border-emerald-500/40">
+                {% if qr_base64 %}
+                <img src="data:image/png;base64,{{ qr_base64 }}" alt="SysCore Login QR Code" class="w-48 h-48 block mx-auto">
+                {% else %}
+                <div class="w-48 h-48 flex items-center justify-center text-xs text-gray-700 font-mono">
+                    QR-Code Generierung fehlgeschlagen
+                </div>
+                {% endif %}
             </div>
 
-            <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold rounded-xl text-sm transition shadow-lg shadow-emerald-900/30">
-                Code bestätigen
-            </button>
-        </form>
+            <div class="flex items-center justify-center gap-2 text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 py-2 px-3 rounded-xl">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>Warte auf Freigabe am Smartphone...</span>
+            </div>
 
-        <div class="mt-6 text-center">
-            <a href="{{ url_for('auth.logout') }}" class="text-xs text-gray-500 hover:text-gray-300 font-mono transition">Zurück zum Login</a>
+            <div class="text-[11px] text-gray-500 font-mono">
+                Session ist 10 Minuten gültig.
+            </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-[#1f2937] text-center">
+            <a href="{{ url_for('auth.logout') }}" class="text-xs text-gray-500 hover:text-gray-300 font-mono transition">
+                Zurück zum Login
+            </a>
         </div>
     </div>
 
+    <script>
+        function switch2FaTab(tab) {
+            const btnCode = document.getElementById('tab-btn-code');
+            const btnQr = document.getElementById('tab-btn-qr');
+            const contentCode = document.getElementById('tab-content-code');
+            const contentQr = document.getElementById('tab-content-qr');
+
+            if (tab === 'code') {
+                contentCode.classList.remove('hidden');
+                contentQr.classList.add('hidden');
+                btnCode.className = 'py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+                btnQr.className = 'py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 text-gray-400 hover:text-white hover:bg-dark-800';
+            } else {
+                contentCode.classList.add('hidden');
+                contentQr.classList.remove('hidden');
+                btnQr.className = 'py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+                btnCode.className = 'py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 text-gray-400 hover:text-white hover:bg-dark-800';
+            }
+        }
+
+        // Live Status-Polling für QR-Code Freigabe
+        let pollTimer = setInterval(() => {
+            fetch('{{ url_for("auth.qr_status") }}')
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.approved) {
+                        clearInterval(pollTimer);
+                        window.location.href = data.redirect || '{{ url_for("system.index") }}';
+                    }
+                })
+                .catch(() => {});
+        }, 1500);
+    </script>
 </body>
 </html>

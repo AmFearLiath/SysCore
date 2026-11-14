@@ -253,9 +253,10 @@ const SysCore = {
                 }
             }
 
-            // ESC -> Schließt offene Modals & Command Palette
+            // ESC -> Schließt offene Modals, Mobile-Nav & Command Palette
             if (e.key === "Escape") {
                 if (window.closeCommandPalette) window.closeCommandPalette();
+                if (window.toggleMobileNav) window.toggleMobileNav(true);
                 this.closeAllModals();
             }
         });
@@ -488,6 +489,24 @@ document.addEventListener("click", (e) => {
         if (chevron) chevron.classList.remove("rotate-180");
     }
 });
+
+// Mobile Navigation Drawer Toggle
+window.toggleMobileNav = function(forceClose = false) {
+    const drawer = document.getElementById("mobile-nav-drawer");
+    const backdrop = document.getElementById("mobile-nav-backdrop");
+    if (!drawer || !backdrop) return;
+
+    const isOpen = !drawer.classList.contains("-translate-x-full");
+    if (isOpen || forceClose) {
+        drawer.classList.add("-translate-x-full");
+        backdrop.classList.add("hidden");
+        document.body.classList.remove("overflow-hidden");
+    } else {
+        backdrop.classList.remove("hidden");
+        drawer.classList.remove("-translate-x-full");
+        document.body.classList.add("overflow-hidden");
+    }
+};
 
 // Starten sobald DOM bereit
 document.addEventListener("DOMContentLoaded", () => {

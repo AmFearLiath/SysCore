@@ -40,7 +40,8 @@ ALL_TABLES = [
     "clamav_scans",
     "security_ip_bans",
     "web_deploy_hooks",
-    "package_configs"
+    "package_configs",
+    "qr_login_tokens"
 ]
 
 def get_db(custom_type=None, custom_mysql=None):
@@ -303,6 +304,18 @@ def init_db():
             ssl_enabled INTEGER DEFAULT 1,
             php_version VARCHAR(32) DEFAULT '8.2',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        # 15. QR-Code 2FA Login Sessions
+        """
+        CREATE TABLE IF NOT EXISTS qr_login_tokens (
+            token VARCHAR(191) PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            username VARCHAR(191) NOT NULL,
+            ip_address VARCHAR(64),
+            approved INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP
         );
         """
     ]

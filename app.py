@@ -60,12 +60,15 @@ def require_authentication():
     open_endpoints = {
         "auth.login",
         "auth.verify_2fa",
+        "auth.qr_status",
+        "auth.approve_qr",
         "auth.logout",
         "static"
     }
 
     if (request.path.startswith("/api/webhook/") or 
         request.path.startswith("/mail/config-v1.1.xml") or 
+        request.path.startswith("/login/2fa/") or
         "autodiscover" in request.path or 
         (request.endpoint and request.endpoint in open_endpoints)):
         return None

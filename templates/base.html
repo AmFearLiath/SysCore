@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -35,28 +36,44 @@
         }
     </script>
     <!-- Custom SysCore Styling & Fonts -->
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_vertical.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/syscore.css') }}">
 </head>
-<body class="bg-dark-950 text-gray-200 min-h-screen flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
+
+<body
+    class="bg-dark-950 text-gray-200 min-h-screen flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
 
     <!-- Top Navigation Header -->
-    <header class="bg-dark-850/90 backdrop-blur border-b border-dark-700 sticky top-0 z-40 px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between">
+    <header
+        class="bg-dark-850/90 backdrop-blur border-b border-dark-700 sticky top-0 z-40 px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between">
         <!-- Brand & Host Indicator -->
-        <div class="flex items-center gap-3 sm:gap-4 h-full">
+        <div class="flex items-center gap-2.5 sm:gap-4 h-full">
+            <!-- Mobile Hamburger Menu Button -->
+            <button type="button" onclick="toggleMobileNav()" id="btn-mobile-nav"
+                class="md:hidden flex items-center justify-center p-2 rounded-xl text-gray-300 hover:text-white bg-dark-900 hover:bg-dark-800 border border-dark-700 transition cursor-pointer"
+                title="Hauptmenü öffnen" aria-label="Hauptmenü öffnen">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
+
             <a href="{{ url_for('system.index') }}" class="flex items-center gap-2.5 sm:gap-3 group h-full py-2">
-                <img src="{{ url_for('static', filename='img/logo.png') }}"
-                     alt="SysCore"
-                     class="h-full w-auto max-h-10 sm:max-h-12 object-contain drop-shadow-[0_0_10px_rgba(16,185,129,0.3)] group-hover:scale-105 transition-all duration-200">
-                <span class="font-extrabold text-lg sm:text-xl tracking-wider text-white">SYS<span class="text-emerald-400 font-black">CORE</span></span>
-                <span class="hidden sm:inline-block text-[10px] font-mono tracking-tight text-gray-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-full">v2.5</span>
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="SysCore"
+                    class="h-full w-auto max-h-10 sm:max-h-12 object-contain drop-shadow-[0_0_10px_rgba(16,185,129,0.3)] group-hover:scale-105 transition-all duration-200">
+                <span
+                    class="hidden sm:inline-block text-[10px] font-mono tracking-tight text-gray-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-full">v2.5</span>
             </a>
 
             <!-- Quick Command Palette Trigger -->
-            <button onclick="window.openCommandPalette()" type="button" class="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 bg-dark-900/90 border border-dark-700 hover:border-gray-600 rounded-lg transition">
-                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <button onclick="window.openCommandPalette()" type="button"
+                class="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 bg-dark-900/90 border border-dark-700 hover:border-gray-600 rounded-lg transition">
+                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
                 <span>Befehl / Suche...</span>
-                <kbd class="px-1.5 py-0.5 text-[10px] bg-dark-800 border border-dark-600 rounded text-gray-300">Ctrl+K</kbd>
+                <kbd
+                    class="px-1.5 py-0.5 text-[10px] bg-dark-800 border border-dark-600 rounded text-gray-300">Ctrl+K</kbd>
             </button>
         </div>
 
@@ -64,67 +81,100 @@
         <div class="flex items-center gap-2.5 sm:gap-3 text-xs">
             <!-- Header Update Quick Action (erscheint dynamisch per JS wenn GitHub-Update verfügbar ist) -->
             <div id="header-update-badge" class="hidden items-center">
-                <button type="button" onclick="triggerGlobalUpdate()" class="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 hover:border-amber-400 text-amber-300 rounded-lg text-xs font-semibold shadow-sm transition hover:scale-[1.02] cursor-pointer" title="SysCore Update auf GitHub verfügbar! Klicke hier um es direkt auszuführen.">
+                <button type="button" onclick="triggerGlobalUpdate()"
+                    class="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 hover:border-amber-400 text-amber-300 rounded-lg text-xs font-semibold shadow-sm transition hover:scale-[1.02] cursor-pointer"
+                    title="SysCore Update auf GitHub verfügbar! Klicke hier um es direkt auszuführen.">
                     <span class="relative flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span
+                            class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                         <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                     </span>
-                    <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
                     <span class="hidden md:inline font-mono text-[11px]">Update:</span>
-                    <span id="header-update-tag" class="font-mono text-[10px] bg-amber-500/30 text-amber-200 px-1.5 py-0.5 rounded font-bold"></span>
-                    <span class="bg-amber-500 hover:bg-amber-400 text-black px-2 py-0.5 rounded text-[11px] font-black transition">Jetzt updaten</span>
+                    <span id="header-update-tag"
+                        class="font-mono text-[10px] bg-amber-500/30 text-amber-200 px-1.5 py-0.5 rounded font-bold"></span>
+                    <span
+                        class="bg-amber-500 hover:bg-amber-400 text-black px-2 py-0.5 rounded text-[11px] font-black transition">Jetzt
+                        updaten</span>
                 </button>
             </div>
 
             <!-- Terminal Drawer Toggle Button -->
-            <button onclick="SysCore.openTerminal('SysCore System-Terminal')" class="flex items-center gap-1.5 px-2.5 py-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 rounded-lg text-gray-300 hover:text-emerald-400 transition" title="Live Terminal öffnen">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <button onclick="SysCore.openTerminal('SysCore System-Terminal')"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 rounded-lg text-gray-300 hover:text-emerald-400 transition"
+                title="Live Terminal öffnen">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
                 <span class="hidden lg:inline font-mono">Terminal</span>
             </button>
 
             <!-- Vollwertiges Profilmenü & Dropdown -->
             <div class="relative" id="user-profile-dropdown-container">
                 <button type="button" onclick="toggleUserProfileMenu()" id="btn-user-profile-menu"
-                        class="flex items-center gap-2.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 hover:border-dark-600 rounded-xl px-2.5 py-1.5 transition text-left cursor-pointer group select-none shadow-sm">
+                    class="flex items-center gap-2.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 hover:border-dark-600 rounded-xl px-2.5 py-1.5 transition text-left cursor-pointer group select-none shadow-sm">
                     <div class="relative">
-                        <div class="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
+                        <div
+                            class="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
                             {{ session.get('username', 'A')[:1].upper() }}
                         </div>
-                        <span class="w-2 h-2 rounded-full absolute -bottom-0.5 -right-0.5 border border-dark-950 {{ 'bg-emerald-400' if session.get('role') == 'root_admin' else 'bg-teal-400' }}"></span>
+                        <span
+                            class="w-2 h-2 rounded-full absolute -bottom-0.5 -right-0.5 border border-dark-950 {{ 'bg-emerald-400' if session.get('role') == 'root_admin' else 'bg-teal-400' }}"></span>
                     </div>
                     <div class="flex flex-col">
                         <div class="flex items-center gap-1">
-                            <span class="font-medium text-xs text-gray-200 group-hover:text-white leading-tight">{{ session.get('username', 'Admin') }}</span>
-                            <svg class="w-3 h-3 text-gray-400 group-hover:text-gray-200 transition-transform duration-200" id="user-profile-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            <span class="font-medium text-xs text-gray-200 group-hover:text-white leading-tight">{{
+                                session.get('username', 'Admin') }}</span>
+                            <svg class="w-3 h-3 text-gray-400 group-hover:text-gray-200 transition-transform duration-200"
+                                id="user-profile-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7"></path>
+                            </svg>
                         </div>
-                        <span class="text-[9px] uppercase font-mono tracking-wider {{ 'text-emerald-400 font-semibold' if session.get('role') == 'root_admin' else 'text-teal-400' }}">
+                        <span
+                            class="text-[9px] uppercase font-mono tracking-wider {{ 'text-emerald-400 font-semibold' if session.get('role') == 'root_admin' else 'text-teal-400' }}">
                             {{ session.get('role', 'web_admin') }}
                         </span>
                     </div>
                 </button>
 
                 <!-- Dropdown Menü -->
-                <div id="user-profile-dropdown-menu" class="hidden absolute right-0 mt-2 w-72 bg-dark-900 border border-dark-700 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-dark-800 animate-in fade-in duration-150">
+                <div id="user-profile-dropdown-menu"
+                    class="hidden absolute right-0 mt-2 w-72 bg-dark-900 border border-dark-700 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-dark-800 animate-in fade-in duration-150">
                     <!-- Dropdown Header: Account Details -->
                     <div class="p-4 bg-dark-950/70">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-extrabold text-base shrink-0">
+                            <div
+                                class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-extrabold text-base shrink-0">
                                 {{ session.get('username', 'A')[:2].upper() }}
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="text-sm font-bold text-white truncate">{{ session.get('username') }}</div>
-                                <div class="text-[11px] text-gray-400 truncate">{{ current_user_obj.email if current_user_obj and current_user_obj.email else 'Keine E-Mail hinterlegt' }}</div>
+                                <div class="text-[11px] text-gray-400 truncate">{{ current_user_obj.email if
+                                    current_user_obj and current_user_obj.email else 'Keine E-Mail hinterlegt' }}</div>
                                 <div class="flex items-center gap-1.5 mt-1.5">
-                                    <span class="text-[9px] font-mono px-1.5 py-0.2 rounded uppercase {{ 'badge-emerald' if session.get('role') == 'root_admin' else 'badge-teal' }}">
+                                    <span
+                                        class="text-[9px] font-mono px-1.5 py-0.2 rounded uppercase {{ 'badge-emerald' if session.get('role') == 'root_admin' else 'badge-teal' }}">
                                         {{ session.get('role') }}
                                     </span>
                                     {% if current_user_obj and current_user_obj.totp_enabled %}
-                                    <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                    <span
+                                        class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
+                                            </path>
+                                        </svg>
                                         2FA Aktiv
                                     </span>
                                     {% else %}
-                                    <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                    <span
+                                        class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
                                         2FA Aus
                                     </span>
                                     {% endif %}
@@ -135,37 +185,62 @@
 
                     <!-- Dropdown Navigation / Actions -->
                     <div class="p-2 space-y-1 text-xs font-mono">
-                        <button type="button" onclick="openProfileModal('account')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left cursor-pointer">
-                            <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        <button type="button" onclick="openProfileModal('account')"
+                            class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left cursor-pointer">
+                            <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                            </svg>
                             <div class="flex-1">
                                 <span class="font-medium text-gray-200">Profileinstellungen</span>
                                 <span class="block text-[10px] text-gray-500 font-sans">E-Mail & Account-Details</span>
                             </div>
                         </button>
 
-                        <button type="button" onclick="openProfileModal('security')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left cursor-pointer">
+                        <button type="button" onclick="openProfileModal('security')"
+                            class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left cursor-pointer">
                             <div class="flex items-center gap-2.5">
-                                <svg class="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                <svg class="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
+                                    </path>
+                                </svg>
                                 <div>
                                     <span class="font-medium text-gray-200">2FA & Sicherheit</span>
-                                    <span class="block text-[10px] text-gray-500 font-sans">Authenticator-App koppeln</span>
+                                    <span class="block text-[10px] text-gray-500 font-sans">Authenticator-App
+                                        koppeln</span>
                                 </div>
                             </div>
-                            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded {{ 'text-emerald-400 bg-emerald-500/10' if current_user_obj and current_user_obj.totp_enabled else 'text-amber-400 bg-amber-500/10' }}">
+                            <span
+                                class="text-[10px] font-mono px-1.5 py-0.5 rounded {{ 'text-emerald-400 bg-emerald-500/10' if current_user_obj and current_user_obj.totp_enabled else 'text-amber-400 bg-amber-500/10' }}">
                                 {{ 'Aktiv' if current_user_obj and current_user_obj.totp_enabled else 'Einrichten' }}
                             </span>
                         </button>
 
-                        <button type="button" onclick="openProfileModal('password')" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left cursor-pointer">
-                            <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                        <button type="button" onclick="openProfileModal('password')"
+                            class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left cursor-pointer">
+                            <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z">
+                                </path>
+                            </svg>
                             <div class="flex-1">
                                 <span class="font-medium text-gray-200">Passwort ändern</span>
                                 <span class="block text-[10px] text-gray-500 font-sans">Zugangspasswort erneuern</span>
                             </div>
                         </button>
 
-                        <a href="{{ url_for('settings.index', tab='audit') }}" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left">
-                            <svg class="w-4 h-4 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                        <a href="{{ url_for('settings.index', tab='audit') }}"
+                            class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-dark-800 transition text-left">
+                            <svg class="w-4 h-4 text-cyan-400 shrink-0" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
+                                </path>
+                            </svg>
                             <div class="flex-1">
                                 <span class="font-medium text-gray-200">Meine Audit-Logs</span>
                                 <span class="block text-[10px] text-gray-500 font-sans">Aktivitäts-Historie</span>
@@ -175,8 +250,13 @@
 
                     <!-- Abmelden Action -->
                     <div class="p-2">
-                        <a href="{{ url_for('auth.logout') }}" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition font-mono text-xs">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                        <a href="{{ url_for('auth.logout') }}"
+                            class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition font-mono text-xs">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                                </path>
+                            </svg>
                             <span class="font-bold">Sicher Abmelden</span>
                         </a>
                     </div>
@@ -186,59 +266,92 @@
     </header>
 
     <!-- Main Workspace (Full-Width Flex) -->
-    <div class="flex-1 flex overflow-hidden">
-        <!-- Sidebar Navigation -->
-        <aside class="w-64 bg-dark-900/60 border-r border-dark-700 shrink-0 hidden md:flex flex-col justify-between overflow-y-auto">
+    <div class="flex-1 flex w-full relative">
+        <!-- Sidebar Navigation (Sticky Fixierung beim Scrollen) -->
+        <aside id="main-sidebar"
+            class="w-64 bg-dark-900/60 border-r border-dark-700 shrink-0 hidden md:flex flex-col justify-between sticky top-14 sm:top-16 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] overflow-y-auto self-start z-30">
             <div class="p-4 space-y-6">
                 <!-- Navigation Section: Core Management -->
                 <div>
-                    <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">Verwaltung</div>
+                    <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">
+                        Verwaltung</div>
                     <nav class="space-y-1 text-sm">
                         <a href="{{ url_for('system.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'system' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'system' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                                </path>
+                            </svg>
                             <span>Dashboard & Metriken</span>
                         </a>
 
                         <a href="{{ url_for('webserver.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'webserver' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'webserver' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9">
+                                </path>
+                            </svg>
                             <span>Webserver & Domains</span>
                         </a>
 
                         <a href="{{ url_for('mail.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'mail' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'mail' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                                </path>
+                            </svg>
                             <span>E-Mail-Zentrale</span>
                         </a>
 
                         <a href="{{ url_for('files.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z">
+                                </path>
+                            </svg>
                             <span>Dateimanager</span>
                         </a>
 
                         <a href="{{ url_for('database.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'database' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'database' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4">
+                                </path>
+                            </svg>
                             <span>Datenbanken (MySQL)</span>
                         </a>
 
                         <a href="{{ url_for('apps.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                            </svg>
                             <span>App-Importer (ZIP)</span>
                         </a>
 
                         <a href="{{ url_for('backups.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'backups' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'backups' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                                </path>
+                            </svg>
                             <span>Backups & Restore</span>
                         </a>
 
                         <a href="{{ url_for('users.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'users' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'users' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+                                </path>
+                            </svg>
                             <span>Benutzer & Rollen</span>
                         </a>
                     </nav>
@@ -246,29 +359,47 @@
 
                 <!-- Navigation Section: System & Werkzeuge -->
                 <div>
-                    <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">System & Tools</div>
+                    <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">
+                        System & Tools</div>
                     <nav class="space-y-1 text-sm">
                         <a href="{{ url_for('security.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'security' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'security' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
+                                </path>
+                            </svg>
                             <span>Sicherheitszentrale</span>
                         </a>
 
                         <a href="{{ url_for('packages.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'packages' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'packages' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                            </svg>
                             <span>Paket- & Stack-Installer</span>
                         </a>
 
                         <a href="{{ url_for('cron.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'cron' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'cron' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
                             <span>Cronjobs & Aufgaben</span>
                         </a>
 
                         <a href="{{ url_for('settings.index') }}"
-                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'settings' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'settings' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                                </path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
                             <span>Einstellungen & Audit</span>
                         </a>
                     </nav>
@@ -279,14 +410,19 @@
             <div class="p-4 border-t border-dark-700 bg-dark-950/40 text-[11px] text-gray-500 font-mono space-y-1.5">
                 <div class="flex items-center justify-between">
                     <span class="text-gray-400 font-medium">SysCore:</span>
-                    <a href="{{ url_for('settings.index', tab='updates') }}" class="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition group font-semibold" title="Zur Update- und Versions-Verwaltung">
+                    <a href="{{ url_for('settings.index', tab='updates') }}"
+                        class="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition group font-semibold"
+                        title="Zur Update- und Versions-Verwaltung">
                         <span>{{ syscore_version }}</span>
-                        <span class="text-[10px] text-gray-400 group-hover:text-white bg-dark-800 border border-dark-600 px-1 py-0.2 rounded font-mono">#{{ syscore_commit }}</span>
+                        <span
+                            class="text-[10px] text-gray-400 group-hover:text-white bg-dark-800 border border-dark-600 px-1 py-0.2 rounded font-mono">#{{
+                            syscore_commit }}</span>
                     </a>
                 </div>
                 <div class="flex justify-between">
                     <span>Host:</span>
-                    <span class="text-gray-300 truncate max-w-[130px]" title="{{ request.host }}">{{ request.host }}</span>
+                    <span class="text-gray-300 truncate max-w-[130px]" title="{{ request.host }}">{{ request.host
+                        }}</span>
                 </div>
                 <div class="flex justify-between items-center">
                     <span>Daemon:</span>
@@ -302,11 +438,11 @@
         <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 w-full">
             <!-- Hidden container for converting Flask Flash messages into JS Toasts -->
             {% with messages = get_flashed_messages(with_categories=true) %}
-              {% if messages %}
-                {% for category, message in messages %}
-                  <div data-flash-toast data-message="{{ message }}" data-category="{{ category }}" class="hidden"></div>
-                {% endfor %}
-              {% endif %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div data-flash-toast data-message="{{ message }}" data-category="{{ category }}" class="hidden"></div>
+            {% endfor %}
+            {% endif %}
             {% endwith %}
 
             <!-- Dynamic Child Content -->
@@ -317,22 +453,30 @@
     <!-- ========================================== -->
     <!-- Live-Terminal Drawer (Slide-up from Bottom) -->
     <!-- ========================================== -->
-    <div id="terminal-drawer" class="fixed bottom-0 left-0 right-0 h-80 bg-dark-950 border-t border-dark-700 shadow-2xl z-50 transform translate-y-full transition-transform duration-300 ease-in-out flex flex-col">
+    <div id="terminal-drawer"
+        class="fixed bottom-0 left-0 right-0 h-80 bg-dark-950 border-t border-dark-700 shadow-2xl z-50 transform translate-y-full transition-transform duration-300 ease-in-out flex flex-col">
         <!-- Terminal Header -->
         <div class="bg-dark-900 border-b border-dark-700 px-4 py-2.5 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span id="terminal-drawer-title" class="font-mono text-xs font-bold text-gray-200">SysCore Live-Terminal</span>
+                <span id="terminal-drawer-title" class="font-mono text-xs font-bold text-gray-200">SysCore
+                    Live-Terminal</span>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="SysCore.clearTerminal()" class="px-2 py-1 text-xs text-gray-400 hover:text-white bg-dark-800 hover:bg-dark-700 rounded transition font-mono">Leeren</button>
-                <button onclick="SysCore.closeTerminal()" class="p-1 text-gray-400 hover:text-white hover:bg-dark-800 rounded transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <button onclick="SysCore.clearTerminal()"
+                    class="px-2 py-1 text-xs text-gray-400 hover:text-white bg-dark-800 hover:bg-dark-700 rounded transition font-mono">Leeren</button>
+                <button onclick="SysCore.closeTerminal()"
+                    class="p-1 text-gray-400 hover:text-white hover:bg-dark-800 rounded transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
                 </button>
             </div>
         </div>
         <!-- Terminal Body -->
-        <div id="terminal-drawer-body" class="flex-1 p-4 overflow-y-auto font-mono text-xs text-gray-300 space-y-0.5 select-text">
+        <div id="terminal-drawer-body"
+            class="flex-1 p-4 overflow-y-auto font-mono text-xs text-gray-300 space-y-0.5 select-text">
             <div class="text-gray-500 font-mono">--- Bereit ---</div>
         </div>
     </div>
@@ -340,18 +484,27 @@
     <!-- ========================================== -->
     <!-- Global Command Palette Modal (Ctrl+K)      -->
     <!-- ========================================== -->
-    <div id="command-palette" class="fixed inset-0 z-50 cmd-palette-backdrop hidden items-start justify-center pt-20 px-4">
-        <div class="bg-dark-900 border border-dark-700 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden animate-fade-in" onclick="event.stopPropagation()">
+    <div id="command-palette"
+        class="fixed inset-0 z-50 cmd-palette-backdrop hidden items-start justify-center pt-20 px-4">
+        <div class="bg-dark-900 border border-dark-700 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden animate-fade-in"
+            onclick="event.stopPropagation()">
             <!-- Search Input -->
             <div class="p-4 border-b border-dark-700 flex items-center gap-3 bg-dark-850">
-                <svg class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                <input type="text" id="cmd-palette-input" placeholder="Befehl tippen, Seite suchen oder Domain aufrufen..." class="w-full bg-transparent text-white text-sm outline-none placeholder-gray-500 font-sans">
+                <svg class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <input type="text" id="cmd-palette-input"
+                    placeholder="Befehl tippen, Seite suchen oder Domain aufrufen..."
+                    class="w-full bg-transparent text-white text-sm outline-none placeholder-gray-500 font-sans">
                 <kbd class="px-2 py-0.5 text-[10px] bg-dark-700 text-gray-300 rounded font-mono">ESC</kbd>
             </div>
 
             <!-- Search Results List -->
             <div id="cmd-palette-results" class="max-h-80 overflow-y-auto p-2 space-y-1 text-sm font-sans">
-                <a href="{{ url_for('system.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="dashboard server cpu ram load">
+                <a href="{{ url_for('system.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="dashboard server cpu ram load">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-md">💻</span>
                         <span>Dashboard & Server-Metriken</span>
@@ -359,7 +512,9 @@
                     <span class="text-xs text-gray-500 font-mono">/</span>
                 </a>
 
-                <a href="{{ url_for('webserver.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="domains webserver vhost nginx apache ssl certbot">
+                <a href="{{ url_for('webserver.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="domains webserver vhost nginx apache ssl certbot">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-teal-500/10 text-teal-400 rounded-md">🌐</span>
                         <span>Webserver & Domains verwalten</span>
@@ -367,7 +522,9 @@
                     <span class="text-xs text-gray-500 font-mono">/web</span>
                 </a>
 
-                <a href="{{ url_for('mail.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="mail email postfach dkim spf dmarc snappymail roundcube stalwart postfix dovecot webmail">
+                <a href="{{ url_for('mail.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="mail email postfach dkim spf dmarc snappymail roundcube stalwart postfix dovecot webmail">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-md">✉️</span>
                         <span>E-Mail-Zentrale & Postfächer</span>
@@ -375,7 +532,9 @@
                     <span class="text-xs text-gray-500 font-mono">/mail</span>
                 </a>
 
-                <a href="{{ url_for('files.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="dateimanager files /var/www upload edit explorer">
+                <a href="{{ url_for('files.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="dateimanager files /var/www upload edit explorer">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-cyan-500/10 text-cyan-400 rounded-md">📁</span>
                         <span>Dateimanager (/var/www)</span>
@@ -383,7 +542,9 @@
                     <span class="text-xs text-gray-500 font-mono">/files</span>
                 </a>
 
-                <a href="{{ url_for('database.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="datenbanken mysql mariadb phpmyadmin db sql">
+                <a href="{{ url_for('database.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="datenbanken mysql mariadb phpmyadmin db sql">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-blue-500/10 text-blue-400 rounded-md">🗄️</span>
                         <span>MySQL/MariaDB Datenbanken</span>
@@ -391,7 +552,9 @@
                     <span class="text-xs text-gray-500 font-mono">/db</span>
                 </a>
 
-                <a href="{{ url_for('packages.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="packages stack installer php node composer redis phpmyadmin">
+                <a href="{{ url_for('packages.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="packages stack installer php node composer redis phpmyadmin">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-purple-500/10 text-purple-400 rounded-md">📦</span>
                         <span>Paket- & Stack-Installer</span>
@@ -399,7 +562,9 @@
                     <span class="text-xs text-gray-500 font-mono">/packages</span>
                 </a>
 
-                <a href="{{ url_for('apps.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="app importer zip manifest deploy laravel wordpress">
+                <a href="{{ url_for('apps.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="app importer zip manifest deploy laravel wordpress">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-md">🚀</span>
                         <span>App-Importer via ZIP & Manifest</span>
@@ -407,7 +572,9 @@
                     <span class="text-xs text-gray-500 font-mono">/apps</span>
                 </a>
 
-                <a href="{{ url_for('backups.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="backups restore sicherung download tar sql">
+                <a href="{{ url_for('backups.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="backups restore sicherung download tar sql">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-amber-500/10 text-amber-400 rounded-md">💾</span>
                         <span>Backups & Wiederherstellung</span>
@@ -415,7 +582,9 @@
                     <span class="text-xs text-gray-500 font-mono">/backups</span>
                 </a>
 
-                <a href="{{ url_for('users.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="users benutzer rollen permissions rbac 2fa rechte">
+                <a href="{{ url_for('users.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="users benutzer rollen permissions rbac 2fa rechte">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-md">👥</span>
                         <span>Benutzer, Rollen & Berechtigungen</span>
@@ -423,7 +592,9 @@
                     <span class="text-xs text-gray-500 font-mono">/users</span>
                 </a>
 
-                <a href="{{ url_for('settings.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="settings einstellungen hostname swap php limits users security audit">
+                <a href="{{ url_for('settings.index') }}"
+                    class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
+                    data-search="settings einstellungen hostname swap php limits users security audit">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-gray-500/10 text-gray-400 rounded-md">⚙️</span>
                         <span>Einstellungen, Benutzer & Audit-Log</span>
@@ -440,36 +611,44 @@
     </div>
 
     <!-- MODAL: Mein Profil & Sicherheit (Global verfügbar) -->
-    <div id="modal-user-profile" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm hidden">
+    <div id="modal-user-profile"
+        class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm hidden">
         <div class="sys-card w-full max-w-xl p-6 md:p-8 space-y-6 animate-in fade-in duration-200">
             <!-- Modal Header -->
             <div class="flex items-center justify-between border-b border-dark-700 pb-4">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-extrabold text-base">
-                        {{ session.get('username', 'A')[:2].upper() }}
+                    <div
+                        class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center p-1.5 shrink-0">
+                        <img src="{{ url_for('static', filename='img/logo_vertical.png') }}" alt="SysCore" class="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">
                     </div>
                     <div>
                         <h3 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
                             <span>Mein Benutzerprofil</span>
-                            <span class="text-[10px] font-mono px-2 py-0.5 rounded uppercase {{ 'badge-emerald' if session.get('role') == 'root_admin' else 'badge-teal' }}">
+                            <span
+                                class="text-[10px] font-mono px-2 py-0.5 rounded uppercase {{ 'badge-emerald' if session.get('role') == 'root_admin' else 'badge-teal' }}">
                                 {{ session.get('role') }}
                             </span>
                         </h3>
-                        <p class="text-xs text-gray-400 font-mono mt-0.5">Account-Details, Sicherheit & Zwei-Faktor-Authentifizierung</p>
+                        <p class="text-xs text-gray-400 font-mono mt-0.5">Account-Details, Sicherheit &
+                            Zwei-Faktor-Authentifizierung</p>
                     </div>
                 </div>
-                <button type="button" onclick="closeModal('modal-user-profile')" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+                <button type="button" onclick="closeModal('modal-user-profile')"
+                    class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
             </div>
 
             <!-- Profile Tabs -->
             <div class="flex items-center gap-2 border-b border-dark-700 pb-2 text-xs font-mono">
-                <button type="button" onclick="switchProfileModalTab('account')" id="profile-tab-btn-account" class="profile-tab-btn px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold transition">
+                <button type="button" onclick="switchProfileModalTab('account')" id="profile-tab-btn-account"
+                    class="profile-tab-btn px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold transition">
                     👤 Account & E-Mail
                 </button>
-                <button type="button" onclick="switchProfileModalTab('security')" id="profile-tab-btn-security" class="profile-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">
+                <button type="button" onclick="switchProfileModalTab('security')" id="profile-tab-btn-security"
+                    class="profile-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">
                     🔐 2FA Sicherheit
                 </button>
-                <button type="button" onclick="switchProfileModalTab('password')" id="profile-tab-btn-password" class="profile-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">
+                <button type="button" onclick="switchProfileModalTab('password')" id="profile-tab-btn-password"
+                    class="profile-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">
                     🔑 Passwort ändern
                 </button>
             </div>
@@ -480,20 +659,24 @@
                     <div>
                         <label class="block text-gray-400 mb-1 font-bold">Benutzername</label>
                         <input type="text" value="{{ session.get('username') }}" disabled
-                               class="w-full px-3.5 py-2.5 bg-dark-950/60 border border-dark-800 rounded-xl text-gray-400 outline-none cursor-not-allowed">
+                            class="w-full px-3.5 py-2.5 bg-dark-950/60 border border-dark-800 rounded-xl text-gray-400 outline-none cursor-not-allowed">
                         <p class="text-[10px] text-gray-500 mt-1">Der primäre Login-Name kann nicht geändert werden.</p>
                     </div>
 
                     <div>
                         <label class="block text-gray-400 mb-1 font-bold">E-Mail-Adresse für Benachrichtigungen</label>
-                        <input type="email" name="email" value="{{ current_user_obj.email if current_user_obj and current_user_obj.email else '' }}" placeholder="deine-email@domain.de" required
-                               class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                        <input type="email" name="email"
+                            value="{{ current_user_obj.email if current_user_obj and current_user_obj.email else '' }}"
+                            placeholder="deine-email@domain.de" required
+                            class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3 p-3 bg-dark-950/50 border border-dark-800 rounded-xl text-[11px]">
+                    <div
+                        class="grid grid-cols-2 gap-3 p-3 bg-dark-950/50 border border-dark-800 rounded-xl text-[11px]">
                         <div>
                             <span class="text-gray-500 block">Mitglied seit:</span>
-                            <span class="text-gray-300">{{ current_user_obj.created_at[:10] if current_user_obj and current_user_obj.created_at else 'System-Start' }}</span>
+                            <span class="text-gray-300">{{ current_user_obj.created_at[:10] if current_user_obj and
+                                current_user_obj.created_at else 'System-Start' }}</span>
                         </div>
                         <div>
                             <span class="text-gray-500 block">Letzter Login:</span>
@@ -502,7 +685,8 @@
                     </div>
 
                     <div class="flex justify-end pt-2">
-                        <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition">
+                        <button type="submit"
+                            class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition">
                             E-Mail speichern
                         </button>
                     </div>
@@ -515,31 +699,41 @@
                     <div class="flex items-center justify-between">
                         <span class="text-gray-400 font-bold">2FA Schutz-Status:</span>
                         {% if current_user_obj and current_user_obj.totp_enabled %}
-                        <span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg font-bold flex items-center gap-1.5">
+                        <span
+                            class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg font-bold flex items-center gap-1.5">
                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                             Aktiviert & Geschützt
                         </span>
                         {% else %}
-                        <span class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg font-bold">
+                        <span
+                            class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg font-bold">
                             Deaktiviert
                         </span>
                         {% endif %}
                     </div>
                     <p class="text-[11px] text-gray-400 leading-relaxed font-sans">
-                        Schützt deinen Account zusätzlich durch einen zeitbasierten Einmalcode (TOTP) von Google Authenticator, 2FAS, Bitwarden oder Ente Auth bei jeder Anmeldung.
+                        Schützt deinen Account zusätzlich durch einen zeitbasierten Einmalcode (TOTP) von Google
+                        Authenticator, 2FAS, Bitwarden oder Ente Auth bei jeder Anmeldung.
                     </p>
                 </div>
 
                 <div class="pt-2">
                     {% if current_user_obj and current_user_obj.totp_enabled %}
-                    <form method="POST" action="{{ url_for('auth.disable_2fa') }}" onsubmit="return confirm('Möchtest du die Zwei-Faktor-Authentifizierung wirklich deaktivieren?');">
-                        <button type="submit" class="px-4 py-2 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/60 text-rose-300 rounded-xl transition font-bold">
+                    <form method="POST" action="{{ url_for('auth.disable_2fa') }}"
+                        onsubmit="return confirm('Möchtest du die Zwei-Faktor-Authentifizierung wirklich deaktivieren?');">
+                        <button type="submit"
+                            class="px-4 py-2 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/60 text-rose-300 rounded-xl transition font-bold">
                             2FA jetzt deaktivieren
                         </button>
                     </form>
                     {% else %}
-                    <a href="{{ url_for('auth.setup_2fa') }}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition shadow-lg shadow-emerald-900/20">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    <a href="{{ url_for('auth.setup_2fa') }}"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition shadow-lg shadow-emerald-900/20">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
+                            </path>
+                        </svg>
                         <span>2FA Einrichtungs-Assistenten starten (QR-Code)</span>
                     </a>
                     {% endif %}
@@ -551,18 +745,21 @@
                 <form method="POST" action="{{ url_for('auth.change_own_password') }}" class="space-y-4">
                     <div>
                         <label class="block text-gray-400 mb-1 font-bold">Bisheriges Passwort</label>
-                        <input type="password" name="old_password" required autocomplete="current-password" placeholder="••••••••"
-                               class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                        <input type="password" name="old_password" required autocomplete="current-password"
+                            placeholder="••••••••"
+                            class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
                     </div>
 
                     <div>
                         <label class="block text-gray-400 mb-1 font-bold">Neues Passwort (mind. 8 Zeichen)</label>
-                        <input type="password" name="new_password" required minlength="8" autocomplete="new-password" placeholder="••••••••"
-                               class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                        <input type="password" name="new_password" required minlength="8" autocomplete="new-password"
+                            placeholder="••••••••"
+                            class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
                     </div>
 
                     <div class="flex justify-end pt-2">
-                        <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition">
+                        <button type="submit"
+                            class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition">
                             Passwort jetzt aktualisieren
                         </button>
                     </div>
@@ -571,8 +768,130 @@
         </div>
     </div>
 
+    <!-- ========================================== -->
+    <!-- Mobile Navigation Drawer (Offcanvas Menu)  -->
+    <!-- ========================================== -->
+    <div id="mobile-nav-backdrop" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden transition-opacity duration-200" onclick="toggleMobileNav(true)"></div>
+
+    <div id="mobile-nav-drawer" class="fixed top-0 bottom-0 left-0 w-72 max-w-[85vw] bg-dark-900 border-r border-dark-700 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col justify-between shadow-2xl">
+        <!-- Drawer Header -->
+        <div class="p-4 border-b border-dark-800 flex items-center justify-between bg-dark-950/70">
+            <div class="flex items-center gap-2.5">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="SysCore" class="h-7 w-auto object-contain">
+                <span class="text-[10px] font-mono tracking-tight text-gray-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-full">v2.5</span>
+            </div>
+            <button type="button" onclick="toggleMobileNav(true)" class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 text-lg leading-none transition" aria-label="Menü schließen">
+                &times;
+            </button>
+        </div>
+
+        <!-- Scrollable Navigation Links -->
+        <div class="p-4 space-y-6 overflow-y-auto flex-1">
+            <!-- Navigation Section: Core Management -->
+            <div>
+                <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">
+                    Verwaltung
+                </div>
+                <nav class="space-y-1 text-sm">
+                    <a href="{{ url_for('system.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'system' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        <span>Dashboard & Metriken</span>
+                    </a>
+
+                    <a href="{{ url_for('webserver.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'webserver' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                        <span>Webserver & Domains</span>
+                    </a>
+
+                    <a href="{{ url_for('mail.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'mail' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        <span>E-Mail-Zentrale</span>
+                    </a>
+
+                    <a href="{{ url_for('files.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span>Dateimanager</span>
+                    </a>
+
+                    <a href="{{ url_for('database.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'database' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                        <span>Datenbanken (MySQL)</span>
+                    </a>
+
+                    <a href="{{ url_for('apps.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        <span>App-Importer (ZIP)</span>
+                    </a>
+
+                    <a href="{{ url_for('backups.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'backups' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                        <span>Backups & Restore</span>
+                    </a>
+
+                    <a href="{{ url_for('users.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'users' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        <span>Benutzer & Rollen</span>
+                    </a>
+                </nav>
+            </div>
+
+            <!-- Navigation Section: System & Werkzeuge -->
+            <div>
+                <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">
+                    System & Tools
+                </div>
+                <nav class="space-y-1 text-sm">
+                    <a href="{{ url_for('security.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'security' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                        <span>Sicherheitszentrale</span>
+                    </a>
+
+                    <a href="{{ url_for('packages.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'packages' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                        <span>Paket- & Stack-Installer</span>
+                    </a>
+
+                    <a href="{{ url_for('cron.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'cron' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>Cronjobs & Aufgaben</span>
+                    </a>
+
+                    <a href="{{ url_for('settings.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'settings' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <span>Einstellungen & Audit</span>
+                    </a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Drawer Footer -->
+        <div class="p-4 border-t border-dark-800 bg-dark-950/70 text-[11px] text-gray-500 font-mono space-y-1.5">
+            <div class="flex items-center justify-between">
+                <span class="text-gray-400 font-medium">SysCore:</span>
+                <span class="text-emerald-400 font-semibold">{{ syscore_version }} <span class="text-gray-500">#{{ syscore_commit }}</span></span>
+            </div>
+            <div class="flex justify-between">
+                <span>Host:</span>
+                <span class="text-gray-300 truncate max-w-[130px]">{{ request.host }}</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Core SysCore JS Controller -->
     <script src="{{ url_for('static', filename='js/syscore.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
+
 </html>
