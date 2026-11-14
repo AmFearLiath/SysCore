@@ -340,6 +340,13 @@
                                     <span>{{ issue.fix_label }}</span>
                                 </button>
                             </form>
+                            {% elif issue.fix_endpoint == 'webserver.fix_acme_webroot' %}
+                            <form method="POST" action="{{ url_for('webserver.fix_acme_webroot') }}">
+                                <button type="submit" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-bold transition flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    <span>{{ issue.fix_label }}</span>
+                                </button>
+                            </form>
                             {% endif %}
                         </div>
                     </div>
@@ -369,11 +376,15 @@
     <!-- ==================== TAB 3: SSL & ZERTIFIKATE ==================== -->
     {% if active_tab == 'ssl' %}
     <div class="space-y-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-                <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">Installierte Let's Encrypt Zertifikate</h3>
-                <p class="text-xs text-gray-400">Übersicht aller Zertifikats-Verzeichnisse in <code>/etc/letsencrypt/live/</code>.</p>
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">Erkannte SSL-Zertifikate & Schlüssel</h3>
+                <p class="text-xs text-gray-400">Übersicht aller auf dem Server registrierten Zertifikate (Let's Encrypt, Wildcards, Archiv, System-SSL).</p>
             </div>
+            <button onclick="openModal('modal-assign-cert')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-950/30">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>Zertifikat zuweisen / importieren</span>
+            </button>
         </div>
 
         {% if all_certs %}
@@ -647,6 +658,71 @@
     </div>
 </div>
 
+<!-- MODAL: Zertifikat zuweisen / importieren -->
+<div id="modal-assign-cert" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                <span>SSL-Zertifikat zuweisen oder importieren</span>
+            </h3>
+            <button onclick="closeModal('modal-assign-cert')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <form method="POST" action="{{ url_for('webserver.assign_custom_or_existing_cert') }}" class="space-y-4 text-xs font-mono">
+            <div>
+                <label class="block text-gray-400 mb-1">Ziel-Domain auswählen</label>
+                <select name="domain" required class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    {% for d in domains %}
+                    <option value="{{ d.name }}">{{ d.name }} ({{ 'HTTPS Aktiv' if d.ssl else 'Nur HTTP' }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Zertifikats-Quelle</label>
+                <select name="cert_source" id="assignCertSource" onchange="toggleCertSourceFields()" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    <option value="existing">Auf dem Server vorhandenes Zertifikat auswählen</option>
+                    <option value="custom">Eigenes Zertifikat & Private Key einfügen (PEM)</option>
+                </select>
+            </div>
+
+            <!-- Vorhandenes Zertifikat Dropdown -->
+            <div id="existingCertFields" class="space-y-3">
+                <div>
+                    <label class="block text-gray-400 mb-1">Erkanntes Server-Zertifikat</label>
+                    <select id="existingCertSelect" onchange="updateExistingCertPaths()" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                        {% for c in all_certs %}
+                        <option value="{{ c.cert_path }}|{{ c.key_path }}">{{ c.folder }} ({{ c.days_left }} Tage Rest - {{ c.issuer }}) [{{ c.source }}]</option>
+                        {% else %}
+                        <option value="">Keine Zertifikate auf dem Server gefunden</option>
+                        {% endfor %}
+                    </select>
+                    <input type="hidden" name="selected_cert_path" id="hiddenCertPath" value="{{ all_certs[0].cert_path if all_certs else '' }}">
+                    <input type="hidden" name="selected_key_path" id="hiddenKeyPath" value="{{ all_certs[0].key_path if all_certs else '' }}">
+                </div>
+            </div>
+
+            <!-- Manuell einfügen PEM -->
+            <div id="customCertFields" class="hidden space-y-3">
+                <div>
+                    <label class="block text-gray-400 mb-1">Zertifikat (PEM / fullchain.pem)</label>
+                    <textarea name="cert_pem" rows="4" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" class="w-full p-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-[11px] outline-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-1">Privater Schlüssel (PEM / privkey.pem)</label>
+                    <textarea name="key_pem" rows="3" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" class="w-full p-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-[11px] outline-none"></textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-assign-cert')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">Zertifikat aktivieren & NGINX neuladen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -737,6 +813,28 @@
             const text = c.textContent.toLowerCase();
             c.style.display = text.includes(q) ? '' : 'none';
         });
+    }
+
+    function toggleCertSourceFields() {
+        const src = document.getElementById('assignCertSource').value;
+        const existEl = document.getElementById('existingCertFields');
+        const customEl = document.getElementById('customCertFields');
+        if (src === 'existing') {
+            existEl.classList.remove('hidden');
+            customEl.classList.add('hidden');
+        } else {
+            existEl.classList.add('hidden');
+            customEl.classList.remove('hidden');
+        }
+    }
+
+    function updateExistingCertPaths() {
+        const val = document.getElementById('existingCertSelect').value;
+        if (val && val.includes('|')) {
+            const parts = val.split('|');
+            document.getElementById('hiddenCertPath').value = parts[0];
+            document.getElementById('hiddenKeyPath').value = parts[1];
+        }
     }
 </script>
 {% endblock %}

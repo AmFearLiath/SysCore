@@ -57,8 +57,62 @@ def validate_web_path(custom_path, fallback_domain):
 # 2. INTELLIGENTE SSL-ZERTIFIKATS-ERKENNUNG
 # ==============================================================================
 
+def domain_matches_cert_domains(target_domain, cert_domains):
+    """
+    Prüft ob eine Domain (z.B. phpmyadmin.amfearliath.de) von einer Liste von
+    Zertifikats-Domains (z.B. ['amfearliath.de', '*.amfearliath.de']) abgedeckt ist.
+    Unterstützt exakte Übereinstimmungen und Wildcards.
+    """
+    target = target_domain.lower().strip()
+    # 1. Exakter Match
+    for d in cert_domains:
+        if d.lower().strip() == target:
+            return True
+    # 2. Wildcard Match (*.domain.tld)
+    for d in cert_domains:
+        d = d.lower().strip()
+        if d.startswith("*."):
+            base = d[2:]
+            if target.endswith("." + base):
+                return True
+    return False
+
+def parse_certbot_certificates_output(output_text):
+    """Parst die CLI-Ausgabe von 'certbot certificates' für präzise Discovery"""
+    certs = []
+    current_cert = None
+    for line in output_text.splitlines():
+        line_s = line.strip()
+        if line_s.startswith("Certificate Name:"):
+            if current_cert and current_cert.get("cert_path"):
+                certs.append(current_cert)
+            name = line_s.split("Certificate Name:")[1].strip()
+            current_cert = {
+                "name": name,
+                "domains": [],
+                "cert_path": None,
+                "key_path": None,
+                "days_left": 90
+            }
+        elif current_cert:
+            if line_s.startswith("Domains:"):
+                doms = line_s.split("Domains:")[1].strip().split()
+                current_cert["domains"] = [d.strip() for d in doms if d.strip()]
+            elif line_s.startswith("Certificate Path:"):
+                current_cert["cert_path"] = line_s.split("Certificate Path:")[1].strip()
+            elif line_s.startswith("Private Key Path:"):
+                current_cert["key_path"] = line_s.split("Private Key Path:")[1].strip()
+            elif line_s.startswith("Expiry Date:"):
+                exp_str = line_s.split("Expiry Date:")[1].strip()
+                m_days = re.search(r"\(VALID:\s*(\d+)\s*days\)", exp_str)
+                if m_days:
+                    current_cert["days_left"] = int(m_days.group(1))
+    if current_cert and current_cert.get("cert_path"):
+        certs.append(current_cert)
+    return certs
+
 def get_certificate_details(cert_file):
-    """Extrahiert Ablaufdatum, Resttage und SAN-Domains aus einer cert.pem / fullchain.pem"""
+    """Extrahiert Ablaufdatum, Resttage, CN und alle SAN-Domains aus einer cert.pem / fullchain.pem"""
     if not os.path.exists(cert_file):
         return None
 
@@ -67,7 +121,8 @@ def get_certificate_details(cert_file):
         "expires": "Unbekannt",
         "days_left": 90,
         "san_domains": [],
-        "issuer": "Let's Encrypt"
+        "issuer": "Let's Encrypt",
+        "cn": None
     }
 
     try:
@@ -78,87 +133,204 @@ def get_certificate_details(cert_file):
         )
         if res_date.returncode == 0 and "notAfter=" in res_date.stdout:
             date_str = res_date.stdout.strip().replace("notAfter=", "")
-            exp_date = datetime.strptime(date_str, "%b %d %H:%M:%S %Y %Z")
-            info["expires"] = exp_date.strftime("%d.%m.%Y")
-            info["days_left"] = (exp_date - datetime.utcnow()).days
+            try:
+                exp_date = datetime.strptime(date_str, "%b %d %H:%M:%S %Y %Z")
+                info["expires"] = exp_date.strftime("%d.%m.%Y")
+                info["days_left"] = (exp_date - datetime.utcnow()).days
+            except Exception:
+                pass
 
-        # SAN Domains (Subject Alternative Names) abfragen
+        # Text-Dump für CN, Issuer und SANs abfragen
         res_text = subprocess.run(
             ["openssl", "x509", "-text", "-noout", "-in", cert_file],
             capture_output=True, text=True
         )
         if res_text.returncode == 0:
             content = res_text.stdout
+
+            # CN (Common Name)
+            cn_match = re.search(r"Subject:.*?CN\s*=\s*([^,\n/]+)", content)
+            if cn_match:
+                info["cn"] = cn_match.group(1).strip()
+                info["san_domains"].append(info["cn"])
+
+            # SAN Domains über alle Zeilen hinweg erfassen (inklusive Wildcards '*')
             if "X509v3 Subject Alternative Name:" in content:
-                san_section = content.split("X509v3 Subject Alternative Name:")[1].split("\n")[1]
-                domains = re.findall(r"DNS:([a-zA-Z0-9.-]+)", san_section)
-                info["san_domains"] = domains
+                san_part = content.split("X509v3 Subject Alternative Name:")[1]
+                san_lines = []
+                for line in san_part.splitlines()[1:]:
+                    if "X509v3" in line or (line and not line.startswith(" ")):
+                        break
+                    san_lines.append(line)
+                san_text = " ".join(san_lines)
+                sans = re.findall(r"DNS:([a-zA-Z0-9*.-]+)", san_text)
+                info["san_domains"].extend(sans)
 
             if "Issuer:" in content:
                 issuer_match = re.search(r"O\s*=\s*([^,\n]+)", content)
                 if issuer_match:
                     info["issuer"] = issuer_match.group(1).strip()
+
+        # Duplikate entfernen und bereinigen
+        clean_domains = []
+        for d in info["san_domains"]:
+            d_clean = d.strip()
+            if d_clean and d_clean not in clean_domains:
+                clean_domains.append(d_clean)
+        info["san_domains"] = clean_domains
     except Exception:
         pass
 
     return info
 
+def scan_all_system_certificates():
+    """
+    Sucht auf dem gesamten System gründlich nach allen vorhandenen Zertifikaten:
+    1. Certbot-Registry via 'certbot certificates'
+    2. /etc/letsencrypt/live/*/fullchain.pem
+    3. /etc/letsencrypt/archive/*/ (letzte Version)
+    4. /etc/ssl/certs/ und /etc/ssl/private/
+    5. /etc/nginx/ssl/
+    6. In bestehenden NGINX-VHosts referenzierte Pfade
+    """
+    found_certs = []
+    seen_paths = set()
+
+    # 1. Certbot Registry (am zuverlässigsten für Let's Encrypt)
+    if shutil.which("certbot"):
+        try:
+            res_cb = subprocess.run(["certbot", "certificates"], capture_output=True, text=True, timeout=10)
+            if res_cb.returncode == 0:
+                parsed_cb = parse_certbot_certificates_output(res_cb.stdout)
+                for cb in parsed_cb:
+                    cp = cb.get("cert_path")
+                    kp = cb.get("key_path")
+                    if cp and kp and os.path.exists(cp) and os.path.exists(kp):
+                        details = get_certificate_details(cp)
+                        if details:
+                            details["cert_path"] = cp
+                            details["key_path"] = kp
+                            details["folder"] = cb["name"]
+                            details["domains"] = list(set(cb["domains"] + details["san_domains"]))
+                            details["source"] = "Certbot Registry"
+                            found_certs.append(details)
+                            seen_paths.add(os.path.realpath(cp))
+        except Exception:
+            pass
+
+    # 2. /etc/letsencrypt/live/*/
+    base_live = "/etc/letsencrypt/live"
+    if os.path.exists(base_live):
+        try:
+            for folder in sorted(os.listdir(base_live)):
+                fullchain = os.path.join(base_live, folder, "fullchain.pem")
+                privkey = os.path.join(base_live, folder, "privkey.pem")
+                if os.path.exists(fullchain) and os.path.exists(privkey):
+                    real_p = os.path.realpath(fullchain)
+                    if real_p not in seen_paths:
+                        details = get_certificate_details(fullchain)
+                        if details:
+                            details["cert_path"] = fullchain
+                            details["key_path"] = privkey
+                            details["folder"] = folder
+                            details["domains"] = details["san_domains"]
+                            details["source"] = "Let's Encrypt Live"
+                            found_certs.append(details)
+                            seen_paths.add(real_p)
+        except Exception:
+            pass
+
+    # 3. /etc/letsencrypt/archive/*/
+    base_archive = "/etc/letsencrypt/archive"
+    if os.path.exists(base_archive):
+        try:
+            for folder in sorted(os.listdir(base_archive)):
+                arch_dir = os.path.join(base_archive, folder)
+                if not os.path.isdir(arch_dir):
+                    continue
+                chains = sorted(glob.glob(os.path.join(arch_dir, "fullchain*.pem")))
+                keys = sorted(glob.glob(os.path.join(arch_dir, "privkey*.pem")))
+                if chains and keys:
+                    latest_chain = chains[-1]
+                    latest_key = keys[-1]
+                    real_p = os.path.realpath(latest_chain)
+                    if real_p not in seen_paths:
+                        details = get_certificate_details(latest_chain)
+                        if details:
+                            details["cert_path"] = latest_chain
+                            details["key_path"] = latest_key
+                            details["folder"] = f"{folder} (Archiv)"
+                            details["domains"] = details["san_domains"]
+                            details["source"] = "Let's Encrypt Archive"
+                            found_certs.append(details)
+                            seen_paths.add(real_p)
+        except Exception:
+            pass
+
+    # 4. Standard Linux SSL Verzeichnisse (/etc/ssl/certs, /etc/nginx/ssl)
+    for extra_dir in ["/etc/ssl/certs", "/etc/nginx/ssl", "/var/www/ssl"]:
+        if os.path.exists(extra_dir):
+            try:
+                for f in os.listdir(extra_dir):
+                    if f.endswith((".crt", ".pem")):
+                        cert_f = os.path.join(extra_dir, f)
+                        base_name = f.rsplit(".", 1)[0]
+                        key_candidates = [
+                            os.path.join(extra_dir, f"{base_name}.key"),
+                            os.path.join("/etc/ssl/private", f"{base_name}.key"),
+                            os.path.join(extra_dir, "privkey.pem")
+                        ]
+                        key_f = next((k for k in key_candidates if os.path.exists(k)), None)
+                        if key_f:
+                            real_p = os.path.realpath(cert_f)
+                            if real_p not in seen_paths:
+                                details = get_certificate_details(cert_f)
+                                if details:
+                                    details["cert_path"] = cert_f
+                                    details["key_path"] = key_f
+                                    details["folder"] = f
+                                    details["domains"] = details["san_domains"]
+                                    details["source"] = "Custom / System SSL"
+                                    found_certs.append(details)
+                                    seen_paths.add(real_p)
+            except Exception:
+                pass
+
+    return found_certs
+
 def find_ssl_cert_for_domain(domain):
     """
-    Sucht ein passendes SSL-Zertifikat für eine Domain oder Subdomain.
-    Prüft:
-    1. Direktes Zertifikat /etc/letsencrypt/live/<domain>/
-    2. Duplikat-Suffixe /etc/letsencrypt/live/<domain>-0001/
-    3. SAN-Zertifikate der übergeordneten Hauptdomain (z.B. amfearliath.de für playrig.amfearliath.de)
-    4. Alle Zertifikate unter /etc/letsencrypt/live/*/ auf SAN-Übereinstimmung
+    Sucht das bestmögliche, gültige SSL-Zertifikat für eine Domain oder Subdomain.
+    Prüft exakte Übereinstimmungen und Wildcards (*.domain.tld) systemweit.
     """
+    domain = domain.lower().strip()
+    all_certs = scan_all_system_certificates()
+
+    # 1. Prio: Exakte Domain-Übereinstimmung
+    for cert in all_certs:
+        doms = [d.lower().strip() for d in cert.get("domains", [])]
+        if domain in doms:
+            return cert
+
+    # 2. Prio: Wildcard-Übereinstimmung (z.B. *.amfearliath.de für phpmyadmin.amfearliath.de)
+    for cert in all_certs:
+        doms = [d.lower().strip() for d in cert.get("domains", [])]
+        if domain_matches_cert_domains(domain, doms):
+            return cert
+
+    # 3. Fallback: Direkte Verzeichnisse prüfen
     base_live = "/etc/letsencrypt/live"
-    if not os.path.exists(base_live):
-        return None
-
-    # 1. Direkte Verzeichnisse prüfen
-    for candidate in [domain, f"{domain}-0001", f"{domain}-0002"]:
-        cert_path = os.path.join(base_live, candidate, "fullchain.pem")
-        key_path = os.path.join(base_live, candidate, "privkey.pem")
-        if os.path.exists(cert_path) and os.path.exists(key_path):
-            details = get_certificate_details(cert_path)
-            if details:
-                details["cert_path"] = cert_path
-                details["key_path"] = key_path
-                details["cert_folder"] = candidate
-                return details
-
-    # 2. Prüfen ob übergeordnete Domain existiert
-    parts = domain.split(".")
-    if len(parts) > 2:
-        parent_domain = ".".join(parts[1:])
-        cert_path = os.path.join(base_live, parent_domain, "fullchain.pem")
-        key_path = os.path.join(base_live, parent_domain, "privkey.pem")
-        if os.path.exists(cert_path) and os.path.exists(key_path):
-            details = get_certificate_details(cert_path)
-            if details:
-                # Prüfen ob Subdomain im Zertifikat abgedeckt ist (oder Wildcard)
-                covered = (domain in details["san_domains"]) or (f"*.{parent_domain}" in details["san_domains"])
-                if covered:
-                    details["cert_path"] = cert_path
-                    details["key_path"] = key_path
-                    details["cert_folder"] = parent_domain
-                    return details
-
-    # 3. Alle Zertifikate durchsuchen (Multi-Domain SAN Match)
-    try:
-        for folder in os.listdir(base_live):
-            cert_path = os.path.join(base_live, folder, "fullchain.pem")
-            key_path = os.path.join(base_live, folder, "privkey.pem")
+    if os.path.exists(base_live):
+        for candidate in [domain, f"{domain}-0001", f"{domain}-0002"]:
+            cert_path = os.path.join(base_live, candidate, "fullchain.pem")
+            key_path = os.path.join(base_live, candidate, "privkey.pem")
             if os.path.exists(cert_path) and os.path.exists(key_path):
                 details = get_certificate_details(cert_path)
-                if details and domain in details["san_domains"]:
+                if details:
                     details["cert_path"] = cert_path
                     details["key_path"] = key_path
-                    details["cert_folder"] = folder
+                    details["folder"] = candidate
                     return details
-    except Exception:
-        pass
 
     return None
 
@@ -429,7 +601,20 @@ def diagnose_webserver_issues():
                 "fix_label": "Verwaiste Symlinks bereinigen"
             })
 
-    # 4. Domain-spezifische Probleme prüfen
+    # 4. ACME-Challenge Verzeichnis prüfen
+    acme_dir = "/var/www/html/.well-known/acme-challenge"
+    if not os.path.exists(acme_dir):
+        issues.append({
+            "id": "acme_webroot_missing",
+            "domain": None,
+            "severity": "warning",
+            "title": "ACME-Challenge Verzeichnis (/var/www/html) fehlt",
+            "description": "Das Verzeichnis '/var/www/html/.well-known/acme-challenge/' ist für Let's Encrypt HTTP-01 Validierungen zwingend erforderlich. Fehlt es, scheitert das Ausstellen neuer Zertifikate.",
+            "fix_endpoint": "webserver.fix_acme_webroot",
+            "fix_label": "ACME-Verzeichnis anlegen & berechtigen"
+        })
+
+    # 5. Domain-spezifische Probleme & SSL-Audits prüfen
     if os.path.exists(NGINX_AVAILABLE):
         for filename in sorted(os.listdir(NGINX_AVAILABLE)):
             if not filename.endswith(".panel.conf"):
@@ -440,20 +625,50 @@ def diagnose_webserver_issues():
                     content = f.read()
                 d_info = parse_domain_config(domain, content)
 
-                # Problem A: SSL Zertifikat existiert auf Disk, aber VHost hat keinen 443 SSL Block!
-                if d_info["missing_ssl_block"]:
-                    issues.append({
-                        "id": f"missing_ssl_{domain}",
-                        "domain": domain,
-                        "severity": "critical",
-                        "title": f"SSL-Zertifikat existiert, aber VHost hat keine Port-443 Konfiguration: {domain}",
-                        "description": f"Für '{domain}' wurde ein gültiges Let's Encrypt Zertifikat gefunden ({d_info['cert_on_disk']['cert_path']}), aber in der NGINX-Konfiguration fehlt der 'listen 443 ssl'-Block. Browser zeigen daher das falsche Zertifikat der Hauptdomain.",
-                        "fix_endpoint": "webserver.repair_domain_ssl",
-                        "fix_param": domain,
-                        "fix_label": "1-Klick: SSL-VHost konfigurieren & aktivieren"
-                    })
+                # Problem A: SSL im VHost aktiv, aber Zertifikatsdatei fehlt auf der Festplatte
+                if d_info["ssl"]:
+                    cert_match = re.search(r"ssl_certificate\s+([^;]+);", content)
+                    if cert_match:
+                        configured_cert_file = cert_match.group(1).strip()
+                        if not os.path.exists(configured_cert_file):
+                            issues.append({
+                                "id": f"broken_cert_{domain}",
+                                "domain": domain,
+                                "severity": "critical",
+                                "title": f"Zertifikatsdatei nicht gefunden: {domain}",
+                                "description": f"Der VHost verweist auf '{configured_cert_file}', diese Datei existiert jedoch nicht mehr. NGINX kann dadurch nicht neu geladen werden.",
+                                "fix_endpoint": "webserver.repair_domain_ssl",
+                                "fix_param": domain,
+                                "fix_label": "1-Klick: Zertifikat reparieren / neu verknüpfen"
+                            })
 
-                # Problem B: Reverse Proxy ohne ACME Challenge Pass-Through
+                # Problem B: Kein SSL im VHost, aber passendes Zertifikat liegt auf dem Server
+                elif not d_info["ssl"]:
+                    cert_found = find_ssl_cert_for_domain(domain)
+                    if cert_found:
+                        issues.append({
+                            "id": f"unlinked_cert_{domain}",
+                            "domain": domain,
+                            "severity": "critical",
+                            "title": f"Vorhandenes SSL-Zertifikat verfügbar: {domain}",
+                            "description": f"Auf dem Server wurde das Zertifikat '{cert_found.get('folder')}' ({cert_found.get('cert_path')}) gefunden, das '{domain}' abdeckt. Die NGINX-Konfiguration nutzt bisher aber nur unverschlüsseltes HTTP.",
+                            "fix_endpoint": "webserver.repair_domain_ssl",
+                            "fix_param": domain,
+                            "fix_label": "1-Klick: Gefundenes Zertifikat verbinden & HTTPS aktivieren"
+                        })
+                    else:
+                        issues.append({
+                            "id": f"no_ssl_{domain}",
+                            "domain": domain,
+                            "severity": "warning",
+                            "title": f"Kein SSL-Zertifikat aktiv: {domain}",
+                            "description": f"Für '{domain}' ist noch kein SSL-Zertifikat vorhanden oder eingerichtet. Ein Let's Encrypt Zertifikat kann per 1-Klick angefordert werden.",
+                            "fix_endpoint": "webserver.repair_domain_ssl",
+                            "fix_param": domain,
+                            "fix_label": "1-Klick: Let's Encrypt Zertifikat anfordern"
+                        })
+
+                # Problem C: Reverse Proxy ohne ACME Challenge Pass-Through
                 if d_info["mode"] == "proxy" and not d_info["has_acme_pass"]:
                     issues.append({
                         "id": f"missing_acme_{domain}",
@@ -466,7 +681,7 @@ def diagnose_webserver_issues():
                         "fix_label": "ACME-Challenge Pass-Through nachrüsten"
                     })
 
-                # Problem C: PHP-FPM Socket existiert nicht
+                # Problem D: PHP-FPM Socket existiert nicht
                 if d_info["mode"] == "webspace":
                     sock_path = f"/run/php/php{d_info['php_version']}-fpm.sock"
                     if not os.path.exists(sock_path):
@@ -482,17 +697,6 @@ def diagnose_webserver_issues():
                             "fix_param": f"{domain}:{fallback_php}",
                             "fix_label": f"Auf aktive PHP {fallback_php} umstellen"
                         })
-
-                # Problem D: Webroot-Berechtigungen
-                if d_info["mode"] == "webspace" and os.path.exists(d_info["root_path"]):
-                    try:
-                        st = os.stat(d_info["root_path"])
-                        # Prüfen ob www-data lesen/schreiben darf
-                        if shutil.which("id"):
-                            # Prüfen über chown-Bedarf
-                            pass
-                    except Exception:
-                        pass
 
             except Exception:
                 continue
@@ -535,21 +739,8 @@ def index():
     for d in domains:
         d["deploy_hook"] = hooks.get(d["name"])
 
-    # Alle auf dem Server installierten Let's Encrypt Zertifikate scannen
-    all_certs = []
-    base_live = "/etc/letsencrypt/live"
-    if os.path.exists(base_live):
-        try:
-            for folder in sorted(os.listdir(base_live)):
-                fullchain = os.path.join(base_live, folder, "fullchain.pem")
-                if os.path.exists(fullchain):
-                    details = get_certificate_details(fullchain)
-                    if details:
-                        details["folder"] = folder
-                        details["fullchain"] = fullchain
-                        all_certs.append(details)
-        except Exception:
-            pass
+    # Alle auf dem Server installierten Zertifikate scannen (Certbot, Live, Archive, System SSL)
+    all_certs = scan_all_system_certificates()
 
     critical_count = sum(1 for i in issues if i["severity"] == "critical")
     warning_count = sum(1 for i in issues if i["severity"] == "warning")
@@ -581,30 +772,84 @@ def repair_domain_ssl_core(domain):
     if not os.path.exists(avail_path):
         return False, f"Konfigurationsdatei für '{domain}' nicht gefunden."
 
-    # Vorhandenes Zertifikat suchen
+    # 1. Zuerst systemweit prüfen ob bereits ein passendes Zertifikat existiert (inkl. Wildcards & SANs)
     cert_info = find_ssl_cert_for_domain(domain)
+
+    # 2. Falls noch kein Zertifikat existiert: Certbot mit Vorbereitungen & Fallbacks aufrufen
     if not cert_info:
-        if shutil.which("certbot"):
-            os.makedirs("/var/www/html", exist_ok=True)
-            email_arg = ["--email", CERTBOT_EMAIL] if CERTBOT_EMAIL and "@" in CERTBOT_EMAIL else ["--register-unsafely-without-email"]
-            cmd = ["certbot", "certonly", "--webroot", "-w", "/var/www/html", "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
-            res = subprocess.run(cmd, capture_output=True, text=True)
-            cert_info = find_ssl_cert_for_domain(domain)
-            if not cert_info:
-                cmd_fallback = ["certbot", "certonly", "--nginx", "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
-                subprocess.run(cmd_fallback, capture_output=True, text=True)
+        if not shutil.which("certbot"):
+            return False, "Certbot ist auf diesem Server nicht installiert."
+
+        # A: ACME Verzeichnis und Rechte sicherstellen
+        acme_dir = "/var/www/html/.well-known/acme-challenge"
+        os.makedirs(acme_dir, exist_ok=True)
+        try:
+            os.chmod(acme_dir, 0o755)
+            if shutil.which("chown"):
+                subprocess.run(["chown", "-R", "www-data:www-data", "/var/www/html"], check=False)
+        except Exception:
+            pass
+
+        # B: Apache Konflikt prüfen & temporär lösen falls aktiv
+        if os.path.exists(APACHE_PORTS_CONF):
+            try:
+                with open(APACHE_PORTS_CONF, "r", encoding="utf-8") as f:
+                    ap_content = f.read()
+                if re.search(r"^\s*Listen\s+80\b", ap_content, re.MULTILINE):
+                    if shutil.which("systemctl"):
+                        subprocess.run(["systemctl", "stop", "apache2"], check=False)
+            except Exception:
+                pass
+
+        # C: NGINX Syntax vorab testen und Port-80 VHost aktivieren
+        reload_nginx()
+
+        email_arg = ["--email", CERTBOT_EMAIL] if CERTBOT_EMAIL and "@" in CERTBOT_EMAIL else ["--register-unsafely-without-email"]
+        last_error = ""
+
+        # Versuch 1: Webroot /var/www/html
+        cmd1 = ["certbot", "certonly", "--webroot", "-w", "/var/www/html", "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
+        res1 = subprocess.run(cmd1, capture_output=True, text=True, timeout=90)
+        if res1.returncode != 0:
+            last_error = (res1.stderr or res1.stdout).strip()
+
+        cert_info = find_ssl_cert_for_domain(domain)
+
+        # Versuch 2: Falls VHost ein eigenes Webroot hat (z.B. /var/www/phpmyadmin)
+        if not cert_info:
+            with open(avail_path, "r", encoding="utf-8") as f:
+                c_content = f.read()
+            parsed_temp = parse_domain_config(domain, c_content)
+            doc_root = parsed_temp.get("root_path")
+            if doc_root and os.path.exists(doc_root):
+                os.makedirs(os.path.join(doc_root, ".well-known", "acme-challenge"), exist_ok=True)
+                cmd2 = ["certbot", "certonly", "--webroot", "-w", doc_root, "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
+                res2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=90)
+                if res2.returncode != 0 and not last_error:
+                    last_error = (res2.stderr or res2.stdout).strip()
                 cert_info = find_ssl_cert_for_domain(domain)
 
+        # Versuch 3: NGINX Plugin Fallback
         if not cert_info:
-            return False, f"Zertifikat konnte für '{domain}' nicht gefunden oder erstellt werden."
+            cmd3 = ["certbot", "certonly", "--nginx", "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
+            res3 = subprocess.run(cmd3, capture_output=True, text=True, timeout=90)
+            if res3.returncode != 0 and not last_error:
+                last_error = (res3.stderr or res3.stdout).strip()
+            cert_info = find_ssl_cert_for_domain(domain)
 
-    # Bestehende Konfiguration auslesen um Modus und Parameter zu behalten
+        if not cert_info:
+            # Letzte aussagekräftige Fehlerzeilen extrahieren
+            err_lines = [l.strip() for l in last_error.splitlines() if l.strip() and not l.startswith("Saving debug log")]
+            summary = " | ".join(err_lines[-3:]) if err_lines else "Unbekannter Certbot-Fehler"
+            return False, f"Zertifikats-Ausstellung fehlgeschlagen: {summary}"
+
+    # 3. Bestehende Konfiguration auslesen um Modus und Parameter zu behalten
     with open(avail_path, "r", encoding="utf-8") as f:
         old_content = f.read()
 
     parsed = parse_domain_config(domain, old_content)
 
-    # Neuen Dual-Server VHost generieren
+    # 4. Neuen Dual-Server VHost generieren
     new_vhost = build_nginx_config(
         domain=domain,
         mode=parsed["mode"],
@@ -628,20 +873,119 @@ def repair_domain_ssl_core(domain):
 
     ok, msg = reload_nginx()
     if not ok:
-        # Rollback bei Fehler
         with open(avail_path, "w", encoding="utf-8") as f:
             f.write(old_content)
         reload_nginx()
-        return False, f"NGINX Syntaxfehler: {msg}"
+        return False, f"NGINX Syntaxfehler nach SSL-Einbindung: {msg}"
 
     if os.path.exists(backup_path):
         os.remove(backup_path)
 
-    return True, "SSL-Zertifikat und Port-443-VHost erfolgreich verknüpft und aktiviert."
+    return True, f"SSL-Zertifikat ({cert_info.get('folder', 'Aktiv')}) erfolgreich mit '{domain}' verknüpft und Port 443 aktiviert."
 
 def issue_and_apply_ssl(domain):
     """Programmatisches Ausstellen & Einbinden eines SSL-Zertifikats für eine Domain/Subdomain"""
     return repair_domain_ssl_core(domain)
+
+@webserver_bp.route("/fix/acme-webroot", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def fix_acme_webroot():
+    """Richtet das Verzeichnis /var/www/html/.well-known/acme-challenge mit korrekten Rechten ein"""
+    try:
+        path = "/var/www/html/.well-known/acme-challenge"
+        os.makedirs(path, exist_ok=True)
+        try:
+            os.chmod(path, 0o755)
+            if shutil.which("chown"):
+                subprocess.run(["chown", "-R", "www-data:www-data", "/var/www/html"], check=False)
+        except Exception:
+            pass
+        log_audit(session.get("username"), "ACME_WEBROOT_FIX", "ACME Challenge Verzeichnis repariert", request.remote_addr, "success")
+        flash("ACME Challenge Verzeichnis (/var/www/html/.well-known/acme-challenge) erfolgreich eingerichtet und berechtigt!", "success")
+    except Exception as e:
+        flash(f"Fehler beim Einrichten des ACME-Verzeichnisses: {e}", "error")
+    return redirect(url_for("webserver.index", tab="diagnostics"))
+
+@webserver_bp.route("/cert/assign", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def assign_custom_or_existing_cert():
+    """Weist einer Domain ein bestimmtes, auf dem Server existierendes oder manuell eingegebenes Zertifikat zu"""
+    domain = request.form.get("domain", "").strip().lower()
+    cert_source = request.form.get("cert_source", "existing")
+
+    avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
+    if not os.path.exists(avail_path):
+        flash(f"VHost für '{domain}' nicht gefunden.", "error")
+        return redirect(url_for("webserver.index", tab="ssl"))
+
+    cert_path = None
+    key_path = None
+
+    if cert_source == "existing":
+        selected_cert_path = request.form.get("selected_cert_path", "").strip()
+        selected_key_path = request.form.get("selected_key_path", "").strip()
+        if not os.path.exists(selected_cert_path) or not os.path.exists(selected_key_path):
+            flash("Die ausgewählten Zertifikatsdateien existieren nicht auf dem Server.", "error")
+            return redirect(url_for("webserver.index", tab="ssl"))
+        cert_path = selected_cert_path
+        key_path = selected_key_path
+    elif cert_source == "custom":
+        cert_data = request.form.get("cert_pem", "").strip()
+        key_data = request.form.get("key_pem", "").strip()
+        if not cert_data or not key_data or "BEGIN CERTIFICATE" not in cert_data:
+            flash("Bitte ein gültiges PEM-Zertifikat und den zugehörigen Private Key angeben.", "error")
+            return redirect(url_for("webserver.index", tab="ssl"))
+
+        target_dir_cert = "/etc/ssl/certs"
+        target_dir_key = "/etc/ssl/private"
+        os.makedirs(target_dir_cert, exist_ok=True)
+        os.makedirs(target_dir_key, exist_ok=True)
+
+        cert_path = os.path.join(target_dir_cert, f"{domain}.crt")
+        key_path = os.path.join(target_dir_key, f"{domain}.key")
+
+        with open(cert_path, "w", encoding="utf-8") as f:
+            f.write(cert_data)
+        with open(key_path, "w", encoding="utf-8") as f:
+            f.write(key_data)
+        try:
+            os.chmod(key_path, 0o600)
+        except Exception:
+            pass
+
+    # VHost aktualisieren
+    with open(avail_path, "r", encoding="utf-8") as f:
+        old_content = f.read()
+
+    parsed = parse_domain_config(domain, old_content)
+    new_vhost = build_nginx_config(
+        domain=domain,
+        mode=parsed["mode"],
+        target_path=parsed["root_path"],
+        proxy_port=parsed["proxy_port"],
+        php_version=parsed["php_version"],
+        custom_directives=parsed["custom_directives"],
+        ssl_enabled=True,
+        cert_path=cert_path,
+        key_path=key_path
+    )
+
+    with open(avail_path, "w", encoding="utf-8") as f:
+        f.write(new_vhost)
+
+    ok, msg = reload_nginx()
+    if not ok:
+        with open(avail_path, "w", encoding="utf-8") as f:
+            f.write(old_content)
+        reload_nginx()
+        flash(f"Zuweisung fehlgeschlagen (NGINX Syntaxfehler): {msg}", "error")
+    else:
+        log_audit(session.get("username"), "SSL_ASSIGN_SUCCESS", f"Zertifikat ({cert_path}) erfolgreich für '{domain}' verknüpft", request.remote_addr, "success")
+        flash(f"Zertifikat erfolgreich für '{domain}' aktiviert und NGINX neu geladen!", "success")
+
+    return redirect(url_for("webserver.index", tab="domains"))
 
 @webserver_bp.route("/repair/ssl/<domain>", methods=["POST"])
 @login_required
@@ -770,29 +1114,20 @@ def repair_all_issues():
             except Exception:
                 pass
 
-        # D: SSL VHost fehlt
-        elif issue["id"].startswith("missing_ssl_"):
+        # D: ACME Webroot fehlt
+        elif issue["id"] == "acme_webroot_missing":
+            try:
+                fix_acme_webroot()
+                fixed_count += 1
+            except Exception:
+                pass
+
+        # E: SSL VHost fehlt oder Zertifikat verfügbar
+        elif issue["id"].startswith(("missing_ssl_", "unlinked_cert_", "broken_cert_")):
             domain = issue["domain"]
             try:
-                cert_info = find_ssl_cert_for_domain(domain)
-                avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
-                if cert_info and os.path.exists(avail_path):
-                    with open(avail_path, "r", encoding="utf-8") as f:
-                        old_content = f.read()
-                    parsed = parse_domain_config(domain, old_content)
-                    new_vhost = build_nginx_config(
-                        domain=domain,
-                        mode=parsed["mode"],
-                        target_path=parsed["root_path"],
-                        proxy_port=parsed["proxy_port"],
-                        php_version=parsed["php_version"],
-                        custom_directives=parsed["custom_directives"],
-                        ssl_enabled=True,
-                        cert_path=cert_info["cert_path"],
-                        key_path=cert_info["key_path"]
-                    )
-                    with open(avail_path, "w", encoding="utf-8") as f:
-                        f.write(new_vhost)
+                ok, _ = repair_domain_ssl_core(domain)
+                if ok:
                     fixed_count += 1
             except Exception:
                 pass
