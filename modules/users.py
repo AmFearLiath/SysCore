@@ -83,13 +83,13 @@ SYSTEM_PERMISSIONS = [
 def require_users_permission(view):
     """Prüft ob der Benutzer root_admin ist oder über die Berechtigung 'users' verfügt."""
     @functools.wraps(view)
-    def wrapped_view(**kwargs):
+    def wrapped_view(*args, **kwargs):
         if not session.get("user_id") or not session.get("authenticated"):
             return redirect(url_for("auth.login", next=request.path))
 
         user_role = session.get("role", "monitor")
         if user_role == "root_admin":
-            return view(**kwargs)
+            return view(*args, **kwargs)
 
         role_record = query_db("SELECT permissions FROM roles WHERE name = ?", (user_role,), one=True)
         perms = [p.strip() for p in (role_record["permissions"].split(",") if role_record and role_record["permissions"] else [])]
@@ -105,7 +105,7 @@ def require_users_permission(view):
             flash("Zugriff verweigert: Du hast keine Berechtigung für die Benutzer- und Rollenverwaltung.", "error")
             return redirect(url_for("system.index"))
 
-        return view(**kwargs)
+        return view(*args, **kwargs)
     return wrapped_view
 
 @users_bp.route("/")

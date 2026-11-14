@@ -567,34 +567,36 @@ def index():
     )
 
 # ==============================================================================
-# 6. CONTROLLER ROUTEN: 1-KLICK REPARATUR AKTIONEN
+# 6. CONTROLLER ROUTEN: 1-KLICK REPARATUR AKTIONEN & HELPER
 # ==============================================================================
 
-@webserver_bp.route("/repair/ssl/<domain>", methods=["POST"])
-@login_required
-@role_required(["root_admin", "web_admin"])
-def repair_domain_ssl(domain):
+def repair_domain_ssl_core(domain):
     """
-    1-KLICK REPARATUR FÜR SUBDOMAIN-SSL:
-    Findet das existierende Zertifikat für die Domain, baut den sauberen Dual-Server VHost
-    (Port 80 Redirect + Port 443 SSL Block) und lädt NGINX neu.
+    Kernfunktion für SSL-Reparatur & Aktivierung im VHost:
+    Findet das existierende Zertifikat für die Domain (oder fordert eines via Certbot an),
+    baut den sauberen Dual-Server VHost (Port 80 Redirect + Port 443 SSL Block) und lädt NGINX neu.
+    Gibt (success: bool, message: str) zurück.
     """
     avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
     if not os.path.exists(avail_path):
-        flash(f"Konfigurationsdatei für '{domain}' nicht gefunden.", "error")
-        return redirect(url_for("webserver.index", tab="diagnostics"))
+        return False, f"Konfigurationsdatei für '{domain}' nicht gefunden."
 
     # Vorhandenes Zertifikat suchen
     cert_info = find_ssl_cert_for_domain(domain)
     if not cert_info:
-        # Falls noch kein Zertifikat existiert, versuchen wir Certbot aufzurufen
-        email_arg = ["--email", CERTBOT_EMAIL] if CERTBOT_EMAIL and "@" in CERTBOT_EMAIL else ["--register-unsafely-without-email"]
-        cmd = ["certbot", "certonly", "--webroot", "-w", "/var/www/html", "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        cert_info = find_ssl_cert_for_domain(domain)
+        if shutil.which("certbot"):
+            os.makedirs("/var/www/html", exist_ok=True)
+            email_arg = ["--email", CERTBOT_EMAIL] if CERTBOT_EMAIL and "@" in CERTBOT_EMAIL else ["--register-unsafely-without-email"]
+            cmd = ["certbot", "certonly", "--webroot", "-w", "/var/www/html", "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            cert_info = find_ssl_cert_for_domain(domain)
+            if not cert_info:
+                cmd_fallback = ["certbot", "certonly", "--nginx", "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
+                subprocess.run(cmd_fallback, capture_output=True, text=True)
+                cert_info = find_ssl_cert_for_domain(domain)
+
         if not cert_info:
-            flash(f"Zertifikat konnte für '{domain}' nicht gefunden oder erstellt werden: {res.stderr[:200]}", "error")
-            return redirect(url_for("webserver.index", tab="diagnostics"))
+            return False, f"Zertifikat konnte für '{domain}' nicht gefunden oder erstellt werden."
 
     # Bestehende Konfiguration auslesen um Modus und Parameter zu behalten
     with open(avail_path, "r", encoding="utf-8") as f:
@@ -630,13 +632,33 @@ def repair_domain_ssl(domain):
         with open(avail_path, "w", encoding="utf-8") as f:
             f.write(old_content)
         reload_nginx()
-        flash(f"Reparatur fehlgeschlagen (NGINX Syntaxfehler): {msg}", "error")
-    else:
-        if os.path.exists(backup_path):
-            os.remove(backup_path)
-        log_audit(session.get("username"), "SSL_REPAIR_SUCCESS", f"SSL-VHost für '{domain}' erfolgreich repariert & aktiviert", request.remote_addr, "success")
-        flash(f"Erfolg: SSL-Zertifikat und Port-443-VHost für '{domain}' wurden erfolgreich verknüpft und aktiviert!", "success")
+        return False, f"NGINX Syntaxfehler: {msg}"
 
+    if os.path.exists(backup_path):
+        os.remove(backup_path)
+
+    return True, "SSL-Zertifikat und Port-443-VHost erfolgreich verknüpft und aktiviert."
+
+def issue_and_apply_ssl(domain):
+    """Programmatisches Ausstellen & Einbinden eines SSL-Zertifikats für eine Domain/Subdomain"""
+    return repair_domain_ssl_core(domain)
+
+@webserver_bp.route("/repair/ssl/<domain>", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def repair_domain_ssl(domain):
+    """
+    1-KLICK REPARATUR FÜR SUBDOMAIN-SSL:
+    Findet das existierende Zertifikat für die Domain, baut den sauberen Dual-Server VHost
+    (Port 80 Redirect + Port 443 SSL Block) und lädt NGINX neu.
+    """
+    ok, msg = repair_domain_ssl_core(domain)
+    if not ok:
+        flash(f"Reparatur fehlgeschlagen: {msg}", "error")
+        return redirect(url_for("webserver.index", tab="diagnostics"))
+
+    log_audit(session.get("username"), "SSL_REPAIR_SUCCESS", f"SSL-VHost für '{domain}' erfolgreich repariert & aktiviert", request.remote_addr, "success")
+    flash(f"Erfolg: SSL-Zertifikat und Port-443-VHost für '{domain}' wurden erfolgreich verknüpft und aktiviert!", "success")
     return redirect(url_for("webserver.index", tab="domains"))
 
 @webserver_bp.route("/repair/acme/<domain>", methods=["POST"])
@@ -937,36 +959,13 @@ def add_domain():
 @role_required(["root_admin", "web_admin"])
 def enable_ssl(domain):
     """Fordert ein Let's Encrypt Zertifikat an und konfiguriert den HTTPS-VHost"""
-    if not re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", domain):
-        flash("Ungültige Domain.", "error")
-        return redirect(url_for("webserver.index"))
-
-    if not shutil.which("certbot"):
-        flash("Certbot ist auf diesem Server nicht installiert.", "error")
-        return redirect(url_for("webserver.index"))
-
-    # Webroot für ACME sicherstellen
-    os.makedirs("/var/www/html", exist_ok=True)
-
-    email_arg = ["--email", CERTBOT_EMAIL] if CERTBOT_EMAIL and "@" in CERTBOT_EMAIL else ["--register-unsafely-without-email"]
-    
-    # Bevorzugt certonly via Webroot (funktioniert zuverlässig für Domains & Subdomains ohne NGINX-Parsing-Konflikte)
-    cmd = ["certbot", "certonly", "--webroot", "-w", "/var/www/html", "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
-    res = subprocess.run(cmd, capture_output=True, text=True)
-
-    if res.returncode != 0:
-        # Fallback auf --nginx Plugin
-        cmd_fallback = ["certbot", "certonly", "--nginx", "-d", domain, "--non-interactive", "--agree-tos"] + email_arg
-        res = subprocess.run(cmd_fallback, capture_output=True, text=True)
-
-    cert_info = find_ssl_cert_for_domain(domain)
-    if cert_info:
-        # Jetzt den VHost mit den gefundenen Zertifikaten auf Dual-Server (HTTPS 443) umstellen
-        repair_domain_ssl(domain)
-        return redirect(url_for("webserver.index"))
+    ok, msg = repair_domain_ssl_core(domain)
+    if ok:
+        log_audit(session.get("username"), "SSL_ENABLE_SUCCESS", f"SSL für '{domain}' erfolgreich aktiviert", request.remote_addr, "success")
+        flash(f"SSL-Zertifikat für '{domain}' erfolgreich aktiviert!", "success")
     else:
-        log_audit(session.get("username"), "SSL_FAIL", f"SSL Fehler für '{domain}': {res.stderr}", request.remote_addr, "warning")
-        flash(f"Let's Encrypt Zertifikats-Ausstellung fehlgeschlagen: {res.stderr[:300]}", "error")
+        log_audit(session.get("username"), "SSL_ENABLE_FAIL", f"SSL für '{domain}' fehlgeschlagen: {msg}", request.remote_addr, "warning")
+        flash(f"Let's Encrypt Zertifikats-Ausstellung fehlgeschlagen: {msg}", "error")
 
     return redirect(url_for("webserver.index"))
 

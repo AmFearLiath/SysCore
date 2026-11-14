@@ -31,16 +31,16 @@ def current_user():
 
 def login_required(view):
     @functools.wraps(view)
-    def wrapped_view(**kwargs):
+    def wrapped_view(*args, **kwargs):
         if not session.get("user_id") or not session.get("authenticated"):
             return redirect(url_for("auth.login", next=request.path))
-        return view(**kwargs)
+        return view(*args, **kwargs)
     return wrapped_view
 
 def role_required(allowed_roles):
     def decorator(view):
         @functools.wraps(view)
-        def wrapped_view(**kwargs):
+        def wrapped_view(*args, **kwargs):
             if not session.get("user_id") or not session.get("authenticated"):
                 return redirect(url_for("auth.login", next=request.path))
             
@@ -55,7 +55,7 @@ def role_required(allowed_roles):
                 )
                 flash("Zugriff verweigert: Deine Benutzerrolle verfügt nicht über ausreichende Berechtigungen.", "error")
                 return redirect(url_for("system.index"))
-            return view(**kwargs)
+            return view(*args, **kwargs)
         return wrapped_view
     return decorator
 

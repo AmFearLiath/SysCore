@@ -7,7 +7,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from modules.auth_users import login_required, role_required, log_audit
 from db import query_db, execute_db
 from config import WEB_ROOT_BASE, NGINX_AVAILABLE, NGINX_ENABLED, CERTBOT_EMAIL
-from modules.webserver import build_nginx_config, reload_nginx, find_ssl_cert_for_domain, enable_ssl, repair_domain_ssl, detect_php_versions
+from modules.webserver import build_nginx_config, reload_nginx, find_ssl_cert_for_domain, issue_and_apply_ssl, detect_php_versions
 
 packages_bp = Blueprint("packages", __name__, url_prefix="/packages")
 
@@ -411,13 +411,24 @@ def configure_package(pkg_key):
 
     # 3. Falls SSL gewünscht ist, aber noch kein Zertifikat existierte: Sofort anfordern
     if auto_ssl and not ssl_active:
-        enable_ssl(domain)
-        # Erneut prüfen ob Zertifikat nun da ist
-        cert_info = find_ssl_cert_for_domain(domain)
-        if cert_info:
-            repair_domain_ssl(domain)
+        ssl_ok, ssl_msg = issue_and_apply_ssl(domain)
+        if not ssl_ok:
+            flash(f"VHost wurde angelegt, aber SSL-Zertifikat konnte nicht ausgestellt werden ({ssl_msg}). Bitte prüfe DNS-Einträge.", "warning")
 
-    # 4. In package_configs Tabelle speichern
+    # 4. In package_configs Tabelle speichern (Tabelle sicherstellen)
+    execute_db("""
+    CREATE TABLE IF NOT EXISTS package_configs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        package_key TEXT UNIQUE NOT NULL,
+        domain TEXT,
+        mode TEXT DEFAULT 'subdomain',
+        port INTEGER,
+        ssl_enabled INTEGER DEFAULT 1,
+        php_version TEXT DEFAULT '8.2',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
     existing = query_db("SELECT id FROM package_configs WHERE package_key = ?", (pkg_key,), one=True)
     if existing:
         execute_db("""
