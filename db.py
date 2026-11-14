@@ -186,6 +186,20 @@ def init_db():
     );
     """)
 
+    # 14. Paket-Konfigurationen & Routing (Subdomains für phpMyAdmin, Adminer, Uptime Kuma etc.)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS package_configs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        package_key TEXT UNIQUE NOT NULL,
+        domain TEXT,
+        mode TEXT DEFAULT 'subdomain',
+        port INTEGER,
+        ssl_enabled INTEGER DEFAULT 1,
+        php_version TEXT DEFAULT '8.2',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
     # Standard-Rollen anlegen falls noch keine vorhanden
     cursor.execute("SELECT COUNT(*) FROM roles;")
     if cursor.fetchone()[0] == 0:

@@ -1,45 +1,67 @@
 {% extends "base.html" %}
+
 {% block title %}Paket- & Stack-Installer // SysCore{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
 
+    <!-- Header & Action Bar -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <h1 class="text-2xl font-extrabold text-white tracking-tight">Paket- & Stack-Installer</h1>
-            <p class="text-xs text-gray-400 font-mono mt-1">Geführte 1-Klick-Installation moderner Server-Tools, Runtimes, Monitoring-Suites und Sicherheits-Pakete.</p>
+            <p class="text-xs text-gray-400 font-mono mt-1">1-Klick Stack-Provisionierung für PHP, Node.js, Datenbanken, Monitoring & Web-Tools.</p>
         </div>
-
-        <button onclick="SysCore.openTerminal('SysCore Paket-Manager')" class="px-3.5 py-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-gray-300 hover:text-white rounded-xl transition flex items-center gap-2">
-            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            <span>Live-Konsole öffnen</span>
-        </button>
     </div>
 
     <!-- Category Tabs Filter -->
-    <div class="flex items-center gap-2 border-b border-dark-700 pb-3 text-xs font-mono overflow-x-auto">
-        <button onclick="filterPackages('all')" class="pkg-tab-btn active px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">Alle Pakete ({{ packages|length }})</button>
-        <button onclick="filterPackages('Runtimes')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Runtimes & PHP</button>
-        <button onclick="filterPackages('Monitoring')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Monitoring & Logs</button>
-        <button onclick="filterPackages('Databases')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Datenbanken & Cache</button>
-        <button onclick="filterPackages('Tools')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Tools & Web-GUIs</button>
-        <button onclick="filterPackages('Security')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">Sicherheit & VPN</button>
-        <button onclick="filterPackages('DevOps')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">DevOps & Container</button>
+    <div class="flex items-center gap-2 border-b border-dark-700 pb-2 text-xs font-mono overflow-x-auto">
+        <button onclick="filterPackages('all')" class="pkg-tab-btn px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold transition">
+            Alle Pakete
+        </button>
+        <button onclick="filterPackages('Tools')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Web-GUIs & Tools
+        </button>
+        <button onclick="filterPackages('Runtimes')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Runtimes (PHP/Node)
+        </button>
+        <button onclick="filterPackages('Databases')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Datenbanken & Cache
+        </button>
+        <button onclick="filterPackages('Monitoring')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Monitoring
+        </button>
+        <button onclick="filterPackages('Security')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Sicherheit
+        </button>
+        <button onclick="filterPackages('DevOps')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            DevOps & Git
+        </button>
     </div>
 
-    <!-- Package Cards Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+    <!-- Package Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="packagesGrid">
         {% for p in packages %}
-        <div class="sys-card p-5 pkg-card flex flex-col justify-between" data-category="{{ p.category }}">
-            <div class="space-y-3">
-                <div class="flex items-start justify-between gap-3">
+        <div class="sys-card p-5 flex flex-col justify-between pkg-card transition hover:border-dark-600" data-category="{{ p.category }}">
+            <div class="space-y-2.5">
+                <div class="flex items-start justify-between gap-2">
                     <div>
-                        <span class="text-[10px] font-mono uppercase tracking-wider text-gray-500 font-semibold block">{{ p.category }}</span>
-                        <h3 class="text-base font-bold text-white tracking-tight mt-0.5">{{ p.name }}</h3>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-base font-bold text-white tracking-tight">{{ p.name }}</h3>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-dark-900 border border-dark-700 text-gray-400">
+                                {{ p.category }}
+                            </span>
+                        </div>
+                        {% if p.configured_domain %}
+                        <div class="flex items-center gap-1.5 mt-1 text-[11px] font-mono text-emerald-400">
+                            <span>🌐</span>
+                            <span>{{ p.configured_domain }}</span>
+                            <span class="text-gray-500">({{ 'SSL' if p.ssl_enabled else 'HTTP' }})</span>
+                        </div>
+                        {% endif %}
                     </div>
 
                     {% if p.installed %}
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-emerald shrink-0 flex items-center gap-1">
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-emerald flex items-center gap-1 shrink-0">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                         Aktiv
                     </span>
@@ -54,21 +76,28 @@
             </div>
 
             <div class="pt-4 mt-4 border-t border-dark-700 flex items-center justify-between">
-                <div class="text-[11px] font-mono text-gray-500 truncate max-w-[150px]" title="{{ p.version }}">
+                <div class="text-[11px] font-mono text-gray-500 truncate max-w-[130px]" title="{{ p.version }}">
                     {{ p.version }}
                 </div>
 
-                <div class="flex items-center gap-2">
-                    {% if p.installed and p.url_path %}
-                    <a href="{{ p.url_path }}" target="_blank" class="px-2.5 py-1.5 rounded-lg text-xs font-mono text-cyan-400 hover:text-cyan-300 bg-dark-850 hover:bg-dark-800 border border-dark-700 transition" title="Web-Interface öffnen">
-                        Öffnen ↗
-                    </a>
-                    {% elif p.installed and p.port %}
-                    <a href="http://{{ request.host.split(':')[0] }}:{{ p.port }}" target="_blank" class="px-2.5 py-1.5 rounded-lg text-xs font-mono text-cyan-400 hover:text-cyan-300 bg-dark-850 hover:bg-dark-800 border border-dark-700 transition" title="Port {{ p.port }} öffnen">
-                        :{{ p.port }} ↗
+                <div class="flex items-center gap-1.5">
+                    <!-- Web-Link falls konfiguriert oder Port -->
+                    {% if p.installed and p.target_url %}
+                    <a href="{{ p.target_url }}" target="_blank" class="px-2.5 py-1.5 rounded-lg text-xs font-mono text-cyan-400 hover:text-cyan-300 bg-dark-850 hover:bg-dark-800 border border-dark-700 transition flex items-center gap-1" title="{{ p.target_url }} öffnen">
+                        <span>Öffnen</span>
+                        <span>↗</span>
                     </a>
                     {% endif %}
 
+                    <!-- Konfigurieren & Subdomain zuweisen Button -->
+                    {% if p.installed and p.web_configurable %}
+                    <button type="button" onclick="openConfigModal('{{ p.key }}', '{{ p.name }}', '{{ p.configured_domain or '' }}', '{{ p.default_subdomain_prefix or '' }}', {{ 'true' if p.requires_php else 'false' }})"
+                            class="p-1.5 rounded-lg text-xs font-mono text-indigo-400 hover:text-indigo-300 bg-dark-850 hover:bg-dark-800 border border-dark-700 transition" title="Domain / Routing konfigurieren">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                    </button>
+                    {% endif %}
+
+                    <!-- Installieren / Updaten Button -->
                     <button type="button" onclick="triggerInstall('{{ p.key }}', '{{ p.name }}')"
                             class="px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition flex items-center gap-1.5 {{ 'bg-dark-800 hover:bg-dark-750 text-gray-200 border border-dark-600' if p.installed else 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20' }}">
                         <span>{{ 'Update' if p.installed else 'Installieren' }}</span>
@@ -80,10 +109,84 @@
     </div>
 
 </div>
+
+<!-- MODAL: Pack-Routing & Subdomain Konfigurator -->
+<div id="modal-pkg-config" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                <span>Paket-Routing: <span id="cfg-pkg-name" class="text-emerald-400"></span></span>
+            </h3>
+            <button onclick="closeModal('modal-pkg-config')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <form id="pkgConfigForm" method="POST" class="space-y-4 text-xs font-mono">
+            <div>
+                <label class="block text-gray-400 mb-1">Gewünschte Subdomain oder Domain</label>
+                <input type="text" name="domain" id="cfg-domain-input" required placeholder="z.B. phpmyadmin.amfearliath.de" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                <p class="text-[10px] text-gray-500 mt-1">Hierfür wird automatisch ein dedizierter NGINX VHost angelegt.</p>
+            </div>
+
+            <div id="cfg-php-container">
+                <label class="block text-gray-400 mb-1">PHP-FPM Version</label>
+                <select name="php_version" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    {% for v in php_versions %}
+                    <option value="{{ v }}" {{ 'selected' if v == '8.2' else '' }}>PHP {{ v }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="flex items-center gap-2 pt-1">
+                <input type="checkbox" name="auto_ssl" value="1" id="cfg-auto-ssl" checked class="w-4 h-4 rounded bg-dark-950 border-dark-700 text-emerald-500 focus:ring-0">
+                <label for="cfg-auto-ssl" class="text-gray-300">Let's Encrypt SSL-Zertifikat automatisch anfordern & aktivieren</label>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-pkg-config')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">VHost anlegen & bereitstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+function closeModal(id) {
+    const m = document.getElementById(id);
+    if (m) m.classList.add('hidden');
+}
+
+function openConfigModal(pkgKey, pkgName, configuredDomain, defaultPrefix, requiresPhp) {
+    document.getElementById('cfg-pkg-name').textContent = pkgName;
+    document.getElementById('pkgConfigForm').action = "/packages/configure/" + pkgKey;
+
+    // Standard Subdomain Vorschlag generieren anhand des aktuellen Hosts (z.B. phpmyadmin.amfearliath.de)
+    let suggestedDomain = configuredDomain;
+    if (!suggestedDomain) {
+        const hostParts = window.location.hostname.split('.');
+        if (hostParts.length >= 2) {
+            const rootDomain = hostParts.slice(-2).join('.');
+            suggestedDomain = (defaultPrefix || pkgKey) + '.' + rootDomain;
+        } else {
+            suggestedDomain = (defaultPrefix || pkgKey) + '.' + window.location.hostname;
+        }
+    }
+
+    document.getElementById('cfg-domain-input').value = suggestedDomain;
+
+    const phpContainer = document.getElementById('cfg-php-container');
+    if (requiresPhp) {
+        phpContainer.classList.remove('hidden');
+    } else {
+        phpContainer.classList.add('hidden');
+    }
+
+    document.getElementById('modal-pkg-config').classList.remove('hidden');
+}
+
 function filterPackages(category) {
     document.querySelectorAll(".pkg-tab-btn").forEach(btn => {
         btn.classList.remove("bg-emerald-500/10", "text-emerald-400", "border", "border-emerald-500/20", "font-semibold");

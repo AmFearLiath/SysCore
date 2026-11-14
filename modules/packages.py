@@ -1,13 +1,17 @@
 import os
+import re
 import shutil
+import secrets
 import subprocess
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, session
-from modules.auth_users import login_required, role_required
-from db import log_audit
+from modules.auth_users import login_required, role_required, log_audit
+from db import query_db, execute_db
+from config import WEB_ROOT_BASE, NGINX_AVAILABLE, NGINX_ENABLED, CERTBOT_EMAIL
+from modules.webserver import build_nginx_config, reload_nginx, find_ssl_cert_for_domain, enable_ssl, repair_domain_ssl, detect_php_versions
 
 packages_bp = Blueprint("packages", __name__, url_prefix="/packages")
 
-# Umfassende Paket-Definitionen & Installations-Rezepte
+# Umfassende Paket-Definitionen & Installations-Rezepte mit Web-Konfiguration
 PACKAGES_REGISTRY = {
     # --- Runtimes ---
     "php8.2": {
@@ -80,7 +84,7 @@ PACKAGES_REGISTRY = {
     "goaccess": {
         "name": "GoAccess (Log-Analyzer)",
         "category": "Monitoring",
-        "desc": "Visueller NGINX Realtime Log-Analyzer. Erzeugt interaktive Dashboards über Traffic, Besucher und Bots",
+        "desc": "Visueller NGINX Realtime Log-Analyzer für Besucher-, Traffic- und Bot-Statistiken",
         "check_cmd": ["goaccess", "--version"],
         "install_cmds": [
             "export DEBIAN_FRONTEND=noninteractive",
@@ -91,7 +95,7 @@ PACKAGES_REGISTRY = {
     "uptime_kuma": {
         "name": "Uptime Kuma",
         "category": "Monitoring",
-        "desc": "Modernes, selbst gehostetes Monitoring-Tool mit Statusseiten und Discord/Mail-Alarmierung auf Port 3001",
+        "desc": "Modernes Monitoring-Tool mit Statusseiten und Alarmierung auf Port 3001",
         "check_cmd": ["test", "-d", "/opt/uptime-kuma"],
         "install_cmds": [
             "export DEBIAN_FRONTEND=noninteractive",
@@ -102,7 +106,10 @@ PACKAGES_REGISTRY = {
             "pm2 start /opt/uptime-kuma/server/server.js --name uptime-kuma",
             "pm2 save"
         ],
-        "port": 3001
+        "port": 3001,
+        "web_configurable": True,
+        "proxy_port": 3001,
+        "default_subdomain_prefix": "status"
     },
 
     # --- Datenbanken & Cache ---
@@ -132,6 +139,28 @@ PACKAGES_REGISTRY = {
     },
 
     # --- Web-GUIs & Tools ---
+    "phpmyadmin": {
+        "name": "phpMyAdmin (Web Database GUI)",
+        "category": "Tools",
+        "desc": "Vollwertige phpMyAdmin Web-Oberfläche für MySQL/MariaDB unter /var/www/phpmyadmin",
+        "check_cmd": ["test", "-d", "/var/www/phpmyadmin"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "apt-get update && apt-get install -y wget unzip",
+            "mkdir -p /var/www/phpmyadmin",
+            "wget -q https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.tar.gz -O /tmp/pma.tar.gz",
+            "tar -xzf /tmp/pma.tar.gz -C /var/www/phpmyadmin --strip-components=1",
+            "rm -f /tmp/pma.tar.gz",
+            "cp /var/www/phpmyadmin/config.sample.inc.php /var/www/phpmyadmin/config.inc.php",
+            "RANDOM_BLOWFISH=$(python3 -c \"import secrets; print(secrets.token_hex(16))\")",
+            "sed -i \"s/\\$cfg\\['blowfish_secret'\\] = '';/\\$cfg\\['blowfish_secret'\\] = '$RANDOM_BLOWFISH';/\" /var/www/phpmyadmin/config.inc.php",
+            "chown -R www-data:www-data /var/www/phpmyadmin"
+        ],
+        "web_configurable": True,
+        "doc_root": "/var/www/phpmyadmin",
+        "requires_php": True,
+        "default_subdomain_prefix": "phpmyadmin"
+    },
     "adminer": {
         "name": "Adminer (Lightweight DB GUI)",
         "category": "Tools",
@@ -143,24 +172,10 @@ PACKAGES_REGISTRY = {
             "wget -q https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php -O /var/www/adminer/index.php",
             "chown -R www-data:www-data /var/www/adminer"
         ],
-        "url_path": "/adminer"
-    },
-    "phpmyadmin": {
-        "name": "phpMyAdmin (Web Database GUI)",
-        "category": "Tools",
-        "desc": "Vollwertige phpMyAdmin Web-Oberfläche unter /var/www/phpmyadmin bereitgestellt",
-        "check_cmd": ["test", "-d", "/var/www/phpmyadmin"],
-        "install_cmds": [
-            "export DEBIAN_FRONTEND=noninteractive",
-            "apt-get update && apt-get install -y wget unzip",
-            "mkdir -p /var/www/phpmyadmin",
-            "wget -q https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.tar.gz -O /tmp/pma.tar.gz",
-            "tar -xzf /tmp/pma.tar.gz -C /var/www/phpmyadmin --strip-components=1",
-            "rm -f /tmp/pma.tar.gz",
-            "cp /var/www/phpmyadmin/config.sample.inc.php /var/www/phpmyadmin/config.inc.php",
-            "chown -R www-data:www-data /var/www/phpmyadmin"
-        ],
-        "url_path": "/phpmyadmin"
+        "web_configurable": True,
+        "doc_root": "/var/www/adminer",
+        "requires_php": True,
+        "default_subdomain_prefix": "adminer"
     },
 
     # --- Sicherheit & Netzwerk ---
@@ -234,7 +249,10 @@ PACKAGES_REGISTRY = {
             "wget -q -O /usr/local/bin/gitea https://dl.gitea.com/gitea/1.22.0/gitea-1.22.0-linux-amd64",
             "chmod +x /usr/local/bin/gitea"
         ],
-        "port": 3000
+        "port": 3000,
+        "web_configurable": True,
+        "proxy_port": 3000,
+        "default_subdomain_prefix": "git"
     }
 }
 
@@ -271,8 +289,36 @@ def check_installed(pkg_key):
 @role_required(["root_admin"])
 def index():
     packages_status = []
+    
+    # Bereits konfigurierte Subdomains aus DB laden
+    configured_domains = {}
+    try:
+        rows = query_db("SELECT * FROM package_configs")
+        for r in rows:
+            configured_domains[r["package_key"]] = dict(r)
+    except Exception:
+        pass
+
+    # Vorhandene Domains für Alias-Vorschläge
+    available_domains = []
+    if os.path.exists(NGINX_AVAILABLE):
+        for f in os.listdir(NGINX_AVAILABLE):
+            if f.endswith(".panel.conf"):
+                available_domains.append(f.replace(".panel.conf", ""))
+
+    php_versions = detect_php_versions()
+
     for key, data in PACKAGES_REGISTRY.items():
         installed, version_info = check_installed(key)
+        pkg_cfg = configured_domains.get(key)
+        
+        target_url = None
+        if pkg_cfg and pkg_cfg.get("domain"):
+            proto = "https" if pkg_cfg.get("ssl_enabled") else "http"
+            target_url = f"{proto}://{pkg_cfg['domain']}"
+        elif data.get("port"):
+            target_url = f"http://{request.host.split(':')[0]}:{data['port']}"
+
         packages_status.append({
             "key": key,
             "name": data["name"],
@@ -281,10 +327,113 @@ def index():
             "installed": installed,
             "version": version_info,
             "port": data.get("port"),
-            "url_path": data.get("url_path")
+            "web_configurable": data.get("web_configurable", False),
+            "doc_root": data.get("doc_root"),
+            "requires_php": data.get("requires_php", False),
+            "default_subdomain_prefix": data.get("default_subdomain_prefix"),
+            "configured_domain": pkg_cfg.get("domain") if pkg_cfg else None,
+            "ssl_enabled": pkg_cfg.get("ssl_enabled") if pkg_cfg else 1,
+            "target_url": target_url
         })
 
-    return render_template("packages.html", packages=packages_status)
+    return render_template(
+        "packages.html",
+        packages=packages_status,
+        available_domains=available_domains,
+        php_versions=php_versions
+    )
+
+@packages_bp.route("/configure/<pkg_key>", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def configure_package(pkg_key):
+    """Richtet eine Subdomain oder VHost für ein Web-Paket (phpMyAdmin, Adminer, Uptime Kuma etc.) ein"""
+    pkg_data = PACKAGES_REGISTRY.get(pkg_key)
+    if not pkg_data or not pkg_data.get("web_configurable"):
+        flash("Dieses Paket unterstützt keine automatische Web-Routing-Konfiguration.", "error")
+        return redirect(url_for("packages.index"))
+
+    domain = request.form.get("domain", "").strip().lower()
+    php_version = request.form.get("php_version", "8.2").strip()
+    auto_ssl = 1 if request.form.get("auto_ssl") == "1" else 0
+
+    if not re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", domain):
+        flash("Bitte einen gültigen Domain- oder Subdomainnamen angeben (z. B. phpmyadmin.amfearliath.de).", "error")
+        return redirect(url_for("packages.index"))
+
+    os.makedirs(NGINX_AVAILABLE, exist_ok=True)
+    os.makedirs(NGINX_ENABLED, exist_ok=True)
+
+    conf_name = f"{domain}.panel.conf"
+    avail_path = os.path.join(NGINX_AVAILABLE, conf_name)
+    enabled_path = os.path.join(NGINX_ENABLED, conf_name)
+
+    # 1. Modus und Zielpfad bestimmen
+    if pkg_data.get("doc_root"):
+        mode = "webspace"
+        target_path = pkg_data["doc_root"]
+        proxy_port = ""
+    else:
+        mode = "proxy"
+        target_path = ""
+        proxy_port = str(pkg_data.get("proxy_port", 3000))
+
+    # Prüfen ob bereits ein SSL-Zertifikat existiert
+    cert_info = find_ssl_cert_for_domain(domain)
+    ssl_active = (cert_info is not None)
+
+    # 2. VHost erzeugen
+    vhost_content = build_nginx_config(
+        domain=domain,
+        mode=mode,
+        target_path=target_path,
+        proxy_port=proxy_port,
+        php_version=php_version,
+        ssl_enabled=ssl_active,
+        cert_path=cert_info["cert_path"] if cert_info else None,
+        key_path=cert_info["key_path"] if cert_info else None
+    )
+
+    with open(avail_path, "w", encoding="utf-8") as f:
+        f.write(vhost_content)
+
+    try:
+        if os.path.exists(enabled_path):
+            os.remove(enabled_path)
+        os.symlink(avail_path, enabled_path)
+    except OSError:
+        pass
+
+    ok, msg = reload_nginx()
+    if not ok:
+        flash(f"NGINX-Konfiguration fehlgeschlagen: {msg}", "error")
+        return redirect(url_for("packages.index"))
+
+    # 3. Falls SSL gewünscht ist, aber noch kein Zertifikat existierte: Sofort anfordern
+    if auto_ssl and not ssl_active:
+        enable_ssl(domain)
+        # Erneut prüfen ob Zertifikat nun da ist
+        cert_info = find_ssl_cert_for_domain(domain)
+        if cert_info:
+            repair_domain_ssl(domain)
+
+    # 4. In package_configs Tabelle speichern
+    existing = query_db("SELECT id FROM package_configs WHERE package_key = ?", (pkg_key,), one=True)
+    if existing:
+        execute_db("""
+        UPDATE package_configs 
+        SET domain = ?, mode = ?, port = ?, ssl_enabled = ?, php_version = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE package_key = ?
+        """, (domain, mode, int(proxy_port) if proxy_port else None, auto_ssl, php_version, pkg_key))
+    else:
+        execute_db("""
+        INSERT INTO package_configs (package_key, domain, mode, port, ssl_enabled, php_version)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, (pkg_key, domain, mode, int(proxy_port) if proxy_port else None, auto_ssl, php_version))
+
+    log_audit(session.get("username"), "PACKAGE_CONFIGURE", f"{pkg_data['name']} erfolgreich an Subdomain '{domain}' angebunden", request.remote_addr, "success")
+    flash(f"{pkg_data['name']} wurde erfolgreich unter https://{domain} bereitgestellt!", "success")
+    return redirect(url_for("packages.index"))
 
 @packages_bp.route("/install/<pkg_key>", methods=["POST"])
 @login_required
