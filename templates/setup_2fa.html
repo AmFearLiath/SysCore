@@ -16,16 +16,16 @@
     <div class="sys-card p-6 md:p-8 space-y-6">
         <div class="flex flex-col md:flex-row items-center gap-6">
             <!-- QR Code -->
-            <div class="p-4 bg-white rounded-2xl flex items-center justify-center shrink-0 shadow-xl border border-gray-200">
-                {% if qr_svg %}
-                <div class="w-48 h-48 flex items-center justify-center text-dark-950">
+            <div class="p-4 bg-white rounded-2xl flex items-center justify-center shrink-0 shadow-2xl border border-white">
+                {% if qr_base64 %}
+                <img src="data:image/png;base64,{{ qr_base64 }}" alt="2FA QR Code" class="w-56 h-56 block">
+                {% elif qr_svg %}
+                <div class="w-56 h-56 flex items-center justify-center">
                     {{ qr_svg|safe }}
                 </div>
-                {% elif qr_base64 %}
-                <img src="data:image/png;base64,{{ qr_base64 }}" alt="2FA QR Code" class="w-48 h-48 rounded-lg">
                 {% else %}
-                <div class="w-48 h-48 flex items-center justify-center text-xs text-gray-500 font-mono text-center">
-                    Scanne oder kopiere den Schlüssel rechts
+                <div class="w-56 h-56 flex items-center justify-center text-xs text-gray-500 font-mono text-center p-4">
+                    Scanne oder trage den Schlüssel manuell ein
                 </div>
                 {% endif %}
             </div>
@@ -33,17 +33,18 @@
             <div class="space-y-4 text-sm text-gray-300">
                 <div class="space-y-1">
                     <div class="text-xs font-mono uppercase text-emerald-400 font-semibold tracking-wider">Schritt 1: Scannen</div>
-                    <p class="text-xs text-gray-400">Scanne den QR-Code mit deiner Authenticator-App.</p>
+                    <p class="text-xs text-gray-400">Scanne den QR-Code mit einer Authenticator-App (z.B. Google Authenticator, 2FAS, Microsoft Authenticator, Bitwarden oder Apple Passwörter).</p>
                 </div>
 
                 <div class="space-y-1">
-                    <div class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider">Manueller Schlüssel (Optional)</div>
+                    <div class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider">Manueller Einrichtungs-Schlüssel</div>
                     <div class="flex items-center gap-2">
-                        <code class="px-2.5 py-1 bg-dark-950 border border-dark-700 rounded text-emerald-400 font-mono text-xs">{{ secret }}</code>
-                        <button type="button" onclick="SysCore.copyToClipboard('{{ secret }}', '2FA Schlüssel')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 border border-dark-600 rounded text-[11px] font-mono text-gray-300 transition">
+                        <code class="px-3 py-1.5 bg-dark-950 border border-dark-700 rounded-lg text-emerald-400 font-mono text-sm tracking-wider select-all">{{ secret }}</code>
+                        <button type="button" onclick="SysCore.copyToClipboard('{{ secret }}', '2FA Schlüssel')" class="px-2.5 py-1.5 bg-dark-800 hover:bg-dark-700 border border-dark-600 rounded-lg text-xs font-mono text-gray-300 transition">
                             Kopieren
                         </button>
                     </div>
+                    <p class="text-[10px] text-gray-500 font-mono mt-1">Falls Kamera-Scan nicht möglich ist: In der App auf „Schlüssel manuell eingeben“ klicken.</p>
                 </div>
             </div>
         </div>

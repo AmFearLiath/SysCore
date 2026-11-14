@@ -105,7 +105,7 @@ def verify_2fa():
         code = request.form.get("code", "").strip().replace(" ", "")
         totp = pyotp.TOTP(user["totp_secret"])
 
-        if totp.verify(code, valid_window=1):
+        if totp.verify(code, valid_window=2):
             session.clear()
             session["user_id"] = user["id"]
             session["username"] = user["username"]
@@ -148,14 +148,14 @@ def setup_2fa():
             return redirect(url_for("auth.setup_2fa"))
 
         totp = pyotp.TOTP(secret)
-        if totp.verify(token, valid_window=1):
+        if totp.verify(token, valid_window=2):
             execute_db("UPDATE users SET totp_secret = ?, totp_enabled = 1 WHERE id = ?", (secret, user["id"]))
             session.pop("temp_totp_secret", None)
             log_audit(user["username"], "2FA_ENABLED", "2FA erfolgreich aktiviert", request.remote_addr, "success")
             flash("Zwei-Faktor-Authentifizierung wurde erfolgreich aktiviert!", "success")
             return redirect(url_for("settings.index", tab="security"))
         else:
-            flash("Ungültiger Bestätigungscode. Bitte prüfe deine Authenticator-App.", "error")
+            flash("Ungültiger Bestätigungscode. Bitte prüfe deine Authenticator-App und die Systemzeit.", "error")
 
     # Neues Secret generieren falls keines in Bearbeitung
     secret = session.get("temp_totp_secret")
@@ -164,32 +164,61 @@ def setup_2fa():
         session["temp_totp_secret"] = secret
 
     totp = pyotp.TOTP(secret)
-    provisioning_uri = totp.provisioning_uri(name=user["username"], issuer_name="SysCore Server")
+    # Eindeutiger Issuer ohne Sonderzeichen/Leerzeichen für maximale Authenticator-Kompatibilität
+    provisioning_uri = totp.provisioning_uri(name=user["username"], issuer_name="SysCore")
 
-    # QR-Code bevorzugt als SVG erzeugen (funktioniert ohne Pillow-Abhängigkeit)
     qr_svg = None
     qr_base64 = None
+
+    # 1. Bevorzugt: Gestochen scharfes PNG mit Standard Schwarz-auf-Weiß (Pillow) & 4-Modul Quiet Zone
     try:
-        import qrcode.image.svg
-        qr = qrcode.QRCode(box_size=8, border=2, image_factory=qrcode.image.svg.SvgPathImage)
+        import qrcode.constants
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=4
+        )
         qr.add_data(provisioning_uri)
         qr.make(fit=True)
-        img = qr.make_image()
+        img = qr.make_image(fill_color="black", back_color="white")
         buffered = io.BytesIO()
-        img.save(buffered)
-        qr_svg = buffered.getvalue().decode("utf-8")
+        img.save(buffered, format="PNG")
+        qr_base64 = base64.b64encode(buffered.getvalue()).decode()
     except Exception:
         pass
 
-    if not qr_svg:
+    # 2. Fallback: Valides, responsives Vektor-SVG mit weißem Hintergrund und 4-Modul Quiet Zone
+    if not qr_base64:
         try:
-            qr = qrcode.QRCode(box_size=6, border=2)
+            import qrcode.image.svg
+            import re
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=10,
+                border=4,
+                image_factory=qrcode.image.svg.SvgPathImage
+            )
             qr.add_data(provisioning_uri)
             qr.make(fit=True)
-            img = qr.make_image(fill_color="#10b981", back_color="#090d16")
+            img = qr.make_image()
             buffered = io.BytesIO()
-            img.save(buffered, format="PNG")
-            qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+            img.save(buffered)
+            svg_str = buffered.getvalue().decode("utf-8")
+            
+            # mm-Dimensionen durch 100% ersetzen für saubere CSS-Skalierung
+            svg_str = re.sub(r'width="[^"]+"', 'width="100%"', svg_str, count=1)
+            svg_str = re.sub(r'height="[^"]+"', 'height="100%"', svg_str, count=1)
+            
+            # Weißen Hintergrund-Rechteck in SVG einfügen
+            svg_start = svg_str.find("<svg")
+            if svg_start != -1:
+                svg_tag_end = svg_str.find(">", svg_start)
+                if svg_tag_end != -1:
+                    bg_rect = '<rect width="100%" height="100%" fill="#FFFFFF"/>'
+                    svg_str = svg_str[:svg_tag_end+1] + bg_rect + svg_str[svg_tag_end+1:]
+            qr_svg = svg_str
         except Exception:
             pass
 
