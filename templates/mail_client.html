@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Webmail Client // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Action Bar -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('mail.index') }}" class="p-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 rounded-xl text-gray-400 hover:text-white transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            </a>
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <span>SysCore Webmail</span>
+                    <span class="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Nativ</span>
+                </h1>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">Postfach: <strong class="text-gray-200">{{ selected_account }}</strong></p>
+            </div>
+        </div>
+
+        <button data-modal-open="modal-mail-compose" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-mono font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>E-Mail verfassen</span>
+        </button>
+    </div>
+
+    <!-- Webmail Client 3-Column Layout -->
+    <div class="sys-card overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[550px]">
+
+        <!-- Column 1: Account Switcher & Folders (3 Cols) -->
+        <div class="md:col-span-3 border-r border-dark-700 p-4 space-y-5 bg-dark-950/40">
+            <div>
+                <label class="block text-[10px] font-mono uppercase text-gray-500 font-semibold mb-1.5">Postfach wechseln</label>
+                <select onchange="window.location.href='/mail/native-client?account=' + this.value" class="w-full px-3 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-white font-mono text-xs outline-none">
+                    {% for a in accounts %}
+                    <option value="{{ a.email }}" {{ 'selected' if a.email == selected_account else '' }}>{{ a.email }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Mail Folders -->
+            <div class="space-y-1 text-xs font-mono">
+                <a href="#" class="flex items-center justify-between px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                    <span class="flex items-center gap-2">
+                        <span>📥</span>
+                        <span>Posteingang</span>
+                    </span>
+                    <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300">2</span>
+                </a>
+
+                <a href="#" class="flex items-center justify-between px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">
+                    <span class="flex items-center gap-2">
+                        <span>📤</span>
+                        <span>Gesendet</span>
+                    </span>
+                </a>
+
+                <a href="#" class="flex items-center justify-between px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">
+                    <span class="flex items-center gap-2">
+                        <span>📝</span>
+                        <span>Entwürfe</span>
+                    </span>
+                </a>
+
+                <a href="#" class="flex items-center justify-between px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 transition">
+                    <span class="flex items-center gap-2">
+                        <span>🗑️</span>
+                        <span>Papierkorb</span>
+                    </span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Column 2: Message List (4 Cols) -->
+        <div class="md:col-span-4 border-r border-dark-700 overflow-y-auto divide-y divide-dark-700/60 bg-dark-900/30">
+            {% for m in emails %}
+            <div onclick="selectMessage({{ loop.index0 }})" class="p-4 cursor-pointer hover:bg-dark-850 transition message-row {{ 'bg-dark-850/80 border-l-2 border-emerald-400' if loop.first else '' }}" id="msg-row-{{ loop.index0 }}">
+                <div class="flex items-center justify-between text-[11px] font-mono text-gray-400 mb-1">
+                    <span class="font-bold text-white truncate max-w-[150px]">{{ m.sender }}</span>
+                    <span>{{ m.date }}</span>
+                </div>
+                <div class="text-xs font-semibold text-gray-200 truncate mb-1">{{ m.subject }}</div>
+                <div class="text-[11px] text-gray-500 truncate font-sans">{{ m.preview }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Column 3: Message Body Reading Pane (5 Cols) -->
+        <div class="md:col-span-5 p-6 flex flex-col justify-between overflow-y-auto bg-dark-950/20">
+            <div class="space-y-4" id="reading-pane-content">
+                <div class="border-b border-dark-700 pb-4">
+                    <h2 id="msg-subject" class="text-base font-bold text-white tracking-tight">{{ emails[0].subject }}</h2>
+                    <div class="flex items-center justify-between text-xs font-mono text-gray-400 mt-2">
+                        <div>Von: <span id="msg-sender" class="text-emerald-400 font-semibold">{{ emails[0].sender }}</span></div>
+                        <div id="msg-date" class="text-gray-500">{{ emails[0].date }}</div>
+                    </div>
+                </div>
+
+                <div id="msg-body" class="text-xs text-gray-300 leading-relaxed font-sans space-y-3 pt-2">
+                    <p>{{ emails[0].preview }}</p>
+                    <p>Du kannst jederzeit E-Mails an andere Adressen senden oder über IMAP abrufen.</p>
+                </div>
+            </div>
+
+            <!-- Reply Action Bar -->
+            <div class="pt-6 border-t border-dark-700 flex justify-end gap-2">
+                <button onclick="replyToCurrent()" class="px-3 py-1.5 bg-dark-800 hover:bg-dark-700 text-gray-200 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                    <span>Antworten</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Modal: E-Mail Verfassen -->
+<div id="modal-mail-compose" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white tracking-tight">Neue E-Mail verfassen</h3>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('mail.send_mail') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Absender</label>
+                <select name="from_addr" class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                    {% for a in accounts %}
+                    <option value="{{ a.email }}" {{ 'selected' if a.email == selected_account else '' }}>{{ a.email }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Empfänger (An)</label>
+                <input type="email" id="compose-to" name="to_addr" required placeholder="empfaenger@example.com"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Betreff</label>
+                <input type="text" id="compose-subject" name="subject" required placeholder="Worum geht es?"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-sans text-sm outline-none transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Nachricht</label>
+                <textarea name="body" rows="7" required placeholder="Schreibe deine Nachricht..."
+                          class="w-full p-3.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-sans text-sm outline-none transition"></textarea>
+            </div>
+
+            <div class="pt-2 flex justify-end gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Verwerfen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30 flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                    <span>Senden</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const messagesData = {{ emails|tojson }};
+let activeMsgIndex = 0;
+
+function selectMessage(idx) {
+    activeMsgIndex = idx;
+    const msg = messagesData[idx];
+    document.querySelectorAll(".message-row").forEach(r => r.classList.remove("bg-dark-850/80", "border-l-2", "border-emerald-400"));
+    const row = document.getElementById(`msg-row-${idx}`);
+    if (row) row.classList.add("bg-dark-850/80", "border-l-2", "border-emerald-400");
+
+    document.getElementById("msg-subject").textContent = msg.subject;
+    document.getElementById("msg-sender").textContent = msg.sender;
+    document.getElementById("msg-date").textContent = msg.date;
+    document.getElementById("msg-body").innerHTML = `<p>${msg.preview}</p><p>Vollständige Nachricht geladen via SysCore Mail API.</p>`;
+}
+
+function replyToCurrent() {
+    const msg = messagesData[activeMsgIndex];
+    document.getElementById("compose-to").value = msg.sender;
+    document.getElementById("compose-subject").value = (msg.subject.startsWith("Re:") ? "" : "Re: ") + msg.subject;
+    const modal = document.getElementById("modal-mail-compose");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+</script>
+{% endblock %}

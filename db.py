@@ -80,6 +80,67 @@ def init_db():
     );
     """)
 
+    # 6. E-Mail Postfächer
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS mail_accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        domain TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        quota_mb INTEGER DEFAULT 5120,
+        used_mb REAL DEFAULT 0.0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 7. E-Mail Aliase & Weiterleitungen
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS mail_aliases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        domain TEXT NOT NULL,
+        source_email TEXT NOT NULL,
+        destination_email TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 8. E-Mail DKIM-Schlüssel
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS mail_dkim (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        domain TEXT UNIQUE NOT NULL,
+        selector TEXT DEFAULT 'default',
+        private_key TEXT NOT NULL,
+        public_key TEXT NOT NULL,
+        dns_record TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 9. Mailserver-Konfiguration
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS mail_server_config (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        backend_type TEXT DEFAULT 'stalwart',
+        webmail_client TEXT DEFAULT 'snappymail',
+        smtp_host TEXT DEFAULT '127.0.0.1',
+        smtp_port INTEGER DEFAULT 587,
+        imap_host TEXT DEFAULT '127.0.0.1',
+        imap_port INTEGER DEFAULT 993,
+        stalwart_api_url TEXT DEFAULT 'http://127.0.0.1:8080',
+        stalwart_api_token TEXT DEFAULT '',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    cursor.execute("SELECT COUNT(*) FROM mail_server_config WHERE id = 1;")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+        INSERT INTO mail_server_config (id, backend_type, webmail_client, smtp_host, smtp_port, imap_host, imap_port)
+        VALUES (1, 'stalwart', 'snappymail', '127.0.0.1', 587, '127.0.0.1', 993);
+        """)
+
     conn.commit()
 
     # Bootstrap Initialer Admin

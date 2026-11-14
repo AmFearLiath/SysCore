@@ -34,7 +34,14 @@ SysCore ist ein hochmodernes, eigenständiges Server- und Webspace-Management-Sy
 - **NGINX VHost-Direktiven-Editor:** Custom-Direktiven (z. B. `client_max_body_size`, Security-Headers, Gzip) injizieren mit automatischer `nginx -t` Syntaxprüfung und Rollback bei Fehlern.
 - **Domain-Live-Log-Viewer:** Direkte Ansicht der `access.log` und `error.log` im Modal.
 
-### 3. Paket- & Stack-Installer (`modules/packages.py`)
+### 3. E-Mail-Zentrale (`modules/mail.py`)
+- **Postfach-Verwaltung:** Anlegen von Postfächern (`user@domain.de`), Passwörtern und Quotas (Speicherplatzlimits).
+- **Aliase & Weiterleitungen:** Automatische E-Mail-Umleitung an interne Postfächer oder externe Adressen.
+- **DNS- & Zustellbarkeits-Assistent:** Automatische 2048-Bit DKIM-Schlüsselgenerierung, SPF- und DMARC-Records mit 1-Klick-Kopierbuttons für Cloudflare/Hetzner.
+- **Backend-Auswahl:** Unterstützung für **Stalwart Mail Server** (Rust All-in-One), **Postfix & Dovecot** (Nativer Linux-Stack) und **Mailcow: dockerized**.
+- **Webmail-Zentrale:** 1-Klick-Bereitstellung von **SnappyMail** oder **Roundcube** sowie integrierter nativer **SysCore Webmail Client**.
+
+### 4. Paket- & Stack-Installer (`modules/packages.py`)
 - Geführter 1-Klick-Installer mit Live-Konsolenausgabe im Terminal-Drawer für:
   - **Runtimes:** PHP 8.2, 8.3, 8.4 + Extensions (`curl`, `mbstring`, `xml`, `zip`, `gd`, `mysql`, `intl`), Composer, Node.js 20 LTS + PM2.
   - **Tools:** phpMyAdmin (unter `/var/www/phpmyadmin` bereitgestellt), Fail2Ban, UFW, Certbot.

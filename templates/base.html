@@ -102,6 +102,12 @@
                             <span>Webserver & Domains</span>
                         </a>
 
+                        <a href="{{ url_for('mail.index') }}"
+                           class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'mail' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            <span>E-Mail-Zentrale</span>
+                        </a>
+
                         <a href="{{ url_for('files.index') }}"
                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
                             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
@@ -233,6 +239,14 @@
                         <span>Webserver & Domains verwalten</span>
                     </div>
                     <span class="text-xs text-gray-500 font-mono">/web</span>
+                </a>
+
+                <a href="{{ url_for('mail.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="mail email postfach dkim spf dmarc snappymail roundcube stalwart postfix dovecot webmail">
+                    <div class="flex items-center gap-3">
+                        <span class="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-md">✉️</span>
+                        <span>E-Mail-Zentrale & Postfächer</span>
+                    </div>
+                    <span class="text-xs text-gray-500 font-mono">/mail</span>
                 </a>
 
                 <a href="{{ url_for('files.index') }}" class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition" data-search="dateimanager files /var/www upload edit explorer">
