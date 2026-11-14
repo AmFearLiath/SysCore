@@ -1,9 +1,10 @@
 import os
 import re
+import time
 import tempfile
 import shutil
 import subprocess
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, jsonify
 from modules.auth_users import login_required, role_required
 from db import log_audit
 
@@ -174,3 +175,69 @@ def delete_db(db_name):
     else:
         flash(f"Fehler: {err}", "error")
     return redirect(url_for("database.index"))
+
+@database_bp.route("/query/execute", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def execute_sql_query():
+    """Führt eine Ad-hoc SQL-Abfrage aus und gibt Spalten und Zeilen als JSON zurück"""
+    db_name = request.form.get("db_name", "").strip()
+    query = request.form.get("query", "").strip()
+
+    if not query:
+        return jsonify({"success": False, "error": "Leere SQL-Abfrage."}), 400
+
+    if not shutil.which("mysql"):
+        return jsonify({
+            "success": True,
+            "mock": True,
+            "columns": ["Status", "Meldung"],
+            "rows": [["Simuliert", "Entwicklungsumgebung: MySQL CLI nicht auf dem System installiert."]],
+            "count": 1,
+            "time_ms": 1.2
+        })
+
+    # Schutz vor versehentlichen Massenabfragen: Auto-Limit 100 bei SELECT wenn kein LIMIT da ist
+    cleaned = query.strip().rstrip(";")
+    if re.match(r"^SELECT\b", cleaned, re.IGNORECASE) and not re.search(r"\bLIMIT\s+\d+", cleaned, re.IGNORECASE):
+        cleaned += " LIMIT 100"
+
+    cmd = ["mysql", "-B", "-e", cleaned]
+    if db_name and re.match(r"^[a-zA-Z0-9_]{2,32}$", db_name):
+        cmd.extend(["-D", db_name])
+
+    start_t = time.time()
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        duration = round((time.time() - start_t) * 1000, 2)
+
+        if res.returncode != 0:
+            return jsonify({"success": False, "error": res.stderr.strip()}), 400
+
+        lines = res.stdout.strip().splitlines()
+        if not lines:
+            return jsonify({
+                "success": True,
+                "columns": ["Ergebnis"],
+                "rows": [["Abfrage erfolgreich ausgeführt (Keine Zeilen zurückgegeben)"]],
+                "count": 0,
+                "time_ms": duration
+            })
+
+        columns = lines[0].split("\t")
+        rows = [l.split("\t") for l in lines[1:]]
+
+        log_audit(session.get("username"), "SQL_QUERY", f"SQL auf '{db_name or 'global'}' ausgeführt: {query[:80]}", request.remote_addr)
+
+        return jsonify({
+            "success": True,
+            "columns": columns,
+            "rows": rows,
+            "count": len(rows),
+            "time_ms": duration
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Zeitlimit der SQL-Abfrage überschritten (15s)."}), 408
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+

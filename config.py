@@ -33,9 +33,9 @@ PANEL_HOST = os.getenv("SYSCORE_HOST", "0.0.0.0")
 PANEL_PORT = int(os.getenv("SYSCORE_PORT", "8888"))
 DEBUG = os.getenv("SYSCORE_DEBUG", "false").lower() in ("true", "1", "yes")
 
-# --- Bootstrap Zugangsdaten (nur für DB-Initialisierung verwendet) ---
+# --- Bootstrap Zugangsdaten (Optional, nur falls keine interaktive CLI-Erstellung erfolgt) ---
 BOOTSTRAP_ADMIN_USER = os.getenv("SYSCORE_ADMIN_USER", "admin")
-BOOTSTRAP_ADMIN_PASS = os.getenv("SYSCORE_ADMIN_PASS", "admin1234")
+BOOTSTRAP_ADMIN_PASS = os.getenv("SYSCORE_ADMIN_PASS", "")
 BOOTSTRAP_ADMIN_EMAIL = os.getenv("SYSCORE_ADMIN_EMAIL", "admin@localhost")
 
 # --- Datenbank ---

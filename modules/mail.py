@@ -5,11 +5,12 @@ import base64
 import shutil
 import subprocess
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
+import config
 from config import WEB_ROOT_BASE, NGINX_AVAILABLE, NGINX_ENABLED
 from modules.auth_users import login_required, role_required
 from db import query_db, execute_db, log_audit
@@ -391,3 +392,64 @@ def send_mail():
     log_audit(session.get("username"), "MAIL_SEND", f"Mail von '{from_addr}' an '{to_addr}' gesendet", request.remote_addr)
     flash(f"E-Mail an '{to_addr}' erfolgreich in die Versand-Queue eingereiht!", "success")
     return redirect(url_for("mail.native_webmail", account=from_addr))
+
+@mail_bp.route("/config-v1.1.xml")
+@mail_bp.route("/.well-known/autoconfig/mail/config-v1.1.xml")
+def autoconfig_xml():
+    """Mozilla Thunderbird & Apple Mail Auto-Konfiguration (XML)"""
+    email = request.args.get("emailaddress", "user@example.com")
+    domain = email.split("@")[-1] if "@" in email else config.PANEL_HOST
+
+    xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<clientConfig version="1.1">
+  <emailProvider id="{domain}">
+    <domain>{domain}</domain>
+    <displayName>{domain} Mail Service</displayName>
+    <displayShortName>{domain}</displayShortName>
+    <incomingServer type="imap">
+      <hostname>mail.{domain}</hostname>
+      <port>993</port>
+      <socketType>SSL</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </incomingServer>
+    <outgoingServer type="smtp">
+      <hostname>mail.{domain}</hostname>
+      <port>587</port>
+      <socketType>STARTTLS</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </outgoingServer>
+  </emailProvider>
+</clientConfig>"""
+    return Response(xml_content, mimetype="application/xml")
+
+@mail_bp.route("/autodiscover/autodiscover.xml", methods=["GET", "POST"])
+def autodiscover_xml():
+    """Microsoft Outlook Auto-Discover Service (XML)"""
+    mail_host = f"mail.{config.PANEL_HOST}"
+    xml_content = f"""<?xml version="1.0" encoding="utf-8"?>
+<Autodiscover xmlns="http://schemas.microsoft.com/exchange/autodiscover/responseschema/2006">
+  <Response xmlns="http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a">
+    <Account>
+      <AccountType>email</AccountType>
+      <Action>settings</Action>
+      <Protocol>
+        <Type>IMAP</Type>
+        <Server>{mail_host}</Server>
+        <Port>993</Port>
+        <SSL>on</SSL>
+        <AuthRequired>on</AuthRequired>
+      </Protocol>
+      <Protocol>
+        <Type>SMTP</Type>
+        <Server>{mail_host}</Server>
+        <Port>587</Port>
+        <SSL>on</SSL>
+        <AuthRequired>on</AuthRequired>
+      </Protocol>
+    </Account>
+  </Response>
+</Autodiscover>"""
+    return Response(xml_content, mimetype="application/xml")
+

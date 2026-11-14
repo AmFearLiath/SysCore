@@ -15,6 +15,7 @@ from modules.apps import apps_bp
 from modules.backups import backups_bp
 from modules.settings import settings_bp
 from modules.mail import mail_bp
+from modules.security import security_bp
 
 # Initialisiere SQLite Datenbank & Tabellen & Bootstrap Admin
 db.init_db()
@@ -35,6 +36,7 @@ app.register_blueprint(apps_bp)
 app.register_blueprint(backups_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(mail_bp)
+app.register_blueprint(security_bp)
 
 # Globale Context-Variablen für Templates
 @app.context_processor
@@ -58,7 +60,10 @@ def require_authentication():
         "static"
     }
 
-    if request.endpoint and request.endpoint in open_endpoints:
+    if (request.path.startswith("/api/webhook/") or 
+        request.path.startswith("/mail/config-v1.1.xml") or 
+        "autodiscover" in request.path or 
+        (request.endpoint and request.endpoint in open_endpoints)):
         return None
 
     # Falls nicht angemeldet -> Redirect zum Login

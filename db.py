@@ -134,23 +134,62 @@ def init_db():
     );
     """)
 
-    cursor.execute("SELECT COUNT(*) FROM mail_server_config WHERE id = 1;")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("""
-        INSERT INTO mail_server_config (id, backend_type, webmail_client, smtp_host, smtp_port, imap_host, imap_port)
-        VALUES (1, 'stalwart', 'snappymail', '127.0.0.1', 587, '127.0.0.1', 993);
-        """)
+    # 10. ClamAV Malware Scans
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS clamav_scans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target_path TEXT NOT NULL,
+        scanned_files INTEGER DEFAULT 0,
+        infected_files INTEGER DEFAULT 0,
+        scan_log TEXT,
+        status TEXT DEFAULT 'completed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 11. Manuelle & Automatische IP-Bans
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS security_ip_bans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip_address TEXT UNIQUE NOT NULL,
+        reason TEXT,
+        banned_by TEXT DEFAULT 'admin',
+        ban_type TEXT DEFAULT 'ufw',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 12. Git Webhook Auto-Deployer
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS web_deploy_hooks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        domain TEXT UNIQUE NOT NULL,
+        token TEXT UNIQUE NOT NULL,
+        branch TEXT DEFAULT 'main',
+        post_deploy_cmd TEXT DEFAULT '',
+        last_deployed_at TIMESTAMP,
+        last_status TEXT DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
 
     conn.commit()
 
-    # Bootstrap Initialer Admin
+    # Bootstrap Initialer Admin (falls noch kein Benutzer existiert)
     cursor.execute("SELECT COUNT(*) FROM users;")
     user_count = cursor.fetchone()[0]
 
     if user_count == 0:
-        admin_user = config.BOOTSTRAP_ADMIN_USER
+        admin_user = config.BOOTSTRAP_ADMIN_USER or "admin"
+        admin_email = config.BOOTSTRAP_ADMIN_EMAIL or f"{admin_user}@localhost"
         admin_pass = config.BOOTSTRAP_ADMIN_PASS
-        admin_email = config.BOOTSTRAP_ADMIN_EMAIL
+
+        generated = False
+        if not admin_pass:
+            import secrets
+            admin_pass = secrets.token_urlsafe(12)
+            generated = True
+
         p_hash = generate_password_hash(admin_pass)
 
         cursor.execute("""
@@ -159,6 +198,26 @@ def init_db():
         """, (admin_user, p_hash, admin_email))
 
         conn.commit()
+
+        if generated:
+            try:
+                pass_file = config.BASE_DIR / ".initial_admin_password"
+                pass_file.write_text(f"Benutzername: {admin_user}\nPasswort: {admin_pass}\nErstellt am: {datetime.utcnow().isoformat()}\nBitte nach erstem Login löschen!")
+                try:
+                    os.chmod(pass_file, 0o600)
+                except Exception:
+                    pass
+                print(f"""
+                =======================================================
+                [SysCore Security] Initialer Administrator erstellt:
+                Benutzername: {admin_user}
+                Passwort:     {admin_pass}
+                (Gespeichert in: {pass_file})
+                =======================================================
+                """)
+            except Exception as e:
+                print(f"[SysCore Security] Konnte initiales Passwort nicht in Datei schreiben: {e}")
+
         log_audit(
             username="SYSTEM",
             action="BOOTSTRAP_INIT",

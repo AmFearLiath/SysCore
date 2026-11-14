@@ -24,6 +24,10 @@
             </a>
             {% endif %}
 
+            <button type="button" onclick="openSqlConsole()" class="px-3 py-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-emerald-400 hover:text-emerald-300 rounded-xl transition flex items-center gap-2">
+                <span>💻 SQL-Konsole</span>
+            </button>
+
             <button data-modal-open="modal-db-create" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-mono font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 <span>Neue Datenbank anlegen</span>
@@ -203,25 +207,114 @@
         </form>
     </div>
 </div>
+<!-- Modal: SQL Query Konsole -->
+<div id="modal-sql-console" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-4xl w-full p-6 shadow-2xl animate-fade-in flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-3">
+            <div class="flex items-center gap-2">
+                <span class="text-emerald-400">💻</span>
+                <h3 class="text-base font-bold text-white tracking-tight font-mono">Integrierte SQL-Query-Konsole</h3>
+            </div>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="space-y-3 font-mono text-xs">
+            <div class="flex items-center gap-3">
+                <div class="w-1/3">
+                    <label class="block text-gray-400 text-[10px] uppercase mb-1">Ziel-Datenbank</label>
+                    <select id="sql-db-select" class="w-full px-3 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                        <option value="">(Global / Keine DB)</option>
+                        {% for db in databases %}
+                        <option value="{{ db.name }}">{{ db.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex-1">
+                    <label class="block text-gray-400 text-[10px] uppercase mb-1">Schnell-Vorlagen</label>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button type="button" onclick="setSqlQuery('SHOW DATABASES;')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded border border-dark-700 text-[11px]">SHOW DATABASES</button>
+                        <button type="button" onclick="setSqlQuery('SHOW TABLES;')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded border border-dark-700 text-[11px]">SHOW TABLES</button>
+                        <button type="button" onclick="setSqlQuery('SHOW PROCESSLIST;')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded border border-dark-700 text-[11px]">SHOW PROCESSLIST</button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <textarea id="sql-query-input" rows="4" placeholder="SELECT * FROM users LIMIT 10;"
+                          class="w-full p-3 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-emerald-300 text-xs leading-relaxed outline-none resize-none"></textarea>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <span id="sql-exec-info" class="text-gray-400 text-[11px]"></span>
+                <button type="button" onclick="executeSqlQuery()" id="btn-exec-sql" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
+                    <span>⚡ Abfrage ausführen</span>
+                </button>
+            </div>
+
+            <!-- Ergebnistabelle -->
+            <div id="sql-result-container" class="border border-dark-700 rounded-xl bg-dark-950 overflow-auto max-h-60 hidden">
+                <table id="sql-result-table" class="w-full text-left text-xs">
+                    <thead id="sql-result-head" class="bg-dark-900 text-emerald-400 sticky top-0 border-b border-dark-700"></thead>
+                    <tbody id="sql-result-body" class="divide-y divide-dark-800 text-gray-300"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function openImportModal(dbName) {
-    document.getElementById("import-target-label").textContent = dbName;
-    document.getElementById("db-import-form").action = `/db/import/${dbName}`;
-    const modal = document.getElementById("modal-db-import");
+function openSqlConsole() {
+    const modal = document.getElementById("modal-sql-console");
     modal.classList.remove("hidden");
     modal.classList.add("flex");
+    document.getElementById("sql-query-input").focus();
 }
 
-function openPassResetModal(user, host) {
-    document.getElementById("reset-user-label").textContent = `${user}@${host}`;
-    document.getElementById("reset-db-user-input").value = user;
-    document.getElementById("reset-db-host-input").value = host;
-    const modal = document.getElementById("modal-user-pass-reset");
-    modal.classList.remove("hidden");
-    modal.classList.add("flex");
+function setSqlQuery(q) {
+    document.getElementById("sql-query-input").value = q;
+    executeSqlQuery();
 }
-</script>
-{% endblock %}
+
+async function executeSqlQuery() {
+    const db = document.getElementById("sql-db-select").value;
+    const query = document.getElementById("sql-query-input").value.trim();
+    const info = document.getElementById("sql-exec-info");
+    const container = document.getElementById("sql-result-container");
+    const head = document.getElementById("sql-result-head");
+    const body = document.getElementById("sql-result-body");
+
+    if (!query) return;
+
+    info.textContent = "Führe Abfrage aus...";
+    info.className = "text-emerald-400 text-[11px]";
+
+    const formData = new FormData();
+    formData.append("db_name", db);
+    formData.append("query", query);
+
+    try {
+        const res = await fetch("/db/query/execute", { method: "POST", body: formData });
+        const data = await res.json();
+
+        if (!data.success) {
+            info.textContent = "Fehler: " + data.error;
+            info.className = "text-rose-400 text-[11px]";
+            container.classList.add("hidden");
+            return;
+        }
+
+        info.textContent = `Erfolg: ${data.count} Zeilen in ${data.time_ms} ms zurückgegeben.`;
+        info.className = "text-emerald-400 text-[11px]";
+
+        head.innerHTML = "<tr>" + data.columns.map(c => `<th class="p-2 border-b border-dark-700 font-bold">${c}</th>`).join("") + "</tr>";
+        body.innerHTML = data.rows.map(r => `<tr class="hover:bg-dark-900/50">${r.map(v => `<td class="p-2 truncate max-w-xs">${v}</td>`).join("")}</tr>`).join("");
+        container.classList.remove("hidden");
+    } catch (e) {
+        info.textContent = "Verbindungsfehler: " + e.message;
+        info.className = "text-rose-400 text-[11px]";
+    }
+}

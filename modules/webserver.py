@@ -1,13 +1,15 @@
 import os
 import re
 import glob
+import time
 import shutil
+import secrets
 import subprocess
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_file, Response
 from config import WEB_ROOT_BASE, NGINX_AVAILABLE, NGINX_ENABLED, APACHE_PORTS_CONF, CERTBOT_EMAIL
 from modules.auth_users import login_required, role_required
-from db import log_audit
+from db import log_audit, query_db, execute_db
 
 webserver_bp = Blueprint("webserver", __name__, url_prefix="/web")
 
@@ -202,6 +204,17 @@ def index():
                 domains.append(parse_domain_config(domain_name, content))
             except Exception:
                 continue
+
+    # Attach Git Deploy Hooks falls konfiguriert
+    hooks = {}
+    try:
+        hook_rows = query_db("SELECT * FROM web_deploy_hooks")
+        hooks = {h["domain"]: dict(h) for h in hook_rows}
+    except Exception:
+        pass
+
+    for d in domains:
+        d["deploy_hook"] = hooks.get(d["name"])
 
     return render_template("webserver.html", health=health, domains=domains, web_root_base=WEB_ROOT_BASE)
 
@@ -464,3 +477,137 @@ def delete_domain(domain):
         log_audit(session.get("username"), "DOMAIN_DELETE", f"VHost für '{domain}' entfernt", request.remote_addr, "warning")
         flash(f"VHost für {domain} entfernt.", "success")
     return redirect(url_for("webserver.index"))
+
+@webserver_bp.route("/domain/logs-stream/<domain>/<log_type>")
+@login_required
+@role_required(["root_admin", "web_admin"])
+def domain_logs_stream(domain, log_type):
+    """Echtzeit-Streaming von NGINX Logs via Server-Sent Events (SSE)"""
+    if not re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", domain) or log_type not in ["access", "error"]:
+        return "Ungültige Anfrage", 400
+
+    log_file = f"/var/log/nginx/{domain}.{log_type}.log"
+    if not os.path.exists(log_file):
+        log_file = f"/var/log/nginx/{log_type}.log"
+
+    def stream():
+        yield f"data: [SysCore Log Stream] Verbunden mit {log_file}...\n\n"
+        if not os.path.exists(log_file):
+            yield "data: [SysCore] Log-Datei existiert noch nicht oder ist leer.\n\n"
+            return
+
+        try:
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                # Zeige initial die letzten 20 Zeilen
+                lines = f.readlines()[-20:]
+                for l in lines:
+                    yield f"data: {l.strip()}\n\n"
+
+                # Folge neuen Zeilen (tail -f Verhalten)
+                f.seek(0, os.SEEK_END)
+                while True:
+                    line = f.readline()
+                    if line:
+                        yield f"data: {line.strip()}\n\n"
+                    else:
+                        time.sleep(0.5)
+        except GeneratorExit:
+            pass
+        except Exception as e:
+            yield f"data: [Stream Fehler] {e}\n\n"
+
+    return Response(stream(), mimetype="text/event-stream")
+
+@webserver_bp.route("/domain/webhook/save/<domain>", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def save_domain_webhook(domain):
+    branch = request.form.get("branch", "main").strip() or "main"
+    post_cmd = request.form.get("post_deploy_cmd", "").strip()
+
+    # Bestehendes Token behalten oder neu generieren
+    existing = query_db("SELECT token FROM web_deploy_hooks WHERE domain = ?", (domain,), one=True)
+    if existing:
+        token = existing["token"]
+        execute_db("""
+        UPDATE web_deploy_hooks 
+        SET branch = ?, post_deploy_cmd = ? 
+        WHERE domain = ?
+        """, (branch, post_cmd, domain))
+        flash(f"Git Auto-Deploy Webhook für {domain} aktualisiert.", "success")
+    else:
+        token = f"dpl_{secrets.token_urlsafe(16)}"
+        execute_db("""
+        INSERT INTO web_deploy_hooks (domain, token, branch, post_deploy_cmd, last_status)
+        VALUES (?, ?, ?, ?, 'ready')
+        """, (domain, token, branch, post_cmd))
+        flash(f"Git Auto-Deploy Webhook für {domain} erfolgreich generiert!", "success")
+
+    log_audit(session.get("username"), "WEBHOOK_CONFIG", f"Git Auto-Deploy für '{domain}' konfiguriert (Branch: {branch})", request.remote_addr)
+    return redirect(url_for("webserver.index"))
+
+# Globaler Webhook Trigger Endpunkt (erreichbar via POST /api/webhook/deploy/<token>)
+@webserver_bp.route("/webhook/deploy/<token>", methods=["GET", "POST"])
+def trigger_deploy_webhook(token):
+    hook = query_db("SELECT * FROM web_deploy_hooks WHERE token = ?", (token,), one=True)
+    if not hook:
+        return jsonify({"error": "Ungültiges Webhook-Token"}), 404
+
+    domain = hook["domain"]
+    branch = hook["branch"] or "main"
+    post_cmd = hook["post_deploy_cmd"]
+    webroot = f"{WEB_ROOT_BASE}/{domain}"
+
+    if not os.path.exists(webroot):
+        execute_db("UPDATE web_deploy_hooks SET last_status = 'error: webroot not found' WHERE id = ?", (hook["id"],))
+        return jsonify({"error": f"Webroot {webroot} existiert nicht"}), 400
+
+    deploy_logs = []
+    # 1. Git pull
+    try:
+        git_res = subprocess.run(
+            ["git", "-C", webroot, "pull", "origin", branch],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        deploy_logs.append(git_res.stdout + "\n" + git_res.stderr)
+        if git_res.returncode != 0:
+            execute_db("UPDATE web_deploy_hooks SET last_status = 'git pull failed', last_deployed_at = CURRENT_TIMESTAMP WHERE id = ?", (hook["id"],))
+            return jsonify({"status": "failed", "step": "git pull", "output": git_res.stderr}), 500
+    except Exception as e:
+        execute_db("UPDATE web_deploy_hooks SET last_status = ?, last_deployed_at = CURRENT_TIMESTAMP WHERE id = ?", (f"error: {e}", hook["id"]))
+        return jsonify({"status": "failed", "error": str(e)}), 500
+
+    # 2. Optionaler Post-Deploy Befehl
+    if post_cmd:
+        try:
+            # Führe Befehl im webroot aus
+            cmd_res = subprocess.run(
+                post_cmd,
+                shell=True,
+                cwd=webroot,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            deploy_logs.append(f"Post-Deploy Command: {post_cmd}\n" + cmd_res.stdout + "\n" + cmd_res.stderr)
+        except Exception as e:
+            deploy_logs.append(f"Post-Deploy Command Fehler: {e}")
+
+    # Berechtigungen auf www-data sichern
+    if shutil.which("chown"):
+        subprocess.run(["chown", "-R", "www-data:www-data", webroot], check=False)
+
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    execute_db("UPDATE web_deploy_hooks SET last_status = 'success', last_deployed_at = ? WHERE id = ?", (now_str, hook["id"]))
+    log_audit("WEBHOOK", "GIT_AUTO_DEPLOY", f"Auto-Deploy für {domain} via Webhook ausgeführt", request.remote_addr)
+
+    return jsonify({
+        "status": "success",
+        "domain": domain,
+        "branch": branch,
+        "deployed_at": now_str,
+        "log": "\n".join(deploy_logs)
+    })
+

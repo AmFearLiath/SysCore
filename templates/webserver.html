@@ -110,6 +110,11 @@
                             Logs
                         </button>
 
+                        <!-- Git Auto-Deploy Webhook Button -->
+                        <button type="button" onclick="openWebhookModal('{{ d.name }}', '{{ d.deploy_hook.branch if d.deploy_hook else 'main' }}', '{{ d.deploy_hook.post_deploy_cmd if d.deploy_hook else '' }}', '{{ d.deploy_hook.token if d.deploy_hook else '' }}', '{{ d.deploy_hook.last_status if d.deploy_hook else 'Kein Webhook' }}')" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition" title="Git Auto-Deploy Webhook konfigurieren">
+                            Git Deploy
+                        </button>
+
                         <!-- GoAccess Traffic Button -->
                         <a href="{{ url_for('webserver.domain_traffic_report', domain=d.name) }}" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 text-gray-300 hover:text-white border border-dark-700 rounded-lg text-xs font-mono transition" title="GoAccess Traffic-Report">
                             Traffic ↗
@@ -243,7 +248,7 @@
     </div>
 </div>
 
-<!-- Modal: Domain Log Viewer -->
+<!-- Modal: Domain Log Viewer (mit Echtzeit SSE Streaming) -->
 <div id="modal-domain-logs" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
     <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-4xl w-full p-6 shadow-2xl animate-fade-in flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
         <div class="flex justify-between items-center mb-4">
@@ -254,7 +259,14 @@
             <div class="flex items-center gap-2">
                 <button id="btn-log-access" onclick="switchLogType('access')" class="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-mono">Access Log</button>
                 <button id="btn-log-error" onclick="switchLogType('error')" class="px-3 py-1 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Error Log</button>
-                <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg ml-2">
+                
+                <!-- SSE Live Stream Toggle -->
+                <button id="btn-log-stream" onclick="toggleLogStream()" class="px-3 py-1 bg-dark-800 text-gray-400 hover:text-white border border-dark-600 rounded-lg text-xs font-mono flex items-center gap-1.5 transition">
+                    <span id="stream-indicator" class="w-2 h-2 rounded-full bg-gray-500"></span>
+                    <span id="stream-label">Live Stream: Aus</span>
+                </button>
+
+                <button data-modal-close onclick="stopLogStream()" class="text-gray-400 hover:text-white p-1 rounded-lg ml-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -263,6 +275,57 @@
         <div id="domain-logs-body" class="flex-1 bg-dark-950 border border-dark-700 rounded-xl p-4 overflow-y-auto font-mono text-xs text-gray-300 space-y-1 select-text">
             <div class="text-gray-500">Lade Logfiles...</div>
         </div>
+    </div>
+</div>
+
+<!-- Modal: Git Auto-Deploy Webhook Konfiguration -->
+<div id="modal-domain-webhook" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h3 class="text-lg font-bold text-white tracking-tight font-mono">Git Auto-Deploy Webhook</h3>
+                <span id="webhook-domain-label" class="text-xs font-mono text-emerald-400"></span>
+            </div>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <p class="text-xs text-gray-400 font-mono mb-4">Trage diese Webhook-URL in deinen GitHub-, Gitea- oder GitLab-Repository-Einstellungen unter <strong>Webhooks</strong> ein (Event: <code>push</code>). Bei jedem Push aktualisiert SysCore das Webroot automatisch per <code>git pull</code>.</p>
+
+        <form id="webhook-form" method="POST" class="space-y-4 font-mono text-xs">
+            <div id="webhook-url-box" class="p-3 bg-dark-950 border border-dark-700 rounded-xl space-y-1">
+                <span class="text-gray-400 text-[10px] uppercase block">Webhook Trigger URL</span>
+                <div class="flex items-center gap-2">
+                    <input type="text" id="webhook-url-input" readonly
+                           class="flex-1 bg-transparent text-emerald-300 font-mono text-xs outline-none select-all">
+                    <button type="button" onclick="SysCore.copyToClipboard(document.getElementById('webhook-url-input').value, 'Webhook URL')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 border border-dark-600 text-gray-300 rounded text-[11px] transition">
+                        Kopieren
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <label class="block uppercase text-gray-400 mb-1">Git Branch zum Pullen</label>
+                <input type="text" id="webhook-branch" name="branch" value="main" placeholder="main"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition">
+            </div>
+
+            <div>
+                <label class="block uppercase text-gray-400 mb-1">Post-Deploy Befehl (Optional)</label>
+                <input type="text" id="webhook-cmd" name="post_deploy_cmd" placeholder="z.B. composer install --no-dev oder npm run build"
+                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition">
+                <span class="text-[11px] text-gray-500 block mt-1">Wird nach erfolgreichem Git-Pull im DocumentRoot der Domain ausgeführt.</span>
+            </div>
+
+            <div class="pt-2 flex justify-between items-center">
+                <span id="webhook-last-status" class="text-[11px] text-gray-500"></span>
+                <div class="flex gap-2">
+                    <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl transition">Schließen</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-900/30">Webhook Speichern</button>
+                </div>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
@@ -289,8 +352,30 @@ function insertSnippet(snippet) {
     editor.focus();
 }
 
+function openWebhookModal(domain, branch, cmd, token, lastStatus) {
+    document.getElementById("webhook-domain-label").textContent = domain;
+    document.getElementById("webhook-form").action = `/web/domain/webhook/save/${domain}`;
+    document.getElementById("webhook-branch").value = branch || "main";
+    document.getElementById("webhook-cmd").value = cmd || "";
+    document.getElementById("webhook-last-status").textContent = "Status: " + (lastStatus || "Bereit");
+
+    const urlBox = document.getElementById("webhook-url-box");
+    if (token) {
+        urlBox.classList.remove("hidden");
+        document.getElementById("webhook-url-input").value = `${window.location.origin}/api/webhook/deploy/${token}`;
+    } else {
+        urlBox.classList.add("hidden");
+    }
+
+    const modal = document.getElementById("modal-domain-webhook");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
 let activeLogDomain = "";
 let activeLogType = "access";
+let logEventSource = null;
+let isStreamingLogs = false;
 
 function openDomainLogsModal(domain) {
     activeLogDomain = domain;
@@ -306,7 +391,24 @@ function switchLogType(type) {
     activeLogType = type;
     document.getElementById("btn-log-access").className = type === "access" ? "px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-mono" : "px-3 py-1 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono";
     document.getElementById("btn-log-error").className = type === "error" ? "px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-mono" : "px-3 py-1 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono";
-    loadDomainLogs();
+    if (isStreamingLogs) {
+        startLogStream();
+    } else {
+        loadDomainLogs();
+    }
+}
+
+function colorizeLogLine(line) {
+    if (line.includes(" 200 ") || line.includes(" 204 ")) {
+        return `<span class="text-emerald-400">${line}</span>`;
+    } else if (line.includes(" 301 ") || line.includes(" 302 ")) {
+        return `<span class="text-teal-300">${line}</span>`;
+    } else if (line.includes(" 400 ") || line.includes(" 403 ") || line.includes(" 404 ")) {
+        return `<span class="text-amber-400">${line}</span>`;
+    } else if (line.includes(" 500 ") || line.includes(" 502 ") || line.includes(" 503 ")) {
+        return `<span class="text-rose-400 font-bold">${line}</span>`;
+    }
+    return activeLogType === "error" ? `<span class="text-rose-300">${line}</span>` : `<span class="text-gray-300">${line}</span>`;
 }
 
 async function loadDomainLogs() {
@@ -322,14 +424,62 @@ async function loadDomainLogs() {
         }
         data.lines.forEach(line => {
             const row = document.createElement("div");
-            row.className = "py-0.5 leading-relaxed truncate " + (activeLogType === "error" ? "text-rose-400" : "text-gray-300");
-            row.textContent = line;
+            row.className = "py-0.5 leading-relaxed truncate";
+            row.innerHTML = colorizeLogLine(line);
             body.appendChild(row);
         });
         body.scrollTop = body.scrollHeight;
     } catch (err) {
         body.innerHTML = `<div class="text-rose-400">Fehler beim Laden: ${err.message}</div>`;
     }
+}
+
+function toggleLogStream() {
+    if (isStreamingLogs) {
+        stopLogStream();
+    } else {
+        startLogStream();
+    }
+}
+
+function startLogStream() {
+    stopLogStream();
+    isStreamingLogs = true;
+    document.getElementById("stream-indicator").className = "w-2 h-2 rounded-full bg-emerald-400 animate-ping";
+    document.getElementById("stream-label").textContent = "Live Stream: Aktiv";
+    document.getElementById("btn-log-stream").classList.add("border-emerald-500", "text-emerald-400");
+
+    const body = document.getElementById("domain-logs-body");
+    body.innerHTML = '<div class="text-emerald-400">Verbinde mit Live SSE Stream...</div>';
+
+    logEventSource = new EventSource(`/web/domain/logs-stream/${activeLogDomain}/${activeLogType}`);
+    logEventSource.onmessage = function(e) {
+        const row = document.createElement("div");
+        row.className = "py-0.5 leading-relaxed truncate";
+        row.innerHTML = colorizeLogLine(e.data);
+        body.appendChild(row);
+        body.scrollTop = body.scrollHeight;
+    };
+    logEventSource.onerror = function() {
+        const err = document.createElement("div");
+        err.className = "text-amber-400 py-1";
+        err.textContent = "[Stream pausiert / Server getrennt]";
+        body.appendChild(err);
+    };
+}
+
+function stopLogStream() {
+    if (logEventSource) {
+        logEventSource.close();
+        logEventSource = null;
+    }
+    isStreamingLogs = false;
+    const ind = document.getElementById("stream-indicator");
+    const lbl = document.getElementById("stream-label");
+    const btn = document.getElementById("btn-log-stream");
+    if (ind) ind.className = "w-2 h-2 rounded-full bg-gray-500";
+    if (lbl) lbl.textContent = "Live Stream: Aus";
+    if (btn) btn.classList.remove("border-emerald-500", "text-emerald-400");
 }
 </script>
 {% endblock %}

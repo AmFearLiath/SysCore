@@ -54,14 +54,47 @@ def get_pm2_processes():
         pass
     return []
 
-def get_certbot_timer_status():
-    if shutil.which("systemctl"):
-        try:
-            res = subprocess.run(["systemctl", "is-active", "certbot.timer"], capture_output=True, text=True)
-            return res.stdout.strip() == "active"
-        except Exception:
-            pass
-    return False
+def get_panel_proxy_status():
+    vhost_path = "/etc/nginx/sites-available/syscore-panel.panel.conf"
+    if not os.path.exists(vhost_path):
+        return {"configured": False, "domain": "", "ssl": False, "enabled": False}
+
+    domain = ""
+    ssl_active = False
+    enabled = os.path.exists("/etc/nginx/sites-enabled/syscore-panel.panel.conf")
+
+    try:
+        with open(vhost_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        m = re.search(r"server_name\s+([^;]+);", content)
+        if m:
+            domain = m.group(1).strip().split()[0]
+        ssl_active = "ssl_certificate" in content or "443 ssl" in content
+    except Exception:
+        pass
+
+    return {
+        "configured": True,
+        "domain": domain,
+        "ssl": ssl_active,
+        "enabled": enabled,
+        "vhost_path": vhost_path
+    }
+
+def get_alert_settings():
+    res = query_db("SELECT key, value FROM settings WHERE key LIKE 'alert_%'")
+    alerts = {
+        "discord_webhook": "",
+        "telegram_bot_token": "",
+        "telegram_chat_id": "",
+        "disk_threshold": "90",
+        "service_down": "1",
+        "exploit_alerts": "1"
+    }
+    for r in res:
+        key_short = r["key"].replace("alert_", "")
+        alerts[key_short] = r["value"]
+    return alerts
 
 def get_git_updater_status():
     local_hash = ""
@@ -173,6 +206,8 @@ def index():
 
     pm2_procs = get_pm2_processes()
     updater_info = get_git_updater_status()
+    panel_proxy = get_panel_proxy_status()
+    alert_settings = get_alert_settings()
 
     return render_template(
         "settings.html",
@@ -183,6 +218,8 @@ def index():
         server_info=server_info,
         pm2_procs=pm2_procs,
         updater_info=updater_info,
+        panel_proxy=panel_proxy,
+        alert_settings=alert_settings,
         user_role=user_role
     )
 
@@ -326,8 +363,9 @@ def run_system_update():
         # 4. Service Reload
         yield "data: [4/4] Starte SysCore Daemon neu...\n\n"
         if shutil.which("systemctl"):
+            subprocess.run(["systemctl", "restart", "syscore-panel"], check=False)
             subprocess.run(["systemctl", "restart", "syscore"], check=False)
-            yield "data: Systemd Service 'syscore' neu gestartet.\n\n"
+            yield "data: Systemd Service ('syscore' / 'syscore-panel') neu gestartet.\n\n"
 
         yield "data: [ERFOLG] SysCore erfolgreich auf die neueste Version aktualisiert!\n\n"
         log_audit(session.get("username"), "SYSTEM_UPDATE_FINISH", "SysCore Update erfolgreich abgeschlossen", request.remote_addr)
@@ -346,6 +384,7 @@ def run_system_rollback(commit_hash):
     res = subprocess.run(["git", "checkout", commit_hash], capture_output=True, text=True)
     if res.returncode == 0:
         if shutil.which("systemctl"):
+            subprocess.run(["systemctl", "restart", "syscore-panel"], check=False)
             subprocess.run(["systemctl", "restart", "syscore"], check=False)
         log_audit(session.get("username"), "SYSTEM_ROLLBACK", f"SysCore auf Commit '{commit_hash}' zurückgesetzt", request.remote_addr, "warning")
         flash(f"SysCore erfolgreich auf Commit {commit_hash} zurückgesetzt!", "success")
@@ -353,4 +392,235 @@ def run_system_rollback(commit_hash):
         flash(f"Rollback fehlgeschlagen: {res.stderr}", "error")
 
     return redirect(url_for("settings.index", tab="updates"))
+
+@settings_bp.route("/panel-proxy/setup", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def setup_panel_proxy():
+    domain = request.form.get("domain", "").strip().lower()
+    enable_ssl = request.form.get("enable_ssl") == "1"
+    certbot_email = request.form.get("certbot_email", "").strip() or config.CERTBOT_EMAIL
+
+    if not re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", domain):
+        flash("Ungültiger Domainname für das Panel.", "error")
+        return redirect(url_for("settings.index", tab="panel_ssl"))
+
+    vhost_avail = "/etc/nginx/sites-available/syscore-panel.panel.conf"
+    vhost_enabled = "/etc/nginx/sites-enabled/syscore-panel.panel.conf"
+
+    # NGINX Reverse-Proxy VHost generieren
+    vhost_content = f"""# ==============================================================================
+# SysCore Next-Gen Management Panel NGINX Reverse Proxy
+# Domain: {domain}
+# ==============================================================================
+
+server {{
+    listen 80;
+    server_name {domain};
+
+    client_max_body_size 512M;
+
+    location / {{
+        proxy_pass http://127.0.0.1:{config.PANEL_PORT};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket-Unterstützung für Live-Terminals & SSE
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }}
+}}
+"""
+
+    try:
+        os.makedirs("/etc/nginx/sites-available", exist_ok=True)
+        os.makedirs("/etc/nginx/sites-enabled", exist_ok=True)
+
+        with open(vhost_avail, "w", encoding="utf-8") as f:
+            f.write(vhost_content)
+
+        if not os.path.exists(vhost_enabled):
+            try:
+                os.symlink(vhost_avail, vhost_enabled)
+            except OSError:
+                pass
+
+        # NGINX Syntax-Test
+        if shutil.which("nginx"):
+            test_res = subprocess.run(["nginx", "-t"], capture_output=True, text=True)
+            if test_res.returncode != 0:
+                if os.path.exists(vhost_enabled):
+                    try: os.remove(vhost_enabled)
+                    except OSError: pass
+                flash(f"NGINX Syntaxprüfung fehlgeschlagen: {test_res.stderr}", "error")
+                return redirect(url_for("settings.index", tab="panel_ssl"))
+
+            subprocess.run(["systemctl", "reload", "nginx"], check=False)
+
+        # SSL via Certbot einrichten
+        ssl_success = False
+        if enable_ssl and shutil.which("certbot"):
+            cmd = ["certbot", "--nginx", "-d", domain, "--non-interactive", "--agree-tos", "--redirect"]
+            if certbot_email and "@" in certbot_email:
+                cmd.extend(["--email", certbot_email])
+            else:
+                cmd.append("--register-unsafely-without-email")
+
+            cert_res = subprocess.run(cmd, capture_output=True, text=True)
+            if cert_res.returncode == 0:
+                ssl_success = True
+            else:
+                flash(f"VHost erstellt, aber Certbot meldete einen Fehler: {cert_res.stderr[:200]}", "warning")
+
+        execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('panel_domain', ?)", (domain,))
+        log_audit(session.get("username"), "PANEL_SSL_PROXY_SETUP", f"Panel-Proxy für '{domain}' (SSL: {ssl_success}) eingerichtet", request.remote_addr)
+        
+        protocol = "https" if ssl_success else "http"
+        flash(f"SysCore Panel erfolgreich unter {protocol}://{domain} bereitgestellt!", "success")
+    except Exception as e:
+        flash(f"Fehler beim Einrichten des Panel-Proxies: {e}", "error")
+
+    return redirect(url_for("settings.index", tab="panel_ssl"))
+
+@settings_bp.route("/panel-proxy/custom-ssl", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def save_custom_ssl():
+    domain = request.form.get("domain", "").strip().lower()
+    cert_data = request.form.get("ssl_certificate", "").strip()
+    key_data = request.form.get("ssl_key", "").strip()
+
+    if not domain or not cert_data or not key_data:
+        flash("Domain, Zertifikat und Private-Key müssen ausgefüllt sein.", "error")
+        return redirect(url_for("settings.index", tab="panel_ssl"))
+
+    ssl_dir = f"/etc/ssl/syscore"
+    try:
+        os.makedirs(ssl_dir, exist_ok=True)
+        cert_file = f"{ssl_dir}/{domain}.crt"
+        key_file = f"{ssl_dir}/{domain}.key"
+
+        with open(cert_file, "w", encoding="utf-8") as f:
+            f.write(cert_data)
+        with open(key_file, "w", encoding="utf-8") as f:
+            f.write(key_data)
+
+        try:
+            os.chmod(key_file, 0o600)
+        except Exception:
+            pass
+
+        # NGINX VHost mit Custom SSL anpassen
+        vhost_avail = "/etc/nginx/sites-available/syscore-panel.panel.conf"
+        vhost_content = f"""server {{
+    listen 80;
+    server_name {domain};
+    return 301 https://$host$request_uri;
+}}
+
+server {{
+    listen 443 ssl http2;
+    server_name {domain};
+
+    ssl_certificate {cert_file};
+    ssl_certificate_key {key_file};
+
+    client_max_body_size 512M;
+
+    location / {{
+        proxy_pass http://127.0.0.1:{config.PANEL_PORT};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 300s;
+    }}
+}}
+"""
+        with open(vhost_avail, "w", encoding="utf-8") as f:
+            f.write(vhost_content)
+
+        if shutil.which("nginx"):
+            test_res = subprocess.run(["nginx", "-t"], capture_output=True, text=True)
+            if test_res.returncode != 0:
+                flash(f"SSL-Zertifikat ungültig (NGINX Test fehlgeschlagen): {test_res.stderr}", "error")
+                return redirect(url_for("settings.index", tab="panel_ssl"))
+            subprocess.run(["systemctl", "reload", "nginx"], check=False)
+
+        log_audit(session.get("username"), "PANEL_CUSTOM_SSL", f"Custom SSL für {domain} hinterlegt", request.remote_addr)
+        flash(f"Custom SSL-Zertifikat für {domain} erfolgreich aktiviert!", "success")
+    except Exception as e:
+        flash(f"Fehler beim Speichern des Zertifikats: {e}", "error")
+
+    return redirect(url_for("settings.index", tab="panel_ssl"))
+
+@settings_bp.route("/alerts/save", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def save_alerts():
+    discord = request.form.get("discord_webhook", "").strip()
+    tg_token = request.form.get("telegram_bot_token", "").strip()
+    tg_chat = request.form.get("telegram_chat_id", "").strip()
+    disk_thresh = request.form.get("disk_threshold", "90").strip()
+
+    execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('alert_discord_webhook', ?)", (discord,))
+    execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('alert_telegram_bot_token', ?)", (tg_token,))
+    execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('alert_telegram_chat_id', ?)", (tg_chat,))
+    execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('alert_disk_threshold', ?)", (disk_thresh,))
+
+    log_audit(session.get("username"), "ALERTS_SETTINGS_SAVE", "Benachrichtigungseinstellungen aktualisiert", request.remote_addr)
+    flash("Server-Health Benachrichtigungseinstellungen erfolgreich gespeichert.", "success")
+    return redirect(url_for("settings.index", tab="alerts"))
+
+@settings_bp.route("/alerts/test", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def test_alert():
+    discord_url = request.form.get("discord_webhook", "").strip()
+    if not discord_url:
+        res = query_db("SELECT value FROM settings WHERE key = 'alert_discord_webhook'", one=True)
+        if res: discord_url = res["value"]
+
+    if discord_url and discord_url.startswith("http"):
+        try:
+            import urllib.request
+            payload = {
+                "username": "SysCore Sentinel",
+                "embeds": [{
+                    "title": "🛡️ SysCore Server-Health Test-Alarm",
+                    "description": "Die Benachrichtigungs-Schnittstelle von SysCore funktioniert einwandfrei!",
+                    "color": 1095937, # Emerald
+                    "fields": [
+                        {"name": "Server-Host", "value": config.PANEL_HOST, "inline": True},
+                        {"name": "Status", "value": "🟢 Alle Dienste online", "inline": True},
+                        {"name": "Ausgelöst durch", "value": session.get("username", "admin"), "inline": True}
+                    ],
+                    "footer": {"text": "SysCore Next-Gen Server Management"}
+                }]
+            }
+            req = urllib.request.Request(
+                discord_url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "User-Agent": "SysCore/2.5"}
+            )
+            urllib.request.urlopen(req, timeout=5)
+            flash("Test-Benachrichtigung erfolgreich an Discord gesendet!", "success")
+        except Exception as e:
+            flash(f"Fehler beim Senden an Discord Webhook: {e}", "error")
+    else:
+        flash("Bitte trage zuerst eine gültige Discord Webhook-URL ein.", "warning")
+
+    return redirect(url_for("settings.index", tab="alerts"))
+
 

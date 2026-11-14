@@ -27,6 +27,12 @@
         <a href="{{ url_for('settings.index', tab='audit') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'audit' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
             Audit-Log
         </a>
+        <a href="{{ url_for('settings.index', tab='panel_ssl') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'panel_ssl' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            🔒 Panel SSL & Domain
+        </a>
+        <a href="{{ url_for('settings.index', tab='alerts') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'alerts' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            🔔 Health Alerts
+        </a>
         <a href="{{ url_for('settings.index', tab='updates') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'updates' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
             Updates & Version
             {% if not updater_info.is_up_to_date %}
@@ -466,6 +472,186 @@
                     <button type="submit" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-200 rounded-xl text-xs font-mono transition">Passwort aktualisieren</button>
                 </div>
             </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- TAB: PANEL SSL & DOMAIN PROXY (root_admin only) -->
+    {% if active_tab == 'panel_ssl' and user_role == 'root_admin' %}
+    <div class="space-y-6">
+        <!-- Status-Banner -->
+        <div class="sys-card p-6 bg-gradient-to-r from-dark-900 to-dark-850 border-dark-700">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🔒</span>
+                        <h3 class="text-base font-bold text-white tracking-tight font-mono">SysCore HTTPS & Subdomain Proxy</h3>
+                        {% if panel_proxy.configured and panel_proxy.ssl %}
+                        <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[11px] font-mono">SSL Aktiv</span>
+                        {% elif panel_proxy.configured %}
+                        <span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded text-[11px] font-mono">HTTP Aktiv (Kein SSL)</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 bg-dark-800 text-gray-400 border border-dark-600 rounded text-[11px] font-mono">Nicht konfiguriert</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-xs text-gray-400 font-mono">
+                        {% if panel_proxy.configured %}
+                        SysCore ist über NGINX als Reverse-Proxy ansprechbar: <a href="{% if panel_proxy.ssl %}https{% else %}http{% endif %}://{{ panel_proxy.domain }}" target="_blank" class="text-emerald-400 underline font-bold">{% if panel_proxy.ssl %}https{% else %}http{% endif %}://{{ panel_proxy.domain }} ↗</a>
+                        {% else %}
+                        Betreibe das SysCore-Panel über deine eigene Subdomain (z.B. <code class="text-emerald-400">panel.amfearliath.de</code>) mit automatischem Let's Encrypt SSL. Port 8888 muss dann nicht mehr geöffnet werden!
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 1-Klick Setup mit Let's Encrypt -->
+            <div class="sys-card p-6 space-y-4">
+                <div>
+                    <h3 class="text-base font-bold text-white tracking-tight font-mono">1. Subdomain & Let's Encrypt Assistent</h3>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">Erstellt automatisch die NGINX Reverse-Proxy-Konfiguration und bezieht ein kostenloses Let's Encrypt SSL-Zertifikat.</p>
+                </div>
+
+                <form method="POST" action="{{ url_for('settings.setup_panel_proxy') }}" class="space-y-4 font-mono text-xs">
+                    <div>
+                        <label class="block uppercase text-gray-400 mb-1">Gewünschte Subdomain für SysCore</label>
+                        <input type="text" name="domain" required value="{{ panel_proxy.domain or 'panel.amfearliath.de' }}" placeholder="panel.amfearliath.de"
+                               class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition">
+                        <span class="text-[11px] text-gray-500 block mt-1">Hinweis: Die Subdomain muss im DNS bereits auf die IP dieses Servers zeigen.</span>
+                    </div>
+
+                    <div>
+                        <label class="block uppercase text-gray-400 mb-1">Certbot Benachrichtigungs-E-Mail</label>
+                        <input type="email" name="certbot_email" value="{{ server_info.certbot_email }}" placeholder="admin@example.com"
+                               class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition">
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-1">
+                        <input type="checkbox" id="enable_ssl" name="enable_ssl" value="1" checked class="rounded bg-dark-900 border-dark-700 text-emerald-600 focus:ring-0">
+                        <label for="enable_ssl" class="text-gray-300">Automatisches Let's Encrypt SSL-Zertifikat ausstellen & HTTPS erzwingen</label>
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" class="w-full px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-900/30">
+                            🔒 NGINX Proxy & SSL jetzt einrichten
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Custom SSL Zertifikat hochladen/einfügen -->
+            <div class="sys-card p-6 space-y-4">
+                <div>
+                    <h3 class="text-base font-bold text-white tracking-tight font-mono">2. Eigenes Custom SSL-Zertifikat hinterlegen</h3>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">Falls du ein gekauftes oder Wildcard-Zertifikat (Cloudflare Origin, Sectigo) für das Panel verwenden möchtest.</p>
+                </div>
+
+                <form method="POST" action="{{ url_for('settings.save_custom_ssl') }}" class="space-y-4 font-mono text-xs">
+                    <div>
+                        <label class="block uppercase text-gray-400 mb-1">Domainname</label>
+                        <input type="text" name="domain" required value="{{ panel_proxy.domain or 'panel.amfearliath.de' }}" placeholder="panel.amfearliath.de"
+                               class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition">
+                    </div>
+
+                    <div>
+                        <label class="block uppercase text-gray-400 mb-1">Zertifikat (.crt / .pem / Fullchain)</label>
+                        <textarea name="ssl_certificate" rows="4" required placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                                  class="w-full p-3 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition resize-none"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block uppercase text-gray-400 mb-1">Private Key (.key)</label>
+                        <textarea name="ssl_key" rows="4" required placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+                                  class="w-full p-3 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition resize-none"></textarea>
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" class="w-full px-5 py-2.5 bg-dark-800 hover:bg-dark-700 text-gray-200 border border-dark-600 rounded-xl font-medium transition">
+                            Zertifikat aktivieren
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- TAB: HEALTH ALERTS & WEBHOOKS (root_admin only) -->
+    {% if active_tab == 'alerts' and user_role == 'root_admin' %}
+    <div class="space-y-6">
+        <div class="sys-card p-6 bg-gradient-to-r from-dark-900 to-dark-850 border-dark-700">
+            <div class="flex items-center gap-3">
+                <span class="text-xl">🔔</span>
+                <div>
+                    <h3 class="text-base font-bold text-white tracking-tight font-mono">Server-Health Alarme & Benachrichtigungen</h3>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">Erhalte sofortige Push-Nachrichten auf Discord oder Telegram bei hoher Festplatten-Auslastung oder verdächtigen Web-Scans.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Webhook Konfiguration -->
+            <div class="sys-card p-6 space-y-4">
+                <h3 class="text-base font-bold text-white tracking-tight font-mono">1. Empfänger-Kanäle einrichten</h3>
+
+                <form method="POST" action="{{ url_for('settings.save_alerts') }}" class="space-y-4 font-mono text-xs">
+                    <div>
+                        <label class="block uppercase text-gray-400 mb-1">Discord Webhook-URL</label>
+                        <input type="url" name="discord_webhook" value="{{ alert_settings.discord_webhook }}" placeholder="https://discord.com/api/webhooks/..."
+                               class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition">
+                        <span class="text-[11px] text-gray-500 block mt-1">Erstelle einen Webhook in Discord (Server-Einstellungen → Integrationen → Webhooks).</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 pt-2 border-t border-dark-800">
+                        <div>
+                            <label class="block uppercase text-gray-400 mb-1">Telegram Bot Token (Optional)</label>
+                            <input type="text" name="telegram_bot_token" value="{{ alert_settings.telegram_bot_token }}" placeholder="123456:ABC-DEF..."
+                                   class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block uppercase text-gray-400 mb-1">Telegram Chat ID</label>
+                            <input type="text" name="telegram_chat_id" value="{{ alert_settings.telegram_chat_id }}" placeholder="-100..."
+                                   class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition">
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-dark-800">
+                        <label class="block uppercase text-gray-400 mb-1">Alarm-Schwellenwert Festplatte</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" name="disk_threshold" min="50" max="98" value="{{ alert_settings.disk_threshold }}"
+                                   class="w-24 px-3 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none transition">
+                            <span class="text-gray-400">% Auslastung</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 flex justify-end">
+                        <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-900/30">
+                            Einstellungen speichern
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Test-Alarm senden -->
+            <div class="sys-card p-6 space-y-4">
+                <h3 class="text-base font-bold text-white tracking-tight font-mono">2. Benachrichtigung testen</h3>
+                <p class="text-xs text-gray-400 font-mono">Sende einen sofortigen Test-Alarm an deinen konfigurierten Discord-Kanal, um die Verbindung zu überprüfen.</p>
+
+                <div class="p-4 bg-dark-950 border border-dark-800 rounded-xl font-mono text-xs space-y-2 text-gray-300">
+                    <span class="text-emerald-400 font-bold block">Beispiel Discord-Nachricht:</span>
+                    <div class="p-3 bg-dark-900 rounded border-l-4 border-emerald-500 space-y-1">
+                        <div class="font-bold text-white">🛡️ SysCore Server-Health Alert</div>
+                        <div class="text-[11px] text-gray-400">Host: {{ config.PANEL_HOST }} | Status: Alle Systeme online</div>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ url_for('settings.test_alert') }}" class="pt-2">
+                    <button type="submit" class="w-full px-5 py-2.5 bg-dark-800 hover:bg-dark-700 text-gray-200 border border-dark-600 rounded-xl font-mono text-xs transition flex items-center justify-center gap-2">
+                        <span>🚀 Test-Alarm an Discord senden</span>
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
     {% endif %}

@@ -275,6 +275,26 @@
                                 <button onclick="SysCore.copyToClipboard('v=DMARC1; p=quarantine; rua=mailto:postmaster@{{ dom }}', 'DMARC Record')" class="text-emerald-400 hover:underline">Kopieren</button>
                             </td>
                         </tr>
+
+                        <!-- Autoconfig (Thunderbird & Apple Mail) -->
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-2.5 px-3"><span class="badge-cyan px-1.5 py-0.5 rounded">CNAME</span></td>
+                            <td class="py-2.5 px-3 text-white">autoconfig</td>
+                            <td class="py-2.5 px-3 text-gray-300">mail.{{ dom }} (Zero-Config Autodiscovery)</td>
+                            <td class="py-2.5 px-3 text-right">
+                                <button onclick="SysCore.copyToClipboard('mail.{{ dom }}', 'Autoconfig CNAME')" class="text-emerald-400 hover:underline">Kopieren</button>
+                            </td>
+                        </tr>
+
+                        <!-- Autodiscover (Microsoft Outlook) -->
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-2.5 px-3"><span class="badge-cyan px-1.5 py-0.5 rounded">CNAME</span></td>
+                            <td class="py-2.5 px-3 text-white">autodiscover</td>
+                            <td class="py-2.5 px-3 text-gray-300">mail.{{ dom }} (Outlook Autodiscover)</td>
+                            <td class="py-2.5 px-3 text-right">
+                                <button onclick="SysCore.copyToClipboard('mail.{{ dom }}', 'Autodiscover CNAME')" class="text-emerald-400 hover:underline">Kopieren</button>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
