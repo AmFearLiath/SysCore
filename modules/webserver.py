@@ -537,13 +537,68 @@ def check_webserver_health():
         nginx_syntax_ok = (test.returncode == 0)
         nginx_syntax_msg = test.stderr if test.returncode != 0 else "Konfigurations-Syntax ist fehlerfrei."
 
+    cb_ok, cb_msg, cb_status = check_certbot_status()
+
     return {
         "apache_conflict": apache_conflict,
         "default_site_enabled": default_site_enabled,
         "php_versions": detect_php_versions(),
         "nginx_syntax_ok": nginx_syntax_ok,
-        "nginx_syntax_msg": nginx_syntax_msg
+        "nginx_syntax_msg": nginx_syntax_msg,
+        "certbot_ok": cb_ok,
+        "certbot_msg": cb_msg,
+        "certbot_status": cb_status
     }
+
+def check_certbot_status():
+    """Prüft ob Certbot funktionsfähig ist oder ein Python pyOpenSSL/cryptography Versionskonflikt vorliegt"""
+    if not shutil.which("certbot"):
+        return False, "Certbot ist auf diesem System nicht installiert", "missing"
+
+    try:
+        res = subprocess.run(["certbot", "--version"], capture_output=True, text=True, timeout=10)
+        if res.returncode != 0:
+            err = (res.stderr or res.stdout).strip()
+            if "GEN_EMAIL" in err or "AttributeError" in err or "OpenSSL" in err:
+                return False, f"Python pyOpenSSL/cryptography Bibliothekskonflikt: {err}", "conflict"
+            return False, f"Certbot-Fehler: {err}", "broken"
+        return True, res.stdout.strip(), "ok"
+    except Exception as e:
+        return False, str(e), "error"
+
+def fix_certbot_conflict_core():
+    """
+    Behebt die bekannte Debian/pip Kollision zwischen pyOpenSSL und cryptography.
+    1. Aktualisiert pyOpenSSL via pip3, damit es mit dem neueren cryptography kompatibel ist
+    2. Falls nötig: Bereinigt /usr/local/lib/python3*/dist-packages und reinstalliert APT-Pakete
+    """
+    if os.name == "nt":
+        return True, "Windows: Prüfung übersprungen"
+
+    # Versuch 1: pyopenssl via pip3 aktualisieren (--break-system-packages)
+    if shutil.which("pip3"):
+        subprocess.run(["pip3", "install", "--upgrade", "pyopenssl>=24.0.0", "--break-system-packages"], capture_output=True, text=True, timeout=60)
+        ok, _, status = check_certbot_status()
+        if ok or status != "conflict":
+            return True, "pyOpenSSL erfolgreich via Pip aktualisiert. Certbot ist wieder voll funktionsfähig."
+
+    # Versuch 2: Störende globale pip dist-packages bereinigen und Debian APT-Pakete reparieren
+    try:
+        sh_cmd = """
+        rm -rf /usr/local/lib/python3*/dist-packages/cryptography* 2>/dev/null
+        rm -rf /usr/local/lib/python3*/dist-packages/OpenSSL* 2>/dev/null
+        rm -rf /usr/local/lib/python3*/dist-packages/pyOpenSSL* 2>/dev/null
+        apt-get update -y 2>/dev/null
+        apt-get install --reinstall -y python3-cryptography python3-openssl certbot python3-certbot-nginx 2>/dev/null
+        """
+        subprocess.run(["sh", "-c", sh_cmd], capture_output=True, text=True, timeout=90)
+    except Exception:
+        pass
+
+    ok, msg, _ = check_certbot_status()
+    if ok:
+        return True, "Python-Systembibliotheken erfolgreich bereinigt. Certbot ist wieder einsatzbereit."
+    return False, f"Reparatur versucht, aber Certbot meldet weiterhin: {msg}"
 
 def diagnose_webserver_issues():
     """
@@ -558,6 +613,28 @@ def diagnose_webserver_issues():
     """
     issues = []
     health = check_webserver_health()
+
+    # 0. Certbot Python pyOpenSSL / cryptography Konflikt
+    if health.get("certbot_status") == "conflict":
+        issues.append({
+            "id": "certbot_pyopenssl_conflict",
+            "domain": None,
+            "severity": "critical",
+            "title": "Certbot blockiert: Python pyOpenSSL/cryptography Bibliothekskonflikt",
+            "description": f"Certbot stürzt ab: {health.get('certbot_msg')[:150]}. Ursache ist eine Inkompatibilität zwischen neuerer globaler cryptography und Debian pyOpenSSL (AttributeError: 'lib' has no attribute 'GEN_EMAIL').",
+            "fix_endpoint": "webserver.fix_certbot_conflict",
+            "fix_label": "1-Klick: Certbot-Umgebung reparieren (pyOpenSSL aktualisieren)"
+        })
+    elif health.get("certbot_status") == "broken":
+        issues.append({
+            "id": "certbot_broken",
+            "domain": None,
+            "severity": "critical",
+            "title": "Certbot meldet Systemfehler",
+            "description": f"Certbot ist fehlerhaft: {health.get('certbot_msg')[:150]}.",
+            "fix_endpoint": "webserver.fix_certbot_conflict",
+            "fix_label": "1-Klick: Certbot reparieren"
+        })
 
     # 1. Apache Port Konflikt
     if health["apache_conflict"]:
@@ -837,6 +914,15 @@ def repair_domain_ssl_core(domain):
                 last_error = (res3.stderr or res3.stdout).strip()
             cert_info = find_ssl_cert_for_domain(domain)
 
+        # Versuch 4: Automatische Selbstheilung bei pyOpenSSL / GEN_EMAIL Kollision!
+        if not cert_info and ("GEN_EMAIL" in last_error or "AttributeError" in last_error or "OpenSSL" in last_error):
+            fix_certbot_conflict_core()
+            # Erneut versuchen mit Webroot
+            res_heal = subprocess.run(cmd1, capture_output=True, text=True, timeout=90)
+            if res_heal.returncode != 0:
+                last_error = (res_heal.stderr or res_heal.stdout).strip()
+            cert_info = find_ssl_cert_for_domain(domain)
+
         if not cert_info:
             # Letzte aussagekräftige Fehlerzeilen extrahieren
             err_lines = [l.strip() for l in last_error.splitlines() if l.strip() and not l.startswith("Saving debug log")]
@@ -905,6 +991,20 @@ def fix_acme_webroot():
         flash("ACME Challenge Verzeichnis (/var/www/html/.well-known/acme-challenge) erfolgreich eingerichtet und berechtigt!", "success")
     except Exception as e:
         flash(f"Fehler beim Einrichten des ACME-Verzeichnisses: {e}", "error")
+    return redirect(url_for("webserver.index", tab="diagnostics"))
+
+@webserver_bp.route("/fix/certbot", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def fix_certbot_conflict():
+    """1-Klick Reparatur für den Certbot pyOpenSSL/cryptography Versionskonflikt"""
+    ok, msg = fix_certbot_conflict_core()
+    if ok:
+        log_audit(session.get("username"), "CERTBOT_FIX_SUCCESS", msg, request.remote_addr, "success")
+        flash(f"Erfolg: {msg}", "success")
+    else:
+        log_audit(session.get("username"), "CERTBOT_FIX_FAIL", msg, request.remote_addr, "error")
+        flash(f"Reparatur fehlgeschlagen: {msg}", "error")
     return redirect(url_for("webserver.index", tab="diagnostics"))
 
 @webserver_bp.route("/cert/assign", methods=["POST"])
@@ -1090,8 +1190,17 @@ def repair_all_issues():
     fixed_count = 0
 
     for issue in issues:
+        # 0: Certbot Konflikt
+        if issue["id"] in ("certbot_pyopenssl_conflict", "certbot_broken"):
+            try:
+                ok, _ = fix_certbot_conflict_core()
+                if ok:
+                    fixed_count += 1
+            except Exception:
+                pass
+
         # A: Apache Port Konflikt
-        if issue["id"] == "apache_port_conflict":
+        elif issue["id"] == "apache_port_conflict":
             try:
                 fix_apache_port()
                 fixed_count += 1

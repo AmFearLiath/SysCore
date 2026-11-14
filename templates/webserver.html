@@ -347,6 +347,13 @@
                                     <span>{{ issue.fix_label }}</span>
                                 </button>
                             </form>
+                            {% elif issue.fix_endpoint == 'webserver.fix_certbot_conflict' %}
+                            <form method="POST" action="{{ url_for('webserver.fix_certbot_conflict') }}">
+                                <button type="submit" class="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-mono font-bold transition flex items-center gap-2 shadow-lg shadow-rose-950/30">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    <span>{{ issue.fix_label }}</span>
+                                </button>
+                            </form>
                             {% endif %}
                         </div>
                     </div>
