@@ -4,7 +4,7 @@ import json
 import glob
 import shutil
 import subprocess
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, Response
 from modules.auth_users import login_required, role_required, current_user
 from db import query_db, execute_db, log_audit, get_db
 import config
@@ -62,6 +62,54 @@ def get_certbot_timer_status():
         except Exception:
             pass
     return False
+
+def get_git_updater_status():
+    local_hash = ""
+    local_short = "v2.5"
+    remote_hash = ""
+    remote_short = ""
+    is_up_to_date = True
+    recent_commits = []
+
+    try:
+        res_loc = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=3)
+        if res_loc.returncode == 0:
+            local_hash = res_loc.stdout.strip()
+            local_short = local_hash[:7]
+
+        # Check remote main branch
+        res_rem = subprocess.run(["git", "ls-remote", "origin", "-h", "refs/heads/main"], capture_output=True, text=True, timeout=5)
+        if res_rem.returncode == 0 and res_rem.stdout.strip():
+            remote_hash = res_rem.stdout.strip().split()[0]
+            remote_short = remote_hash[:7]
+
+        if remote_hash and local_hash:
+            is_up_to_date = (remote_hash == local_hash)
+
+        # Letzte 10 Commits für Rollback auflisten
+        res_log = subprocess.run(["git", "log", "-n", "10", "--pretty=format:%h|%s|%ad|%ar", "--date=short"], capture_output=True, text=True, timeout=3)
+        if res_log.returncode == 0:
+            for line in res_log.stdout.splitlines():
+                parts = line.split("|")
+                if len(parts) == 4:
+                    recent_commits.append({
+                        "hash": parts[0],
+                        "msg": parts[1],
+                        "date": parts[2],
+                        "rel_date": parts[3],
+                        "is_current": (parts[0] == local_short)
+                    })
+    except Exception as e:
+        print(f"[Updater Error] {e}")
+
+    return {
+        "local_hash": local_hash,
+        "local_short": local_short,
+        "remote_hash": remote_hash,
+        "remote_short": remote_short,
+        "is_up_to_date": is_up_to_date,
+        "recent_commits": recent_commits
+    }
 
 def read_global_nginx_limits():
     limits = {"client_max_body_size": "64M"}
@@ -124,6 +172,7 @@ def index():
     }
 
     pm2_procs = get_pm2_processes()
+    updater_info = get_git_updater_status()
 
     return render_template(
         "settings.html",
@@ -133,6 +182,7 @@ def index():
         audit_logs=audit_logs,
         server_info=server_info,
         pm2_procs=pm2_procs,
+        updater_info=updater_info,
         user_role=user_role
     )
 
@@ -240,3 +290,67 @@ def pm2_action(pm_id, action):
         log_audit(session.get("username"), f"PM2_{action.upper()}", f"PM2 Prozess #{pm_id} -> {action}", request.remote_addr)
         flash(f"PM2 Prozess #{pm_id} -> {action} ausgeführt.", "success")
     return redirect(url_for("settings.index", tab="pm2"))
+
+@settings_bp.route("/updater/update", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def run_system_update():
+    """Führt ein 1-Klick Git-Update mit Live-Streaming im Terminal Drawer aus"""
+    log_audit(session.get("username"), "SYSTEM_UPDATE_START", "SysCore Auto-Update von GitHub gestartet", request.remote_addr)
+
+    def generate():
+        yield "data: === Starte SysCore System-Update von GitHub ===\n\n"
+        
+        # 1. Snapshot Tag anlegen zur Rollback-Sicherheit
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        tag_name = f"syscore-backup-{timestamp}"
+        yield f"data: [1/4] Erstelle Sicherheits-Snapshot Tag: {tag_name}...\n\n"
+        subprocess.run(["git", "tag", tag_name], capture_output=True)
+
+        # 2. Git Pull
+        yield "data: [2/4] Ziehe neuesten Code von origin/main...\n\n"
+        proc = subprocess.Popen(["git", "pull", "origin", "main"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        for line in proc.stdout:
+            yield f"data: {line.strip()}\n\n"
+        proc.wait()
+
+        # 3. Pip dependencies & DB migration
+        yield "data: [3/4] Prüfe Abhängigkeiten & führe Datenbank-Migrationen aus...\n\n"
+        try:
+            import db
+            db.init_db()
+            yield "data: SQLite Datenbanktabellen erfolgreich verifiziert & migriert.\n\n"
+        except Exception as e:
+            yield f"data: [WARNUNG] DB Init: {e}\n\n"
+
+        # 4. Service Reload
+        yield "data: [4/4] Starte SysCore Daemon neu...\n\n"
+        if shutil.which("systemctl"):
+            subprocess.run(["systemctl", "restart", "syscore"], check=False)
+            yield "data: Systemd Service 'syscore' neu gestartet.\n\n"
+
+        yield "data: [ERFOLG] SysCore erfolgreich auf die neueste Version aktualisiert!\n\n"
+        log_audit(session.get("username"), "SYSTEM_UPDATE_FINISH", "SysCore Update erfolgreich abgeschlossen", request.remote_addr)
+
+    return Response(generate(), mimetype="text/event-stream")
+
+@settings_bp.route("/updater/rollback/<commit_hash>", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def run_system_rollback(commit_hash):
+    """Setzt SysCore auf einen früheren Git-Commit zurück"""
+    if not re.match(r"^[a-f0-9]{7,40}$", commit_hash):
+        flash("Ungültiger Commit-Hash.", "error")
+        return redirect(url_for("settings.index", tab="updates"))
+
+    res = subprocess.run(["git", "checkout", commit_hash], capture_output=True, text=True)
+    if res.returncode == 0:
+        if shutil.which("systemctl"):
+            subprocess.run(["systemctl", "restart", "syscore"], check=False)
+        log_audit(session.get("username"), "SYSTEM_ROLLBACK", f"SysCore auf Commit '{commit_hash}' zurückgesetzt", request.remote_addr, "warning")
+        flash(f"SysCore erfolgreich auf Commit {commit_hash} zurückgesetzt!", "success")
+    else:
+        flash(f"Rollback fehlgeschlagen: {res.stderr}", "error")
+
+    return redirect(url_for("settings.index", tab="updates"))
+

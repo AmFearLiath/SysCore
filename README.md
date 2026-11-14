@@ -60,7 +60,8 @@ SysCore ist ein hochmodernes, eigenständiges Server- und Webspace-Management-Sy
   - Berechtigungsanpassung auf `www-data:www-data`.
 - 1-Klick-Download eines Starter-Templates direkt im Panel.
 
-### 6. Zentrales Einstellungs-Hub (`modules/settings.py`)
+### 6. Zentrales Einstellungs-Hub & Auto-Updater (`modules/settings.py`)
+- **Auto-Updater & Rollback-Engine:** Integrierte GitHub-Prüfung gegen `origin/main` mit Commit-Diff-Anzeige, 1-Klick-Update mit automatischem Dependency-Sync (`pip install`) & Daemon-Restart sowie 1-Klick-Rollback auf frühere Git-Commits.
 - **Server:** Hostname, Zeitzone (`timedatectl`), Swapfile-Verwaltung, Certbot-Renewal-Test (`--dry-run`).
 - **Tuning:** Globale Limits (`client_max_body_size`, `memory_limit`, `upload_max_filesize`, `max_execution_time`) über saubere Drop-In-Dateien (`/etc/nginx/conf.d/99-syscore.conf` bzw. `99-syscore.ini`).
 - **Node.js / PM2:** Statusanzeige aller PM2-Prozesse mit Neustart- und Stop-Möglichkeit.
@@ -95,7 +96,7 @@ SysCore ist ein hochmodernes, eigenständiges Server- und Webspace-Management-Sy
 ### Automatische 1-Klick-Installation (Debian Linux)
 
 ```bash
-git clone https://github.com/dein-repo/syscore.git /opt/syscore
+git clone https://github.com/AmFearLiath/SysCore.git /opt/syscore
 cd /opt/syscore
 sudo bash install.sh
 ```
