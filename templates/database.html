@@ -318,3 +318,22 @@ async function executeSqlQuery() {
         info.className = "text-rose-400 text-[11px]";
     }
 }
+
+function openImportModal(dbName) {
+    document.getElementById("import-target-label").textContent = dbName;
+    document.getElementById("db-import-form").action = `/db/import/${dbName}`;
+    const modal = document.getElementById("modal-db-import");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function openPassResetModal(user, host) {
+    document.getElementById("reset-user-label").textContent = `${user}@${host}`;
+    document.getElementById("reset-db-user-input").value = user;
+    document.getElementById("reset-db-host-input").value = host;
+    const modal = document.getElementById("modal-user-pass-reset");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+</script>
+{% endblock %}

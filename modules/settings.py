@@ -56,6 +56,15 @@ def get_pm2_processes():
         pass
     return []
 
+def get_certbot_timer_status():
+    if shutil.which("systemctl"):
+        try:
+            res = subprocess.run(["systemctl", "is-active", "certbot.timer"], capture_output=True, text=True)
+            return res.stdout.strip() == "active"
+        except Exception:
+            pass
+    return False
+
 def get_panel_proxy_status():
     vhost_path = "/etc/nginx/sites-available/syscore-panel.panel.conf"
     if not os.path.exists(vhost_path):
