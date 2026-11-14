@@ -1,0 +1,694 @@
+{% extends "base.html" %}
+
+{% block title %}Benutzer, Rollen & Berechtigungen // SysCore{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header & Quick Actions -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <span class="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                </span>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-black text-white tracking-tight">Benutzer & Rollenverwaltung</h1>
+                    <p class="text-xs text-gray-400">Enterprise Role-Based Access Control (RBAC), 2FA-Verwaltung & Berechtigungs-Matrix</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            <button onclick="openCreateUserModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition flex items-center gap-2 shadow-lg shadow-emerald-900/20">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                <span>Neuer Benutzer</span>
+            </button>
+            <button onclick="openCreateRoleModal()" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 border border-dark-600 text-gray-200 rounded-xl text-xs font-mono font-medium transition flex items-center gap-2">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                <span>Neue Rolle</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Stats KPIs -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="sys-card p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+            </div>
+            <div>
+                <div class="text-[11px] font-mono text-gray-400">Gesamt Benutzer</div>
+                <div class="text-xl font-bold font-mono text-white">{{ total_users }}</div>
+            </div>
+        </div>
+
+        <div class="sys-card p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <div>
+                <div class="text-[11px] font-mono text-gray-400">Aktive Konten</div>
+                <div class="text-xl font-bold font-mono text-emerald-400">{{ active_users }} / {{ total_users }}</div>
+            </div>
+        </div>
+
+        <div class="sys-card p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <div>
+                <div class="text-[11px] font-mono text-gray-400">2FA Geschützt</div>
+                <div class="text-xl font-bold font-mono text-white">{{ totp_users }} <span class="text-xs text-gray-400 font-normal">({{ ((totp_users / total_users * 100)|round)|int if total_users > 0 else 0 }}%)</span></div>
+            </div>
+        </div>
+
+        <div class="sys-card p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </div>
+            <div>
+                <div class="text-[11px] font-mono text-gray-400">Rollen & Profile</div>
+                <div class="text-xl font-bold font-mono text-purple-400">{{ total_roles }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center gap-2 border-b border-dark-700 pb-2 text-xs font-mono overflow-x-auto">
+        <a href="{{ url_for('users.index', tab='users') }}" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold' if active_tab == 'users' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+            <span>Benutzerkonten</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-dark-900 border border-dark-700 text-gray-300">{{ total_users }}</span>
+        </a>
+
+        <a href="{{ url_for('users.index', tab='roles') }}" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold' if active_tab == 'roles' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            <span>Rollen & Profile</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-dark-900 border border-dark-700 text-gray-300">{{ total_roles }}</span>
+        </a>
+
+        <a href="{{ url_for('users.index', tab='matrix') }}" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold' if active_tab == 'matrix' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+            <span>Berechtigungs-Matrix</span>
+        </a>
+
+        <a href="{{ url_for('users.index', tab='audit') }}" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold' if active_tab == 'audit' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            <span>Audit- & Login-Protokoll</span>
+        </a>
+    </div>
+
+    <!-- ==================== TAB 1: BENUTZERKONTEN ==================== -->
+    {% if active_tab == 'users' %}
+    <div class="space-y-4">
+        <!-- Live Table Filter -->
+        <div class="flex items-center justify-between gap-4">
+            <div class="relative w-full max-w-sm">
+                <input type="text" id="userSearchInput" onkeyup="filterUserTable()" placeholder="Benutzer filtern..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3.5 py-2 pl-9 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 font-mono">
+                <svg class="w-4 h-4 text-gray-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <div class="text-xs font-mono text-gray-400 hidden sm:block">
+                {{ users|length }} Benutzer registriert
+            </div>
+        </div>
+
+        <div class="sys-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono" id="usersTable">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3 px-4">Benutzer</th>
+                            <th class="py-3 px-4">E-Mail</th>
+                            <th class="py-3 px-4">Rolle / Profil</th>
+                            <th class="py-3 px-4">2FA Schutz</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4">Letzter Login</th>
+                            <th class="py-3 px-4 text-right">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for u in users %}
+                        <tr class="hover:bg-dark-900/50 transition user-row">
+                            <td class="py-3 px-4 font-bold text-white flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs uppercase {{ 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' if u.role == 'root_admin' else 'bg-dark-800 text-gray-300 border border-dark-700' }}">
+                                    {{ u.username[:2] }}
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span>{{ u.username }}</span>
+                                        {% if u.id == current_user_obj.id %}
+                                        <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 font-normal">Du</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-[10px] text-gray-500 font-normal">ID: #{{ u.id }} &bull; Registriert: {{ u.created_at[:10] if u.created_at else '-' }}</div>
+                                </div>
+                            </td>
+                            <td class="py-3 px-4 text-gray-400">
+                                {{ u.email or '-' }}
+                            </td>
+                            <td class="py-3 px-4">
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-semibold {{ 'badge-emerald' if u.role == 'root_admin' else ('badge-teal' if u.role == 'web_admin' else 'badge-cyan') }}">
+                                    {{ u.role_display or u.role }}
+                                </span>
+                            </td>
+                            <td class="py-3 px-4">
+                                {% if u.totp_enabled %}
+                                <span class="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full text-[10px] border border-emerald-500/20">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                                    Aktiviert
+                                </span>
+                                {% else %}
+                                <span class="text-gray-500 text-[11px]">Nicht aktiv</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 px-4">
+                                {% if u.is_active %}
+                                <span class="inline-flex items-center gap-1.5 text-emerald-400">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                    <span>Aktiv</span>
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center gap-1.5 text-rose-400">
+                                    <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                                    <span>Gesperrt</span>
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 px-4 text-gray-400 font-mono text-[11px]">
+                                {{ u.last_login or 'Noch nie' }}
+                            </td>
+                            <td class="py-3 px-4 text-right">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <!-- Bearbeiten -->
+                                    <button onclick="openEditUserModal({{ u.id }}, '{{ u.username }}', '{{ u.email or '' }}', '{{ u.role }}', {{ u.is_active }})" class="p-1.5 bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white rounded-lg transition" title="Benutzer bearbeiten">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                    </button>
+
+                                    <!-- 2FA Reset (falls aktiv) -->
+                                    {% if u.totp_enabled %}
+                                    <form method="POST" action="{{ url_for('users.reset_2fa', user_id=u.id) }}" class="inline" onsubmit="return confirm('Möchtest du die Zwei-Faktor-Authentifizierung für {{ u.username }} wirklich zurücksetzen? Der Benutzer kann sich danach sofort wieder nur mit seinem Passwort anmelden.');">
+                                        <button type="submit" class="p-1.5 bg-dark-800 hover:bg-amber-500/20 text-gray-400 hover:text-amber-400 rounded-lg transition" title="2FA zurücksetzen">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+
+                                    <!-- Sperren / Entsperren -->
+                                    {% if u.id != current_user_obj.id %}
+                                    <form method="POST" action="{{ url_for('users.toggle_status', user_id=u.id) }}" class="inline">
+                                        <button type="submit" class="p-1.5 bg-dark-800 hover:bg-dark-700 text-gray-400 hover:text-white rounded-lg transition" title="{{ 'Konto sperren' if u.is_active else 'Konto entsperren' }}">
+                                            {% if u.is_active %}
+                                            <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                                            {% else %}
+                                            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                            {% endif %}
+                                        </button>
+                                    </form>
+
+                                    <!-- Löschen -->
+                                    <form method="POST" action="{{ url_for('users.delete_user', user_id=u.id) }}" class="inline" onsubmit="return confirm('Benutzer {{ u.username }} wirklich unwiderruflich löschen?');">
+                                        <button type="submit" class="p-1.5 bg-dark-800 hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 rounded-lg transition" title="Benutzer löschen">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ==================== TAB 2: ROLLEN & PROFILE ==================== -->
+    {% if active_tab == 'roles' %}
+    <div class="space-y-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">System- und Benutzerrollen</h3>
+                <p class="text-xs text-gray-400">Verwalte Zugriffslevel und weise Modulberechtigungen modular zu.</p>
+            </div>
+            <button onclick="openCreateRoleModal()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>Neue Rolle anlegen</span>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for r in roles %}
+            <div class="sys-card p-5 flex flex-col justify-between border-t-2 {{ 'border-t-emerald-500' if r.name == 'root_admin' else ('border-t-indigo-500' if r.is_system else 'border-t-cyan-500') }}">
+                <div class="space-y-3">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h4 class="text-base font-bold text-white">{{ r.display_name }}</h4>
+                                {% if r.is_system %}
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-dark-900 border border-dark-700 text-gray-400">System</span>
+                                {% else %}
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">Custom</span>
+                                {% endif %}
+                            </div>
+                            <span class="text-xs font-mono text-gray-500">{{ r.name }}</span>
+                        </div>
+                        <span class="px-2 py-1 rounded-lg text-xs font-mono font-bold bg-dark-900 border border-dark-700 text-emerald-400">
+                            {{ r.user_count }} {{ 'User' if r.user_count == 1 else 'Users' }}
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-gray-400 leading-relaxed min-h-[36px]">
+                        {{ r.description or 'Keine Rollenbeschreibung hinterlegt.' }}
+                    </p>
+
+                    <div>
+                        <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold mb-1.5">Zugewiesene Module ({{ r.permissions_list|length }}):</div>
+                        <div class="flex flex-wrap gap-1">
+                            {% for p in r.permissions_list %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-dark-900 border border-dark-700 text-gray-300">
+                                {{ p }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 mt-4 border-t border-dark-700/60 flex items-center justify-between text-xs font-mono">
+                    <span class="text-gray-500 text-[10px]">Erstellt: {{ r.created_at[:10] if r.created_at else 'System' }}</span>
+                    <div class="flex items-center gap-2">
+                        <!-- Bearbeiten -->
+                        <button onclick="openEditRoleModal({{ r.id }}, '{{ r.name }}', '{{ r.display_name }}', '{{ r.description or '' }}', '{{ r.permissions }}', {{ r.is_system }})" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white rounded-lg transition text-[11px] flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            <span>Bearbeiten</span>
+                        </button>
+
+                        <!-- Löschen (nur für Custom Roles) -->
+                        {% if not r.is_system %}
+                        <form method="POST" action="{{ url_for('users.delete_role', role_id=r.id) }}" class="inline" onsubmit="return confirm('Möchtest du die Rolle {{ r.display_name }} wirklich löschen?');">
+                            <button type="submit" class="p-1 bg-dark-800 hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 rounded-lg transition" title="Rolle löschen">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ==================== TAB 3: BERECHTIGUNGS-MATRIX ==================== -->
+    {% if active_tab == 'matrix' %}
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">Berechtigungs-Matrix (Cross-Role Overview)</h3>
+                <p class="text-xs text-gray-400">Übersicht aller vergebenen Berechtigungen pro Rolle über das gesamte SysCore-Ökosystem.</p>
+            </div>
+        </div>
+
+        <div class="sys-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3.5 px-4 min-w-[240px]">Modul / Berechtigung</th>
+                            {% for r in roles %}
+                            <th class="py-3.5 px-4 text-center font-bold text-white min-w-[120px]">
+                                <div>{{ r.display_name }}</div>
+                                <div class="text-[10px] text-gray-500 font-normal">{{ r.name }}</div>
+                            </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60">
+                        {% for perm in system_permissions %}
+                        <tr class="hover:bg-dark-900/50 transition">
+                            <td class="py-3.5 px-4">
+                                <div class="flex items-start gap-2.5">
+                                    <span class="p-1.5 rounded-lg bg-dark-900 border border-dark-700 text-emerald-400 mt-0.5 shrink-0">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ perm.icon }}"></path></svg>
+                                    </span>
+                                    <div>
+                                        <div class="font-bold text-white">{{ perm.label }}</div>
+                                        <div class="text-[11px] text-gray-400 font-sans font-normal">{{ perm.desc }}</div>
+                                        <span class="inline-block mt-1 text-[10px] font-mono text-gray-500 bg-dark-950 px-1.5 py-0.2 rounded border border-dark-800">Key: {{ perm.key }}</span>
+                                    </div>
+                                </div>
+                            </td>
+
+                            {% for r in roles %}
+                            <td class="py-3.5 px-4 text-center align-middle">
+                                {% if perm.key in r.permissions_list %}
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-dark-900/50 text-gray-600 font-mono">
+                                    &mdash;
+                                </span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ==================== TAB 4: AUDIT- & LOGIN-PROTOKOLL ==================== -->
+    {% if active_tab == 'audit' %}
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">Sicherheits- & Benutzer-Auditprotokoll</h3>
+                <p class="text-xs text-gray-400">Lückenlose Protokollierung aller Logins, Passwortänderungen, 2FA-Bestätigungen und Rollen-Updates.</p>
+            </div>
+        </div>
+
+        <div class="sys-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3 px-4">Zeitpunkt</th>
+                            <th class="py-3 px-4">Benutzer</th>
+                            <th class="py-3 px-4">Aktion</th>
+                            <th class="py-3 px-4">Details</th>
+                            <th class="py-3 px-4">IP-Adresse</th>
+                            <th class="py-3 px-4">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for log in audit_logs %}
+                        <tr class="hover:bg-dark-900/50 transition">
+                            <td class="py-3 px-4 text-gray-400 font-mono text-[11px] whitespace-nowrap">{{ log.timestamp }}</td>
+                            <td class="py-3 px-4 font-bold text-white">{{ log.username }}</td>
+                            <td class="py-3 px-4 font-semibold text-emerald-400">{{ log.action }}</td>
+                            <td class="py-3 px-4 text-gray-300 max-w-md truncate" title="{{ log.details }}">{{ log.details or '-' }}</td>
+                            <td class="py-3 px-4 text-gray-400 font-mono text-[11px]">{{ log.ip_address or '-' }}</td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] {{ 'badge-emerald' if log.status == 'success' else ('badge-rose' if log.status == 'warning' else 'badge-cyan') }}">
+                                    {{ log.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="p-6 text-center text-gray-500 font-mono">Keine Benutzer-Audit-Einträge vorhanden.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ==================== MODALE ==================== -->
+
+<!-- MODAL: Neuer Benutzer anlegen -->
+<div id="modal-create-user" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                <span>Neuen Benutzer anlegen</span>
+            </h3>
+            <button onclick="closeModal('modal-create-user')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <form method="POST" action="{{ url_for('users.create_user') }}" class="space-y-4 text-xs font-mono">
+            <div>
+                <label class="block text-gray-400 mb-1">Benutzername</label>
+                <input type="text" name="username" required minlength="3" placeholder="z.B. developer" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                <p class="text-[10px] text-gray-500 mt-1">Alphanumerisch, Bindestriche und Unterstriche erlaubt.</p>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">E-Mail-Adresse</label>
+                <input type="email" name="email" placeholder="benutzer@example.com" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Passwort</label>
+                <input type="password" name="password" required minlength="8" placeholder="••••••••••••" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                <p class="text-[10px] text-gray-500 mt-1">Mindestens 8 Zeichen erforderlich.</p>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Rolle / Zugriffsprofil</label>
+                <select name="role" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    {% for r in roles %}
+                    <option value="{{ r.name }}" {{ 'selected' if r.name == 'web_admin' else '' }}>
+                        {{ r.display_name }} ({{ r.name }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="flex items-center gap-2 pt-2">
+                <input type="checkbox" name="is_active" value="1" id="create_active" checked class="w-4 h-4 rounded bg-dark-950 border-dark-700 text-emerald-500 focus:ring-0">
+                <label for="create_active" class="text-gray-300">Account sofort aktivieren</label>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-create-user')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
+                <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">Benutzer anlegen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: Benutzer bearbeiten -->
+<div id="modal-edit-user" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                <span>Benutzer bearbeiten: <span id="edit-user-title-name" class="text-emerald-400"></span></span>
+            </h3>
+            <button onclick="closeModal('modal-edit-user')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <form id="editUserForm" method="POST" class="space-y-4 text-xs font-mono">
+            <div>
+                <label class="block text-gray-400 mb-1">Benutzername (statisch)</label>
+                <input type="text" id="edit-user-username" disabled class="w-full px-3.5 py-2.5 bg-dark-900 border border-dark-700 rounded-xl text-gray-400 outline-none cursor-not-allowed">
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">E-Mail-Adresse</label>
+                <input type="email" name="email" id="edit-user-email" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Rolle / Zugriffsprofil</label>
+                <select name="role" id="edit-user-role" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    {% for r in roles %}
+                    <option value="{{ r.name }}">{{ r.display_name }} ({{ r.name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Neues Passwort vergeben (optional)</label>
+                <input type="password" name="new_password" minlength="8" placeholder="Leer lassen um bestehendes Passwort zu behalten" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+            </div>
+
+            <div class="flex items-center gap-2 pt-2">
+                <input type="checkbox" name="is_active" value="1" id="edit-user-active" class="w-4 h-4 rounded bg-dark-950 border-dark-700 text-emerald-500 focus:ring-0">
+                <label for="edit-user-active" class="text-gray-300">Account ist aktiv und zugelassen</label>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-edit-user')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
+                <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">Änderungen speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: Neue Rolle anlegen -->
+<div id="modal-create-role" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-2xl p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                <span>Neue Benutzerrolle definieren</span>
+            </h3>
+            <button onclick="closeModal('modal-create-role')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <form method="POST" action="{{ url_for('users.create_role') }}" class="space-y-4 text-xs font-mono">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-gray-400 mb-1">Rollen-Code (eindeutiger Slug)</label>
+                    <input type="text" name="name" required minlength="3" placeholder="z.B. billing_manager" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    <p class="text-[10px] text-gray-500 mt-1">Nur Kleinbuchstaben, Zahlen und Unterstriche.</p>
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-1">Anzeigename</label>
+                    <input type="text" name="display_name" required placeholder="z.B. Billing & Account Manager" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Beschreibung</label>
+                <textarea name="description" rows="2" placeholder="Welche Aufgaben und Zugriffsrechte umfasst diese Rolle?" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-2 font-bold text-white">Modul-Berechtigungen auswählen:</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto p-2 bg-dark-950 rounded-xl border border-dark-700">
+                    {% for perm in system_permissions %}
+                    <label class="flex items-start gap-2.5 p-2 rounded-lg hover:bg-dark-900 cursor-pointer transition">
+                        <input type="checkbox" name="permissions" value="{{ perm.key }}" class="w-4 h-4 rounded bg-dark-900 border-dark-700 text-emerald-500 focus:ring-0 mt-0.5">
+                        <div>
+                            <div class="text-white font-bold text-[11px]">{{ perm.label }}</div>
+                            <div class="text-[10px] text-gray-400 font-sans leading-tight">{{ perm.desc }}</div>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-create-role')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold">Rolle speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: Rolle bearbeiten -->
+<div id="modal-edit-role" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-2xl p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                <span>Rolle bearbeiten: <span id="edit-role-title-name" class="text-indigo-400"></span></span>
+            </h3>
+            <button onclick="closeModal('modal-edit-role')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <form id="editRoleForm" method="POST" class="space-y-4 text-xs font-mono">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-gray-400 mb-1">Rollen-Code (statisch)</label>
+                    <input type="text" id="edit-role-name" disabled class="w-full px-3.5 py-2.5 bg-dark-900 border border-dark-700 rounded-xl text-gray-400 outline-none cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-1">Anzeigename</label>
+                    <input type="text" name="display_name" id="edit-role-display-name" required class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Beschreibung</label>
+                <textarea name="description" id="edit-role-description" rows="2" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none"></textarea>
+            </div>
+
+            <div id="edit-role-perms-container">
+                <label class="block text-gray-400 mb-2 font-bold text-white">Berechtigungen anpassen:</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto p-2 bg-dark-950 rounded-xl border border-dark-700" id="edit-perms-checkboxes">
+                    {% for perm in system_permissions %}
+                    <label class="flex items-start gap-2.5 p-2 rounded-lg hover:bg-dark-900 cursor-pointer transition">
+                        <input type="checkbox" name="permissions" value="{{ perm.key }}" class="perm-cb w-4 h-4 rounded bg-dark-900 border-dark-700 text-emerald-500 focus:ring-0 mt-0.5">
+                        <div>
+                            <div class="text-white font-bold text-[11px]">{{ perm.label }}</div>
+                            <div class="text-[10px] text-gray-400 font-sans leading-tight">{{ perm.desc }}</div>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+                <p id="edit-role-root-hint" class="hidden text-[11px] text-amber-400 mt-2 font-mono">
+                    Hinweis: Als Root Administrator verfügt diese Systemrolle stets über alle Systemberechtigungen.
+                </p>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-edit-role')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold">Änderungen speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function closeModal(id) {
+        const m = document.getElementById(id);
+        if (m) m.classList.add('hidden');
+    }
+
+    function openCreateUserModal() {
+        const m = document.getElementById('modal-create-user');
+        if (m) m.classList.remove('hidden');
+    }
+
+    function openEditUserModal(id, username, email, role, isActive) {
+        document.getElementById('edit-user-title-name').textContent = username;
+        document.getElementById('edit-user-username').value = username;
+        document.getElementById('edit-user-email').value = email;
+        document.getElementById('edit-user-role').value = role;
+        document.getElementById('edit-user-active').checked = (isActive === 1);
+        document.getElementById('editUserForm').action = "/users/update/" + id;
+        document.getElementById('modal-edit-user').classList.remove('hidden');
+    }
+
+    function openCreateRoleModal() {
+        const m = document.getElementById('modal-create-role');
+        if (m) m.classList.remove('hidden');
+    }
+
+    function openEditRoleModal(id, name, displayName, desc, permissions, isSystem) {
+        document.getElementById('edit-role-title-name').textContent = displayName;
+        document.getElementById('edit-role-name').value = name;
+        document.getElementById('edit-role-display-name').value = displayName;
+        document.getElementById('edit-role-description').value = desc;
+        document.getElementById('editRoleForm').action = "/users/role/update/" + id;
+
+        const permList = permissions ? permissions.split(',').map(s => s.trim()) : [];
+        const checkboxes = document.querySelectorAll('#edit-perms-checkboxes .perm-cb');
+        checkboxes.forEach(cb => {
+            cb.checked = permList.includes(cb.value);
+            if (name === 'root_admin') {
+                cb.checked = true;
+                cb.disabled = true;
+            } else {
+                cb.disabled = false;
+            }
+        });
+
+        const rootHint = document.getElementById('edit-role-root-hint');
+        if (rootHint) {
+            if (name === 'root_admin') {
+                rootHint.classList.remove('hidden');
+            } else {
+                rootHint.classList.add('hidden');
+            }
+        }
+
+        document.getElementById('modal-edit-role').classList.remove('hidden');
+    }
+
+    function filterUserTable() {
+        const q = (document.getElementById('userSearchInput')?.value || '').toLowerCase();
+        const rows = document.querySelectorAll('.user-row');
+        rows.forEach(r => {
+            const text = r.textContent.toLowerCase();
+            r.style.display = text.includes(q) ? '' : 'none';
+        });
+    }
+</script>
+{% endblock %}

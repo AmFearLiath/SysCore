@@ -101,90 +101,14 @@
 
     <!-- TAB 1: ANANGRIFFS-RADAR -->
     <div id="sec-tab-radar" class="space-y-6">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Top Angreifer -->
-            <div class="sys-card p-5 space-y-4">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                        Top auffällige IPs (Scans)
-                    </h3>
-                    <span class="text-[11px] text-gray-500 font-mono">Letzte 1500 Logzeilen</span>
-                </div>
-
-                {% if exploit_scan.top_attackers %}
-                <div class="space-y-2">
-                    {% for a in exploit_scan.top_attackers %}
-                    <div class="p-3 bg-dark-950 border border-dark-700 rounded-xl flex items-center justify-between">
-                        <div>
-                            <span class="text-xs font-mono text-white font-bold">{{ a.ip }}</span>
-                            <span class="block text-[10px] font-mono text-rose-400">{{ a.count }} verdächtige Zugriffe</span>
-                        </div>
-                        <form method="POST" action="{{ url_for('security.ban_ip') }}">
-                            <input type="hidden" name="ip_address" value="{{ a.ip }}">
-                            <input type="hidden" name="reason" value="Automatisch erkannt durch SysCore Angriffs-Radar ({{ a.count }} Probes)">
-                            <button type="submit" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-mono transition">
-                                Sperren
-                            </button>
-                        </form>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="p-6 text-center text-gray-500 font-mono text-xs">
-                    Keine auffälligen Scanner-IPs in den aktuellen NGINX Logs entdeckt.
-                </div>
-                {% endif %}
-            </div>
-
-            <!-- Erkannte Web-Exploit-Versuche -->
-            <div class="lg:col-span-2 sys-card p-5 space-y-4">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
-                        <span>🎯 Erkannte Exploit- & Scanning-Muster</span>
-                    </h3>
-                    <span class="text-[11px] text-gray-400 font-mono">Echtzeit-Analyse (.env, wp-login, Path Traversal)</span>
-                </div>
-
-                {% if exploit_scan.recent_probes %}
-                <div class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-                    {% for p in exploit_scan.recent_probes %}
-                    <div class="p-3 bg-dark-950 border border-dark-700 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs font-mono">
-                        <div class="space-y-1 overflow-hidden">
-                            <div class="flex items-center gap-2">
-                                <span class="px-1.5 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded text-[10px]">{{ p.category }}</span>
-                                <span class="text-white font-bold">{{ p.ip }}</span>
-                                <span class="text-gray-500 text-[10px]">{{ p.timestamp }}</span>
-                            </div>
-                            <div class="text-gray-400 text-[11px] truncate" title="{{ p.raw_line }}">
-                                Ziel: <code class="text-amber-400">{{ p.matched }}</code> | {{ p.raw_line }}
-                            </div>
-                        </div>
-                        <div class="flex-shrink-0">
-                            <form method="POST" action="{{ url_for('security.ban_ip') }}">
-                                <input type="hidden" name="ip_address" value="{{ p.ip }}">
-                                <input type="hidden" name="reason" value="Exploit-Versuch: {{ p.category }} ({{ p.matched }})">
-                                <button type="submit" class="px-2 py-1 bg-dark-800 hover:bg-rose-900/40 text-gray-300 hover:text-rose-300 border border-dark-600 rounded text-[11px] transition">
-                                    IP Blockieren
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="p-8 text-center text-gray-500 font-mono text-xs">
-                    Keine verdächtigen Angriffe oder Schwachstellen-Scans in den Logs gefunden.
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Aktive IP-Sperren -->
+        <!-- 1. Aktive Firewall- & IP-Sperren (Ganz oben als erster Block) -->
         <div class="sys-card p-5 space-y-4">
             <div class="flex items-center justify-between">
                 <div>
-                    <h3 class="text-sm font-bold text-white font-mono">Aktive Firewall- & IP-Sperren</h3>
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span class="text-rose-400">🛡️</span>
+                        Aktive Firewall- & IP-Sperren
+                    </h3>
                     <p class="text-xs text-gray-400 font-mono mt-0.5">IP-Adressen, die durch UFW oder manuell im SysCore Angriffs-Radar geblockt sind.</p>
                 </div>
                 <span class="text-xs font-mono text-emerald-400">{{ banned_db|length }} Gesperrte IP(s)</span>
@@ -227,6 +151,86 @@
                 Keine manuellen IP-Sperren in der SysCore Datenbank verzeichnet.
             </div>
             {% endif %}
+        </div>
+
+        <!-- 2. Darunter: Top auffällige IPs und Erkannte Exploit-Muster nebeneinander -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Top Angreifer (5 Cols) -->
+            <div class="lg:col-span-5 sys-card p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                        Top auffällige IPs (Scans)
+                    </h3>
+                    <span class="text-[11px] text-gray-500 font-mono">Letzte 1500 Logzeilen</span>
+                </div>
+
+                {% if exploit_scan.top_attackers %}
+                <div class="space-y-2">
+                    {% for a in exploit_scan.top_attackers %}
+                    <div class="p-3 bg-dark-950 border border-dark-700 rounded-xl flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-mono text-white font-bold">{{ a.ip }}</span>
+                            <span class="block text-[10px] font-mono text-rose-400">{{ a.count }} verdächtige Zugriffe</span>
+                        </div>
+                        <form method="POST" action="{{ url_for('security.ban_ip') }}">
+                            <input type="hidden" name="ip_address" value="{{ a.ip }}">
+                            <input type="hidden" name="reason" value="Automatisch erkannt durch SysCore Angriffs-Radar ({{ a.count }} Probes)">
+                            <button type="submit" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-mono transition">
+                                Sperren
+                            </button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="p-6 text-center text-gray-500 font-mono text-xs">
+                    Keine auffälligen Scanner-IPs in den aktuellen NGINX Logs entdeckt.
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Erkannte Web-Exploit-Versuche (7 Cols) -->
+            <div class="lg:col-span-7 sys-card p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span>🎯 Erkannte Exploit- & Scanning-Muster</span>
+                    </h3>
+                    <span class="text-[11px] text-gray-400 font-mono">Echtzeit-Analyse (.env, wp-login, Path Traversal)</span>
+                </div>
+
+                {% if exploit_scan.recent_probes %}
+                <div class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                    {% for p in exploit_scan.recent_probes %}
+                    <div class="p-3 bg-dark-950 border border-dark-700 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs font-mono">
+                        <div class="space-y-1 overflow-hidden">
+                            <div class="flex items-center gap-2">
+                                <span class="px-1.5 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded text-[10px]">{{ p.category }}</span>
+                                <span class="text-white font-bold">{{ p.ip }}</span>
+                                <span class="text-gray-500 text-[10px]">{{ p.timestamp }}</span>
+                            </div>
+                            <div class="text-gray-400 text-[11px] truncate" title="{{ p.raw_line }}">
+                                Ziel: <code class="text-amber-400">{{ p.matched }}</code> | {{ p.raw_line }}
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0">
+                            <form method="POST" action="{{ url_for('security.ban_ip') }}">
+                                <input type="hidden" name="ip_address" value="{{ p.ip }}">
+                                <input type="hidden" name="reason" value="Exploit-Versuch: {{ p.category }} ({{ p.matched }})">
+                                <button type="submit" class="px-2 py-1 bg-dark-800 hover:bg-rose-900/40 text-gray-300 hover:text-rose-300 border border-dark-600 rounded text-[11px] transition">
+                                    IP Blockieren
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="p-8 text-center text-gray-500 font-mono text-xs">
+                    Keine verdächtigen Angriffe oder Schwachstellen-Scans in den Logs gefunden.
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 

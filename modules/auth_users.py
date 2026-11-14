@@ -166,17 +166,34 @@ def setup_2fa():
     totp = pyotp.TOTP(secret)
     provisioning_uri = totp.provisioning_uri(name=user["username"], issuer_name="SysCore Server")
 
-    # QR-Code generieren als Base64
-    qr = qrcode.QRCode(box_size=6, border=2)
-    qr.add_data(provisioning_uri)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="#10b981", back_color="#090d16")
+    # QR-Code bevorzugt als SVG erzeugen (funktioniert ohne Pillow-Abhängigkeit)
+    qr_svg = None
+    qr_base64 = None
+    try:
+        import qrcode.image.svg
+        qr = qrcode.QRCode(box_size=8, border=2, image_factory=qrcode.image.svg.SvgPathImage)
+        qr.add_data(provisioning_uri)
+        qr.make(fit=True)
+        img = qr.make_image()
+        buffered = io.BytesIO()
+        img.save(buffered)
+        qr_svg = buffered.getvalue().decode("utf-8")
+    except Exception:
+        pass
 
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")
-    qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+    if not qr_svg:
+        try:
+            qr = qrcode.QRCode(box_size=6, border=2)
+            qr.add_data(provisioning_uri)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="#10b981", back_color="#090d16")
+            buffered = io.BytesIO()
+            img.save(buffered, format="PNG")
+            qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+        except Exception:
+            pass
 
-    return render_template("setup_2fa.html", qr_base64=qr_base64, secret=secret, user=user)
+    return render_template("setup_2fa.html", qr_svg=qr_svg, qr_base64=qr_base64, secret=secret, user=user)
 
 @auth_bp.route("/profile/2fa/disable", methods=["POST"])
 @login_required
@@ -186,89 +203,6 @@ def disable_2fa():
     log_audit(user["username"], "2FA_DISABLED", "2FA deaktiviert", request.remote_addr, "warning")
     flash("Zwei-Faktor-Authentifizierung wurde deaktiviert.", "success")
     return redirect(url_for("settings.index", tab="security"))
-
-# --- Benutzerverwaltung (Nur root_admin) ---
-
-@auth_bp.route("/users/create", methods=["POST"])
-@login_required
-@role_required(["root_admin"])
-def create_user():
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "")
-    email = request.form.get("email", "").strip()
-    role = request.form.get("role", "web_admin")
-
-    if not username or len(username) < 3 or not username.isalnum():
-        flash("Benutzername muss mindestens 3 Zeichen lang sein und darf nur Buchstaben und Zahlen enthalten.", "error")
-        return redirect(url_for("settings.index", tab="users"))
-
-    if len(password) < 8:
-        flash("Das Passwort muss mindestens 8 Zeichen lang sein.", "error")
-        return redirect(url_for("settings.index", tab="users"))
-
-    if role not in ROLE_PERMISSIONS:
-        flash("Ungültige Benutzerrolle gewählt.", "error")
-        return redirect(url_for("settings.index", tab="users"))
-
-    existing = query_db("SELECT id FROM users WHERE username = ?", (username,), one=True)
-    if existing:
-        flash(f"Benutzername '{username}' ist bereits vergeben.", "error")
-        return redirect(url_for("settings.index", tab="users"))
-
-    p_hash = generate_password_hash(password)
-    execute_db("""
-    INSERT INTO users (username, password_hash, role, email, is_active)
-    VALUES (?, ?, ?, ?, 1)
-    """, (username, p_hash, role, email))
-
-    log_audit(session.get("username"), "USER_CREATED", f"Benutzer '{username}' mit Rolle '{role}' erstellt", request.remote_addr)
-    flash(f"Benutzer '{username}' erfolgreich angelegt.", "success")
-    return redirect(url_for("settings.index", tab="users"))
-
-@auth_bp.route("/users/delete/<int:user_id>", methods=["POST"])
-@login_required
-@role_required(["root_admin"])
-def delete_user(user_id):
-    if user_id == session.get("user_id"):
-        flash("Du kannst deinen eigenen Benutzeraccount nicht löschen.", "error")
-        return redirect(url_for("settings.index", tab="users"))
-
-    target_user = query_db("SELECT username, role FROM users WHERE id = ?", (user_id,), one=True)
-    if not target_user:
-        flash("Benutzer nicht gefunden.", "error")
-        return redirect(url_for("settings.index", tab="users"))
-
-    # Schutz vor Löschen des letzten root_admin
-    if target_user["role"] == "root_admin":
-        admin_count = query_db("SELECT COUNT(*) FROM users WHERE role = 'root_admin' AND is_active = 1", one=True)[0]
-        if admin_count <= 1:
-            flash("Der letzte verbliebene root_admin kann nicht gelöscht werden.", "error")
-            return redirect(url_for("settings.index", tab="users"))
-
-    execute_db("DELETE FROM users WHERE id = ?", (user_id,))
-    log_audit(session.get("username"), "USER_DELETED", f"Benutzer '{target_user['username']}' gelöscht", request.remote_addr, "warning")
-    flash(f"Benutzer '{target_user['username']}' wurde gelöscht.", "success")
-    return redirect(url_for("settings.index", tab="users"))
-
-@auth_bp.route("/users/reset-password/<int:user_id>", methods=["POST"])
-@login_required
-@role_required(["root_admin"])
-def reset_user_password(user_id):
-    new_password = request.form.get("new_password", "").strip()
-    if len(new_password) < 8:
-        flash("Neues Passwort muss mindestens 8 Zeichen lang sein.", "error")
-        return redirect(url_for("settings.index", tab="users"))
-
-    target_user = query_db("SELECT username FROM users WHERE id = ?", (user_id,), one=True)
-    if not target_user:
-        flash("Benutzer nicht gefunden.", "error")
-        return redirect(url_for("settings.index", tab="users"))
-
-    p_hash = generate_password_hash(new_password)
-    execute_db("UPDATE users SET password_hash = ? WHERE id = ?", (p_hash, user_id))
-    log_audit(session.get("username"), "USER_PASSWORD_RESET", f"Passwort für '{target_user['username']}' zurückgesetzt", request.remote_addr)
-    flash(f"Passwort für '{target_user['username']}' erfolgreich geändert.", "success")
-    return redirect(url_for("settings.index", tab="users"))
 
 @auth_bp.route("/profile/change-password", methods=["POST"])
 @login_required

@@ -173,6 +173,34 @@ def init_db():
     );
     """)
 
+    # 13. Dynamische Rollen & Berechtigungen (RBAC)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS roles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        display_name TEXT NOT NULL,
+        description TEXT,
+        permissions TEXT NOT NULL,
+        is_system INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # Standard-Rollen anlegen falls noch keine vorhanden
+    cursor.execute("SELECT COUNT(*) FROM roles;")
+    if cursor.fetchone()[0] == 0:
+        default_roles = [
+            ("root_admin", "Root Administrator", "Vollzugriff auf alle System-, Sicherheits-, Benutzer- und Webserver-Funktionen", "system,security,web,mail,db,files,apps,backups,packages,cron,users,monitor", 1),
+            ("web_admin", "Webspace Administrator", "Verwaltung von Domains, Webspace-Dateien, Datenbanken und Backups", "web,db,files,apps,backups,monitor", 1),
+            ("database_admin", "Datenbank Administrator", "Verwaltung von MySQL Datenbanken, DB-Benutzern, SQL-Konsole und Backups", "db,backups,monitor", 0),
+            ("mail_admin", "E-Mail Administrator", "Verwaltung von Postfächern, Aliasen und DKIM/DNS-Records", "mail,monitor", 0),
+            ("monitor", "Monitoring & Audit", "Nur-Lese-Zugriff auf Metriken, Logs und Systemstatus", "monitor", 1)
+        ]
+        cursor.executemany("""
+        INSERT INTO roles (name, display_name, description, permissions, is_system)
+        VALUES (?, ?, ?, ?, ?);
+        """, default_roles)
+
     conn.commit()
 
     # Bootstrap Initialer Admin (falls noch kein Benutzer existiert)

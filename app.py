@@ -16,6 +16,7 @@ from modules.backups import backups_bp
 from modules.settings import settings_bp
 from modules.mail import mail_bp
 from modules.security import security_bp
+from modules.users import users_bp
 
 # Initialisiere SQLite Datenbank & Tabellen & Bootstrap Admin
 db.init_db()
@@ -37,6 +38,7 @@ app.register_blueprint(backups_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(mail_bp)
 app.register_blueprint(security_bp)
+app.register_blueprint(users_bp)
 
 # Globale Context-Variablen für Templates
 @app.context_processor
