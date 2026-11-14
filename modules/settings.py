@@ -1,6 +1,7 @@
 import os
 import re
 import time
+from datetime import datetime
 import json
 import glob
 import shutil
@@ -410,7 +411,14 @@ def run_system_update():
 
         threading.Thread(target=delayed_restart, daemon=True).start()
 
-    return Response(generate(), mimetype="text/event-stream")
+    def safe_generate():
+        try:
+            for item in generate():
+                yield item
+        except Exception as e:
+            yield f"data: [FEHLER BEIM UPDATE] {e}\n\n"
+
+    return Response(safe_generate(), mimetype="text/event-stream")
 
 @settings_bp.route("/updater/rollback/<commit_hash>", methods=["POST"])
 @login_required
