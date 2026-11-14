@@ -35,6 +35,43 @@ def get_swap_info():
             pass
     return False
 
+def trigger_system_restart(delay_seconds=2):
+    """
+    Startet den SysCore Systemdienst entkoppelt und zuverlässig neu.
+    Nutzt 'systemd-run' (transienter Timer außerhalb der Cgroup) oder detached Popen mit '--no-block',
+    damit Systemd den Dienst nicht während des Restart-Aufrufs abbricht.
+    """
+    if os.name == "nt":
+        return
+
+    # 1. Bevorzugt: systemd-run erzeugt einen unabhängigen transienten Timer
+    if shutil.which("systemd-run"):
+        try:
+            cmd = "systemctl restart syscore-panel || systemctl restart syscore"
+            res = subprocess.run([
+                "systemd-run",
+                f"--on-active={delay_seconds}s",
+                "--unit=syscore-auto-restart",
+                "sh", "-c", cmd
+            ], capture_output=True, text=True)
+            if res.returncode == 0:
+                return
+        except Exception:
+            pass
+
+    # 2. Fallback: Vollständig entkoppelter Kindprozess mit setsid und --no-block
+    try:
+        cmd = f"sleep {delay_seconds}; systemctl restart --no-block syscore-panel || systemctl restart --no-block syscore"
+        subprocess.Popen(
+            ["sh", "-c", cmd],
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL
+        )
+    except Exception:
+        pass
+
 def get_pm2_processes():
     if not shutil.which("pm2"):
         return []
@@ -413,17 +450,11 @@ def run_system_update():
             yield f"data: [WARNUNG] DB Init: {e}\n\n"
 
         # 4. Service Reload mit Verzögerung (damit HTTP Stream sauber beendet wird)
-        yield "data: [4/4] Aktualisierung abgeschlossen! Server-Dienst startet in 2 Sekunden neu...\n\n"
+        yield "data: [4/4] Aktualisierung abgeschlossen! Server-Dienst startet in 2 Sekunden automatisch neu...\n\n"
         yield "data: [ERFOLG] SysCore erfolgreich auf die neueste Version aktualisiert!\n\n"
         log_audit(session.get("username"), "SYSTEM_UPDATE_FINISH", "SysCore Update erfolgreich abgeschlossen", request.remote_addr)
 
-        def delayed_restart():
-            time.sleep(2)
-            if shutil.which("systemctl"):
-                subprocess.run(["systemctl", "restart", "syscore-panel"], check=False)
-                subprocess.run(["systemctl", "restart", "syscore"], check=False)
-
-        threading.Thread(target=delayed_restart, daemon=True).start()
+        trigger_system_restart(delay_seconds=2)
 
     def safe_generate():
         try:
@@ -446,13 +477,7 @@ def run_system_rollback(commit_hash):
     base_dir = str(config.BASE_DIR)
     res = subprocess.run(["git", "checkout", commit_hash], cwd=base_dir, capture_output=True, text=True)
     if res.returncode == 0:
-        def delayed_restart():
-            time.sleep(2)
-            if shutil.which("systemctl"):
-                subprocess.run(["systemctl", "restart", "syscore-panel"], check=False)
-                subprocess.run(["systemctl", "restart", "syscore"], check=False)
-
-        threading.Thread(target=delayed_restart, daemon=True).start()
+        trigger_system_restart(delay_seconds=2)
         log_audit(session.get("username"), "SYSTEM_ROLLBACK", f"SysCore auf Commit '{commit_hash}' zurückgesetzt", request.remote_addr, "warning")
         flash(f"SysCore erfolgreich auf Commit {commit_hash} zurückgesetzt! Dienst startet neu...", "success")
     else:

@@ -269,6 +269,35 @@ def init_db():
         )
 
     conn.close()
+    ensure_git_post_merge_hook()
+
+def ensure_git_post_merge_hook():
+    """Richtet den Git post-merge Hook ein, sodass nach jedem 'git pull' der Dienst neu startet"""
+    try:
+        git_dir = os.path.join(str(config.BASE_DIR), ".git")
+        if not os.path.exists(git_dir):
+            return
+
+        hooks_dir = os.path.join(git_dir, "hooks")
+        os.makedirs(hooks_dir, exist_ok=True)
+        hook_path = os.path.join(hooks_dir, "post-merge")
+
+        hook_script = """#!/bin/sh
+# SysCore Auto-Restart Hook: wird automatisch nach jedem 'git pull' ausgefuehrt
+echo "[SysCore] Aktualisierung erkannt - starte Dienst neu..."
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl restart --no-block syscore-panel 2>/dev/null || systemctl restart --no-block syscore 2>/dev/null || true
+fi
+"""
+        with open(hook_path, "w", encoding="utf-8") as f:
+            f.write(hook_script)
+
+        try:
+            os.chmod(hook_path, 0o755)
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 def log_audit(username, action, details="", ip_address="", status="success"):
     try:

@@ -53,6 +53,37 @@ def list_users():
         print(f"ID: {u['id']:<3} | User: {u['username']:<15} | Rolle: {u['role']:<12} | {totp:<9} | {status:<7} | Email: {u['email']}")
     print("-------------------------------------\n")
 
+def run_cli_update():
+    import subprocess
+    import shutil
+    import config
+
+    base_dir = str(config.BASE_DIR)
+    print("\n=======================================================")
+    print("   SYSCORE CLI UPDATE & AUTOMATISCHER RESTART         ")
+    print("=======================================================")
+    print("[1/4] Ziehe neuesten Stand von GitHub (origin/main)...")
+    subprocess.run(["git", "fetch", "origin", "main"], cwd=base_dir, capture_output=True)
+    pull = subprocess.run(["git", "pull", "--rebase=false", "origin", "main"], cwd=base_dir, capture_output=True, text=True)
+    out = (pull.stdout or "").strip()
+    print(out if out else "Bereits auf dem neuesten Stand.")
+
+    print("[2/4] Überprüfe Python-Abhängigkeiten...")
+    if shutil.which("pip3"):
+        subprocess.run(["pip3", "install", "-r", "requirements.txt", "--break-system-packages", "--quiet"], cwd=base_dir)
+
+    print("[3/4] Initialisiere Datenbank & Hooks...")
+    db.init_db()
+
+    print("[4/4] Starte SysCore Systemdienst neu...")
+    if shutil.which("systemctl"):
+        res = subprocess.run(["systemctl", "restart", "syscore-panel"], capture_output=True, text=True)
+        if res.returncode != 0:
+            subprocess.run(["systemctl", "restart", "syscore"], capture_output=True, text=True)
+        print("[ERFOLG] SysCore wurde aktualisiert und der Dienst wurde neu gestartet!\n")
+    else:
+        print("[HINWEIS] Kein systemctl gefunden.\n")
+
 def main():
     parser = argparse.ArgumentParser(description="SysCore Server Management CLI")
     subparsers = parser.add_subparsers(dest="command")
@@ -70,11 +101,16 @@ def main():
     # Command: init-db
     subparsers.add_parser("init-db", help="Initialisiere Datenbanktabellen")
 
+    # Command: update
+    subparsers.add_parser("update", help="SysCore auf neueste Version aktualisieren und Dienst neu starten")
+
     args = parser.parse_args()
 
     if args.command == "init-db":
         db.init_db()
         print("[SysCore CLI] Datenbank erfolgreich initialisiert.")
+    elif args.command == "update":
+        run_cli_update()
     elif args.command == "list-users":
         list_users()
     elif args.command == "admin":
