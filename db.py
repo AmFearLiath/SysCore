@@ -1,7 +1,9 @@
 import sqlite3
 import os
 import json
-from datetime import datetime
+import re
+from datetime import datetime, date
+from decimal import Decimal
 from pathlib import Path
 from werkzeug.security import generate_password_hash
 import config
@@ -19,17 +21,41 @@ class MySQLRow(dict):
     """
     Simuliert sqlite3.Row für PyMySQL:
     Erlaubt sowohl schlüsselbasierten Zugriff (row['username'])
-    als auch indexbasierten Zugriff (row[0], row[1], ...).
+    als auch indexbasierten Zugriff (row[0], row[1], ...)
+    sowie Attribut-Zugriff (row.username).
+    Normalisiert Datums- und Dezimaltypen auf String/Float, um 100%ige Kompatibilität
+    mit SQLite und Jinja2-Templates zu gewährleisten.
     """
     def __init__(self, data, col_names):
-        super().__init__(data)
+        clean_data = {}
+        for k, v in data.items():
+            if isinstance(v, datetime):
+                clean_data[k] = v.strftime("%Y-%m-%d %H:%M:%S")
+            elif isinstance(v, date):
+                clean_data[k] = v.strftime("%Y-%m-%d")
+            elif isinstance(v, Decimal):
+                clean_data[k] = float(v)
+            elif isinstance(v, (bytes, bytearray)):
+                try:
+                    clean_data[k] = v.decode("utf-8")
+                except Exception:
+                    clean_data[k] = v
+            else:
+                clean_data[k] = v
+        super().__init__(clean_data)
         self._col_names = col_names
-        self._values = [data.get(k) for k in col_names]
+        self._values = [clean_data.get(k) for k in col_names]
 
     def __getitem__(self, item):
         if isinstance(item, int):
             return self._values[item]
         return super().__getitem__(item)
+
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'MySQLRow' object has no attribute '{name}'")
 
     def keys(self):
         return self._col_names
@@ -774,12 +800,24 @@ def query_db(query, args=(), one=False):
             rows = [MySQLRow(dict(zip(cols, r)), cols) for r in raw_rows]
         else:
             rows = cursor.fetchall()
-        cursor.close()
-        conn.close()
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
         return (rows[0] if rows else None) if one else rows
     except Exception as e:
-        cursor.close()
-        conn.close()
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
         # Falls MySQL während des Betriebs abbricht: Notfall-Retry mit SQLite!
         if getattr(config, "DB_TYPE", "sqlite") == "mysql" and not FALLBACK_TO_SQLITE:
             FALLBACK_TO_SQLITE = True
@@ -805,12 +843,24 @@ def execute_db(query, args=()):
         if getattr(config, "DB_TYPE", "sqlite") != "mysql" or FALLBACK_TO_SQLITE:
             conn.commit()
         last_id = cursor.lastrowid
-        cursor.close()
-        conn.close()
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
         return last_id
     except Exception as e:
-        cursor.close()
-        conn.close()
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
         if getattr(config, "DB_TYPE", "sqlite") == "mysql" and not FALLBACK_TO_SQLITE:
             FALLBACK_TO_SQLITE = True
             MYSQL_LAST_ERROR = str(e)

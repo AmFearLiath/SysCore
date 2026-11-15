@@ -151,7 +151,7 @@
                                         <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 font-normal">Du</span>
                                         {% endif %}
                                     </div>
-                                    <div class="text-[10px] text-gray-500 font-normal">ID: #{{ u.id }} &bull; Registriert: {{ u.created_at[:10] if u.created_at else '-' }}</div>
+                                    <div class="text-[10px] text-gray-500 font-normal">ID: #{{ u.id }} &bull; Registriert: {{ (u.created_at|string)[:10] if u.created_at else '-' }}</div>
                                 </div>
                             </td>
                             <td class="py-3 px-4 text-gray-400">
@@ -294,7 +294,7 @@
                 </div>
 
                 <div class="pt-4 mt-4 border-t border-dark-700/60 flex items-center justify-between text-xs font-mono">
-                    <span class="text-gray-500 text-[10px]">Erstellt: {{ r.created_at[:10] if r.created_at else 'System' }}</span>
+                    <span class="text-gray-500 text-[10px]">Erstellt: {{ (r.created_at|string)[:10] if r.created_at else 'System' }}</span>
                     <div class="flex items-center gap-2">
                         <!-- Bearbeiten -->
                         <button onclick="openEditRoleModal({{ r.id }}, '{{ r.name }}', '{{ r.display_name }}', '{{ r.description or '' }}', '{{ r.permissions }}', {{ r.is_system }})" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white rounded-lg transition text-[11px] flex items-center gap-1">

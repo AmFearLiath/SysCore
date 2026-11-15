@@ -86,7 +86,34 @@ def not_found(e):
 
 @app.errorhandler(500)
 def server_error(e):
-    return render_template("500.html", error=str(e)), 500
+    try:
+        return render_template("500.html", error=str(e)), 500
+    except Exception as render_err:
+        import traceback
+        tb = traceback.format_exc()
+        return f"""<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>500 - Interner Systemfehler // SysCore</title>
+    <style>
+        body {{ background-color: #030712; color: #f3f4f6; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; padding: 2rem; }}
+        .box {{ max-width: 700px; margin: 3rem auto; background: #111827; border: 1px solid #374151; border-radius: 1rem; padding: 2rem; }}
+        h1 {{ color: #f43f5e; margin-top: 0; font-size: 1.5rem; }}
+        pre {{ background: #030712; border: 1px solid #1f2937; padding: 1rem; border-radius: 0.5rem; color: #fb7185; font-size: 11px; overflow-x: auto; white-space: pre-wrap; }}
+        a {{ color: #10b981; text-decoration: none; font-weight: bold; }}
+        a:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>500 - Interner Systemfehler</h1>
+        <p>Ein interner Fehler ist aufgetreten:</p>
+        <pre>{e}\n\n[Template Fallback Details]\n{tb}</pre>
+        <p style="margin-top: 1.5rem;"><a href="/">&larr; Zurück zum Dashboard</a></p>
+    </div>
+</body>
+</html>""", 500
 
 if __name__ == "__main__":
     print(f"""

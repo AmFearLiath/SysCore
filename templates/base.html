@@ -121,7 +121,7 @@
                     <div class="relative">
                         <div
                             class="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
-                            {{ session.get('username', 'A')[:1].upper() }}
+                            {{ (session.get('username') or 'A')[:1].upper() }}
                         </div>
                         <span
                             class="w-2 h-2 rounded-full absolute -bottom-0.5 -right-0.5 border border-dark-950 {{ 'bg-emerald-400' if session.get('role') == 'root_admin' else 'bg-teal-400' }}"></span>
@@ -151,7 +151,7 @@
                         <div class="flex items-center gap-3">
                             <div
                                 class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-extrabold text-base shrink-0">
-                                {{ session.get('username', 'A')[:2].upper() }}
+                                {{ (session.get('username') or 'A')[:2].upper() }}
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="text-sm font-bold text-white truncate">{{ session.get('username') }}</div>
@@ -689,12 +689,12 @@
                         class="grid grid-cols-2 gap-3 p-3 bg-dark-950/50 border border-dark-800 rounded-xl text-[11px]">
                         <div>
                             <span class="text-gray-500 block">Mitglied seit:</span>
-                            <span class="text-gray-300">{{ current_user_obj.created_at[:10] if current_user_obj and
+                            <span class="text-gray-300">{{ (current_user_obj.created_at|string)[:10] if current_user_obj and
                                 current_user_obj.created_at else 'System-Start' }}</span>
                         </div>
                         <div>
                             <span class="text-gray-500 block">Letzter Login:</span>
-                            <span class="text-gray-300">{{ current_user_obj.last_login or 'Jetzt aktiv' }}</span>
+                            <span class="text-gray-300">{{ (current_user_obj.last_login|string) if current_user_obj and current_user_obj.last_login else 'Jetzt aktiv' }}</span>
                         </div>
                     </div>
 
