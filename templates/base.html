@@ -265,6 +265,20 @@
         </div>
     </header>
 
+    <!-- Notfall-Fallback Banner falls MySQL konfiguriert aber nicht erreichbar ist -->
+    {% if db_fallback_active %}
+    <div class="bg-amber-950/80 border-b border-amber-500/40 px-4 py-2 text-xs text-amber-200 font-mono flex items-center justify-between gap-3 shadow-md z-30">
+        <div class="flex items-center gap-2 min-w-0">
+            <span class="text-base shrink-0">⚠️</span>
+            <span class="truncate"><strong>Notfall-Fallback auf SQLite aktiv:</strong> MySQL ist konfiguriert, aber nicht erreichbar (<code class="text-amber-300 font-bold">{{ db_fallback_error }}</code>). SysCore läuft sicher über SQLite weiter.</span>
+        </div>
+        <a href="{{ url_for('settings.index', tab='database') }}" class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-lg text-amber-200 font-bold shrink-0 transition flex items-center gap-1">
+            <span>DB-Einstellungen anpassen</span>
+            <span>&rarr;</span>
+        </a>
+    </div>
+    {% endif %}
+
     <!-- Main Workspace (Full-Width Flex) -->
     <div class="flex-1 flex w-full relative">
         <!-- Sidebar Navigation (Sticky Fixierung beim Scrollen) -->

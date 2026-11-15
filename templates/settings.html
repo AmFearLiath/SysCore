@@ -459,6 +459,22 @@
                     <span>Datenbank-Engine & Zugangsdaten</span>
                 </h4>
 
+                {% if db_info.fallback_active %}
+                <div class="p-4 rounded-xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs font-mono space-y-2">
+                    <div class="font-bold flex items-center gap-2 text-amber-300">
+                        <span class="text-base">⚠️</span>
+                        <span>Notfall-Fallback auf SQLite aktiv!</span>
+                    </div>
+                    <p class="font-sans leading-relaxed text-amber-200/90">
+                        In der Konfiguration ist MySQL als Engine hinterlegt, die Verbindung zum MySQL-Server konnte jedoch nicht hergestellt werden:
+                        <code class="block mt-1 p-2 bg-dark-950 rounded border border-amber-700/60 text-amber-300">{{ db_info.fallback_error }}</code>
+                    </p>
+                    <p class="text-[11px] text-gray-400 font-sans">
+                        Damit das Cockpit niemals unerreichbar wird, läuft SysCore aktuell stabil über die lokale SQLite-Datenbank. Sobald die Zugangsdaten korrigiert wurden, wird MySQL automatisch wieder als Primärdatenbank verwendet.
+                    </p>
+                </div>
+                {% endif %}
+
                 <form method="POST" action="{{ url_for('settings.save_database_configuration') }}" id="dbConfigForm" class="space-y-5 text-xs font-mono">
                     <!-- Engine Auswahl -->
                     <div>
@@ -526,6 +542,9 @@
                         <div>
                             <label class="block text-gray-400 mb-1">Passwort</label>
                             <input type="password" name="mysql_password" id="cfg_mysql_password" placeholder="{{ '•••••••• (Bestehendes Passwort beibehalten)' if db_info.mysql_pass_set else 'MySQL Passwort' }}" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 focus:border-cyan-500 rounded-lg text-white outline-none">
+                            {% if db_info.mysql_pass_set %}
+                            <p class="text-[10px] text-emerald-400 mt-1">✓ Ein Passwort ist in der Konfiguration gespeichert. Leer lassen, um es beizubehalten.</p>
+                            {% endif %}
                         </div>
                     </div>
 

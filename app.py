@@ -50,7 +50,9 @@ def inject_global_template_vars():
         "panel_host": config.PANEL_HOST,
         "panel_port": config.PANEL_PORT,
         "syscore_version": getattr(config, "SYSCORE_VERSION", "v2.5"),
-        "syscore_commit": get_cached_git_commit()
+        "syscore_commit": get_cached_git_commit(),
+        "db_fallback_active": getattr(db, "FALLBACK_TO_SQLITE", False),
+        "db_fallback_error": getattr(db, "MYSQL_LAST_ERROR", "")
     }
 
 # Authentifizierungs-Guard

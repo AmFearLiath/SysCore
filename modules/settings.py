@@ -810,17 +810,38 @@ def update_env_file(updates: dict):
     with open(env_path, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
 
+    # In-Memory os.environ und config-Objekt sofort synchronisieren
+    for k, v in updates.items():
+        os.environ[k] = str(v)
+
+    if "SYSCORE_DB_TYPE" in updates:
+        config.DB_TYPE = updates["SYSCORE_DB_TYPE"].lower()
+    if "SYSCORE_MYSQL_HOST" in updates:
+        config.MYSQL_HOST = updates["SYSCORE_MYSQL_HOST"]
+    if "SYSCORE_MYSQL_PORT" in updates:
+        config.MYSQL_PORT = int(updates["SYSCORE_MYSQL_PORT"])
+    if "SYSCORE_MYSQL_USER" in updates:
+        config.MYSQL_USER = updates["SYSCORE_MYSQL_USER"]
+    if "SYSCORE_MYSQL_PASS" in updates:
+        config.MYSQL_PASS = updates["SYSCORE_MYSQL_PASS"]
+    if "SYSCORE_MYSQL_DB" in updates:
+        config.MYSQL_DB = updates["SYSCORE_MYSQL_DB"]
+
 @settings_bp.route("/database/test", methods=["POST"])
 @login_required
 @role_required(["root_admin"])
 def test_database_connection():
     """Prüft eine angegebene MySQL/MariaDB Verbindung asynchron per AJAX"""
     from db import test_mysql_connection
-    host = request.form.get("mysql_host", "127.0.0.1").strip()
+    host = request.form.get("mysql_host", "127.0.0.1").strip() or "127.0.0.1"
     port = request.form.get("mysql_port", "3306").strip() or 3306
-    user = request.form.get("mysql_user", "root").strip()
+    user = request.form.get("mysql_user", "root").strip() or "root"
     password = request.form.get("mysql_password", "").strip()
-    db_name = request.form.get("mysql_db", "syscore").strip()
+    db_name = request.form.get("mysql_db", "syscore").strip() or "syscore"
+
+    # Falls Passwort im Formular leer gelassen wurde, bestehendes Passwort aus config beibehalten
+    if not password and getattr(config, "MYSQL_PASS", ""):
+        password = config.MYSQL_PASS
 
     ok, msg = test_mysql_connection(host, port, user, password, db_name)
     return jsonify({"success": ok, "message": msg})
@@ -835,18 +856,24 @@ def save_database_configuration():
     migrate_data = request.form.get("migrate_data") == "1"
 
     if engine == "mysql":
-        host = request.form.get("mysql_host", "127.0.0.1").strip()
+        host = request.form.get("mysql_host", "127.0.0.1").strip() or "127.0.0.1"
         port = request.form.get("mysql_port", "3306").strip() or "3306"
-        user = request.form.get("mysql_user", "root").strip()
+        user = request.form.get("mysql_user", "root").strip() or "root"
         password = request.form.get("mysql_password", "").strip()
-        db_name = request.form.get("mysql_db", "syscore").strip()
+        db_name = request.form.get("mysql_db", "syscore").strip() or "syscore"
 
+        # Falls Passwort im Formular leer gelassen wurde, bestehendes Passwort aus config beibehalten
+        if not password and getattr(config, "MYSQL_PASS", ""):
+            password = config.MYSQL_PASS
+
+        # 1. Verbindung und Datenbank-Erstellung gründlich testen
         ok, msg = test_mysql_connection(host, port, user, password, db_name)
         if not ok:
-            flash(f"MySQL Verbindungsprüfung fehlgeschlagen: {msg}", "error")
+            flash(f"MySQL Verbindungsprüfung fehlgeschlagen: {msg}. Keine Änderungen übernommen.", "error")
             return redirect(url_for("settings.index", tab="database"))
 
-        if migrate_data and getattr(config, "DB_TYPE", "sqlite") == "sqlite":
+        # 2. Datenmigration durchführen (falls gewünscht)
+        if migrate_data:
             m_cfg = {
                 "host": host,
                 "port": int(port),
@@ -857,9 +884,10 @@ def save_database_configuration():
             try:
                 stats = migrate_db_data(target_type="mysql", mysql_config=m_cfg)
                 log_audit(session.get("username"), "DB_MIGRATE_SUCCESS", f"Daten erfolgreich nach MySQL migriert: {stats}", request.remote_addr, "success")
-                flash(f"Daten erfolgreich aus SQLite nach MySQL migriert!", "success")
+                flash(f"Datenbank `{db_name}` und alle Tabellen erfolgreich in MySQL erstellt und Daten migriert!", "success")
             except Exception as e:
-                flash(f"Hinweis bei Datenübertragung: {e}", "warning")
+                flash(f"Fehler bei Datenmigration nach MySQL: {e}. Umschaltung abgebrochen zur Vermeidung von Datenverlust.", "error")
+                return redirect(url_for("settings.index", tab="database"))
 
         env_updates = {
             "SYSCORE_DB_TYPE": "mysql",
@@ -871,7 +899,7 @@ def save_database_configuration():
         }
         update_env_file(env_updates)
         log_audit(session.get("username"), "DB_ENGINE_SWITCH", f"SysCore Datenbank auf MySQL ({host}:{port}/{db_name}) umgestellt", request.remote_addr, "warning")
-        flash("Datenbank-Engine erfolgreich auf MySQL umgestellt! Der SysCore-Dienst startet in 2 Sekunden neu...", "success")
+        flash("Datenbank-Engine erfolgreich auf MySQL umgestellt! Der Dienst wird jetzt neu gestartet...", "success")
         trigger_system_restart(delay_seconds=2)
 
     else:
@@ -888,7 +916,7 @@ def save_database_configuration():
             "SYSCORE_DB_TYPE": "sqlite"
         })
         log_audit(session.get("username"), "DB_ENGINE_SWITCH", "SysCore Datenbank auf SQLite umgestellt", request.remote_addr, "warning")
-        flash("Datenbank-Engine erfolgreich auf SQLite umgestellt! Der SysCore-Dienst startet in 2 Sekunden neu...", "success")
+        flash("Datenbank-Engine erfolgreich auf SQLite umgestellt! Der Dienst wird jetzt neu gestartet...", "success")
         trigger_system_restart(delay_seconds=2)
 
     return redirect(url_for("settings.index", tab="database"))
