@@ -816,6 +816,12 @@ def update_env_file(updates: dict):
 
     if "SYSCORE_DB_TYPE" in updates:
         config.DB_TYPE = updates["SYSCORE_DB_TYPE"].lower()
+        try:
+            import db
+            db.FALLBACK_TO_SQLITE = False
+            db.MYSQL_LAST_ERROR = None
+        except Exception:
+            pass
     if "SYSCORE_MYSQL_HOST" in updates:
         config.MYSQL_HOST = updates["SYSCORE_MYSQL_HOST"]
     if "SYSCORE_MYSQL_PORT" in updates:

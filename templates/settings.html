@@ -434,15 +434,20 @@
                     <div class="flex items-center gap-2">
                         <span class="text-xl">💾</span>
                         <h3 class="text-base font-bold text-white tracking-tight font-mono">SysCore Datenbank-Backend</h3>
-                        {% if db_info.is_sqlite %}
-                        <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-mono font-semibold flex items-center gap-1.5">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            SQLite Aktiv (syscore.db)
+                        {% if db_info.fallback_active %}
+                        <span class="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-xs font-mono font-semibold flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                            MySQL konfiguriert (Notfall-Fallback auf SQLite aktiv)
                         </span>
-                        {% else %}
+                        {% elif db_info.active_engine == 'mysql' %}
                         <span class="px-2.5 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-full text-xs font-mono font-semibold flex items-center gap-1.5">
                             <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
                             MySQL / MariaDB Aktiv
+                        </span>
+                        {% else %}
+                        <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-mono font-semibold flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            SQLite Aktiv (syscore.db)
                         </span>
                         {% endif %}
                     </div>
@@ -581,9 +586,19 @@
 
                     <div class="space-y-2.5">
                         <div class="flex justify-between py-1 border-b border-dark-800">
-                            <span class="text-gray-400">Aktive Engine:</span>
-                            <span class="font-bold {{ 'text-emerald-400' if db_info.is_sqlite else 'text-cyan-400' }}">
-                                {{ db_info.active_engine.upper() }}
+                            <span class="text-gray-400">Konfiguriert:</span>
+                            <span class="font-bold {{ 'text-cyan-400' if db_info.is_mysql else 'text-emerald-400' }}">
+                                {{ db_info.configured_engine.upper() }}
+                            </span>
+                        </div>
+                        <div class="flex justify-between py-1 border-b border-dark-800">
+                            <span class="text-gray-400">Aktiver Modus:</span>
+                            <span class="font-bold {{ 'text-amber-400' if db_info.fallback_active else ('text-cyan-400' if db_info.active_engine == 'mysql' else 'text-emerald-400') }}">
+                                {% if db_info.fallback_active %}
+                                    SQLITE (Fallback)
+                                {% else %}
+                                    {{ db_info.active_engine.upper() }}
+                                {% endif %}
                             </span>
                         </div>
                         <div class="flex justify-between py-1 border-b border-dark-800">

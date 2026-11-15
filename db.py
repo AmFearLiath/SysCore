@@ -245,6 +245,63 @@ def _get_sqlite_db():
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
+def _connect_mysql(m_cfg, with_db=True, timeout=4):
+    """
+    Stellt eine Verbindung zu MySQL / MariaDB her.
+    Unterstützt automatische Erkennung lokaler Unix-Sockets auf Debian/Ubuntu (/run/mysqld/mysqld.sock),
+    normalisiert 'localhost' zu TCP 127.0.0.1 (verhindert PyMySQL /tmp/mysql.sock Fehler)
+    und bietet automatischen Fallback zwischen TCP und Socket bei lokalen Verbindungen.
+    """
+    if not pymysql:
+        raise RuntimeError("Das Python-Modul 'pymysql' ist nicht installiert. Bitte führe 'pip install pymysql' aus.")
+
+    host = (m_cfg.get("host") or "127.0.0.1").strip()
+    port = int(m_cfg.get("port") or 3306)
+    user = (m_cfg.get("user") or "root").strip()
+    password = m_cfg.get("password") or ""
+    database = (m_cfg.get("database") or "syscore").strip() if with_db else None
+
+    kwargs = {
+        "user": user,
+        "password": password,
+        "charset": "utf8mb4",
+        "autocommit": True,
+        "connect_timeout": timeout
+    }
+    if database:
+        kwargs["database"] = database
+
+    # Prüfen, ob lokaler Socket auf Debian/Ubuntu verfügbar ist
+    known_sockets = ["/run/mysqld/mysqld.sock", "/var/run/mysqld/mysqld.sock", "/tmp/mysql.sock"]
+    found_socket = next((s for s in known_sockets if os.path.exists(s)), None)
+    is_local = host.lower() in ("localhost", "127.0.0.1", "::1")
+
+    # Wenn 'localhost' angegeben wurde und ein Socket existiert: Bevorzuge Socket
+    if host.lower() == "localhost" and found_socket:
+        try:
+            return pymysql.connect(unix_socket=found_socket, **kwargs)
+        except Exception as e_sock:
+            # Falls Socket fehlschlägt, versuche TCP 127.0.0.1
+            try:
+                return pymysql.connect(host="127.0.0.1", port=port, **kwargs)
+            except Exception:
+                raise e_sock
+
+    # Wenn 'localhost' ohne Socket angegeben wurde: Normalisiere zu TCP 127.0.0.1
+    target_host = "127.0.0.1" if host.lower() == "localhost" else host
+
+    try:
+        return pymysql.connect(host=target_host, port=port, **kwargs)
+    except Exception as e_tcp:
+        # Falls TCP fehlschlägt, aber es sich um eine lokale Verbindung handelt und ein Socket existiert:
+        # Versuche Fallback auf Socket (z.B. bei Debian MariaDB auth_socket für root)
+        if is_local and found_socket:
+            try:
+                return pymysql.connect(unix_socket=found_socket, **kwargs)
+            except Exception:
+                pass
+        raise e_tcp
+
 def get_db(custom_type=None, custom_mysql=None):
     """
     Liefert eine aktive Datenbankverbindung für die konfigurierte Engine (SQLite oder MySQL).
@@ -274,16 +331,7 @@ def get_db(custom_type=None, custom_mysql=None):
         }
 
         try:
-            conn = pymysql.connect(
-                host=m_cfg["host"],
-                port=int(m_cfg["port"]),
-                user=m_cfg["user"],
-                password=m_cfg["password"],
-                database=m_cfg["database"],
-                charset="utf8mb4",
-                autocommit=True,
-                connect_timeout=2
-            )
+            conn = _connect_mysql(m_cfg, with_db=True, timeout=3)
             FALLBACK_TO_SQLITE = False
             MYSQL_LAST_ERROR = None
             return conn
@@ -311,23 +359,11 @@ def setup_mysql_database_and_tables(m_cfg):
     if not pymysql:
         raise RuntimeError("Das Python-Modul 'pymysql' ist nicht installiert.")
 
-    host = m_cfg.get("host", "127.0.0.1")
-    port = int(m_cfg.get("port", 3306))
-    user = m_cfg.get("user", "root")
-    password = m_cfg.get("password", "")
     db_name = m_cfg.get("database", "syscore")
 
     # 1. Verbindung ohne DB herstellen und CREATE DATABASE ausführen
     try:
-        tmp = pymysql.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            charset="utf8mb4",
-            autocommit=True,
-            connect_timeout=4
-        )
+        tmp = _connect_mysql(m_cfg, with_db=False, timeout=4)
         with tmp.cursor() as cur:
             cur.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
         tmp.close()
@@ -335,16 +371,7 @@ def setup_mysql_database_and_tables(m_cfg):
         print(f"[SysCore DB Note] CREATE DATABASE step notice: {e}")
 
     # 2. Verbindung MIT DB herstellen und alle 15 Tabellen anlegen
-    conn = pymysql.connect(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database=db_name,
-        charset="utf8mb4",
-        autocommit=True,
-        connect_timeout=4
-    )
+    conn = _connect_mysql(m_cfg, with_db=True, timeout=4)
     with conn.cursor() as cur:
         for stmt in SCHEMA_STATEMENTS:
             sql = stmt.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "INT AUTO_INCREMENT PRIMARY KEY")
@@ -359,28 +386,20 @@ def test_mysql_connection(host, port, user, password, db_name):
     try:
         m_cfg = {
             "host": host,
-            "port": int(port),
+            "port": int(port) if port else 3306,
             "user": user,
             "password": password,
             "database": db_name
         }
         setup_mysql_database_and_tables(m_cfg)
 
-        conn = pymysql.connect(
-            host=host,
-            port=int(port),
-            user=user,
-            password=password,
-            database=db_name,
-            charset="utf8mb4",
-            connect_timeout=4
-        )
+        conn = _connect_mysql(m_cfg, with_db=True, timeout=4)
         with conn.cursor() as cur:
             cur.execute("SELECT VERSION();")
             ver_row = cur.fetchone()
             ver = ver_row[0] if ver_row else "Unbekannt"
         conn.close()
-        return True, f"Verbindung erfolgreich! Server: MariaDB/MySQL {ver}. Datenbank '{db_name}' und alle Tabellen sind schreibbereit."
+        return True, f"Verbindung erfolgreich! Server: MariaDB/MySQL {ver}. Datenbank '{db_name}' und alle Tabellen sind einsatzbereit."
     except Exception as e:
         return False, f"Verbindungsfehler: {e}"
 
@@ -557,9 +576,11 @@ def migrate_db_data(target_type, mysql_config=None):
         dst_conn.commit()
 
     # Validierung: Prüfen ob die kritische Benutzertabelle Datensätze enthält!
+    src_cur.execute("SELECT COUNT(*) FROM `users`;")
+    src_user_cnt = src_cur.fetchone()[0]
     dst_cur.execute("SELECT COUNT(*) FROM `users`;")
-    user_cnt = dst_cur.fetchone()[0]
-    if user_cnt == 0:
+    dst_user_cnt = dst_cur.fetchone()[0]
+    if src_user_cnt > 0 and dst_user_cnt == 0:
         src_conn.close()
         dst_conn.close()
         raise RuntimeError(f"Migrationsfehler: Die Tabelle 'users' ist in der Zieldatenbank leer! Details: {stats}")
@@ -597,8 +618,10 @@ def get_database_engine_info():
         "configured_engine": configured_engine,
         "fallback_active": FALLBACK_TO_SQLITE,
         "fallback_error": MYSQL_LAST_ERROR,
-        "is_sqlite": active_engine == "sqlite",
-        "is_mysql": active_engine == "mysql",
+        "is_sqlite": configured_engine == "sqlite",
+        "is_mysql": configured_engine == "mysql",
+        "active_is_sqlite": active_engine == "sqlite",
+        "active_is_mysql": active_engine == "mysql",
         "sqlite_path": config.DB_PATH,
         "sqlite_size_kb": sqlite_size_kb,
         "sqlite_exists": sqlite_exists,
