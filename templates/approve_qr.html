@@ -1,23 +1,30 @@
 <!DOCTYPE html>
 <html lang="de" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SysCore // Login-Freigabe</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_vertical.png') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/syscore.css') }}">
 </head>
-<body class="bg-[#090d16] text-gray-200 min-h-screen flex items-center justify-center p-4 font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
 
-    <div class="w-full max-w-sm bg-[#111827] border border-[#1f2937] rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden text-center">
+<body
+    class="bg-[#090d16] text-gray-200 min-h-screen flex items-center justify-center p-4 font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
+
+    <div
+        class="w-full max-w-sm bg-[#111827] border border-[#1f2937] rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden text-center">
         <!-- Subtle Glow Background Header -->
-        <div class="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none">
+        </div>
+        <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none">
+        </div>
 
         <!-- Logo -->
         <div class="mb-5 flex justify-center">
-            <img src="{{ url_for('static', filename='img/logo_vertical.png') }}" alt="SysCore" class="w-16 h-16 object-contain drop-shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+            <img src="{{ url_for('static', filename='img/logo_vertical.png') }}" alt="SysCore"
+                class="w-16 h-16 object-contain drop-shadow-[0_0_20px_rgba(16,185,129,0.4)]">
         </div>
 
         <h1 class="text-xl font-extrabold text-white tracking-tight">SysCore Login-Freigabe</h1>
@@ -29,13 +36,16 @@
             <p>{{ error }}</p>
         </div>
         {% elif success %}
-        <div class="mt-6 p-5 rounded-2xl bg-emerald-950/50 border border-emerald-800/60 text-emerald-300 text-xs space-y-3">
-            <div class="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400 text-lg">
+        <div
+            class="mt-6 p-5 rounded-2xl bg-emerald-950/50 border border-emerald-800/60 text-emerald-300 text-xs space-y-3">
+            <div
+                class="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400 text-lg">
                 ✓
             </div>
             <div class="font-bold text-sm text-emerald-200">Anmeldung autorisiert!</div>
             <p class="text-gray-300">
-                Die Freigabe für Benutzer <strong class="text-white">{{ username }}</strong> wurde erfolgreich erteilt. Dein Desktop-Browser loggt sich jetzt ein.
+                Die Freigabe für Benutzer <strong class="text-white">{{ username }}</strong> wurde erfolgreich erteilt.
+                Dein Desktop-Browser loggt sich jetzt ein.
             </p>
             <div class="text-[11px] text-gray-400 font-mono pt-2">
                 Du kannst diesen Tab jetzt schließen.
@@ -64,8 +74,11 @@
             </p>
 
             <form method="POST" class="pt-2">
-                <button type="submit" class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-2xl text-sm transition shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                <button type="submit"
+                    class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-2xl text-sm transition shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
                     <span>✓ Anmeldung jetzt freigeben</span>
                 </button>
             </form>
@@ -78,4 +91,5 @@
     </div>
 
 </body>
+
 </html>

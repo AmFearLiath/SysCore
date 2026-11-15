@@ -36,7 +36,7 @@
         }
     </script>
     <!-- Custom SysCore Styling & Fonts -->
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_vertical.png') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/syscore.css') }}">
 </head>
 
@@ -53,7 +53,8 @@
                 class="md:hidden flex items-center justify-center p-2 rounded-xl text-gray-300 hover:text-white bg-dark-900 hover:bg-dark-800 border border-dark-700 transition cursor-pointer"
                 title="Hauptmenü öffnen" aria-label="Hauptmenü öffnen">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16">
+                    </path>
                 </svg>
             </button>
 
@@ -267,12 +268,16 @@
 
     <!-- Notfall-Fallback Banner falls MySQL konfiguriert aber nicht erreichbar ist -->
     {% if db_fallback_active %}
-    <div class="bg-amber-950/80 border-b border-amber-500/40 px-4 py-2 text-xs text-amber-200 font-mono flex items-center justify-between gap-3 shadow-md z-30">
+    <div
+        class="bg-amber-950/80 border-b border-amber-500/40 px-4 py-2 text-xs text-amber-200 font-mono flex items-center justify-between gap-3 shadow-md z-30">
         <div class="flex items-center gap-2 min-w-0">
             <span class="text-base shrink-0">⚠️</span>
-            <span class="truncate"><strong>Notfall-Fallback auf SQLite aktiv:</strong> MySQL ist konfiguriert, aber nicht erreichbar (<code class="text-amber-300 font-bold">{{ db_fallback_error }}</code>). SysCore läuft sicher über SQLite weiter.</span>
+            <span class="truncate"><strong>Notfall-Fallback auf SQLite aktiv:</strong> MySQL ist konfiguriert, aber
+                nicht erreichbar (<code class="text-amber-300 font-bold">{{ db_fallback_error }}</code>). SysCore läuft
+                sicher über SQLite weiter.</span>
         </div>
-        <a href="{{ url_for('settings.index', tab='database') }}" class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-lg text-amber-200 font-bold shrink-0 transition flex items-center gap-1">
+        <a href="{{ url_for('settings.index', tab='database') }}"
+            class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-lg text-amber-200 font-bold shrink-0 transition flex items-center gap-1">
             <span>DB-Einstellungen anpassen</span>
             <span>&rarr;</span>
         </a>
@@ -633,7 +638,8 @@
                 <div class="flex items-center gap-3">
                     <div
                         class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center p-1.5 shrink-0">
-                        <img src="{{ url_for('static', filename='img/logo_vertical.png') }}" alt="SysCore" class="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+                        <img src="{{ url_for('static', filename='img/logo_vertical.png') }}" alt="SysCore"
+                            class="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">
                     </div>
                     <div>
                         <h3 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
@@ -689,12 +695,14 @@
                         class="grid grid-cols-2 gap-3 p-3 bg-dark-950/50 border border-dark-800 rounded-xl text-[11px]">
                         <div>
                             <span class="text-gray-500 block">Mitglied seit:</span>
-                            <span class="text-gray-300">{{ (current_user_obj.created_at|string)[:10] if current_user_obj and
+                            <span class="text-gray-300">{{ (current_user_obj.created_at|string)[:10] if current_user_obj
+                                and
                                 current_user_obj.created_at else 'System-Start' }}</span>
                         </div>
                         <div>
                             <span class="text-gray-500 block">Letzter Login:</span>
-                            <span class="text-gray-300">{{ (current_user_obj.last_login|string) if current_user_obj and current_user_obj.last_login else 'Jetzt aktiv' }}</span>
+                            <span class="text-gray-300">{{ (current_user_obj.last_login|string) if current_user_obj and
+                                current_user_obj.last_login else 'Jetzt aktiv' }}</span>
                         </div>
                     </div>
 
@@ -785,16 +793,23 @@
     <!-- ========================================== -->
     <!-- Mobile Navigation Drawer (Offcanvas Menu)  -->
     <!-- ========================================== -->
-    <div id="mobile-nav-backdrop" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden transition-opacity duration-200" onclick="toggleMobileNav(true)"></div>
+    <div id="mobile-nav-backdrop"
+        class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden transition-opacity duration-200"
+        onclick="toggleMobileNav(true)"></div>
 
-    <div id="mobile-nav-drawer" class="fixed top-0 bottom-0 left-0 w-72 max-w-[85vw] bg-dark-900 border-r border-dark-700 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col justify-between shadow-2xl">
+    <div id="mobile-nav-drawer"
+        class="fixed top-0 bottom-0 left-0 w-72 max-w-[85vw] bg-dark-900 border-r border-dark-700 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col justify-between shadow-2xl">
         <!-- Drawer Header -->
         <div class="p-4 border-b border-dark-800 flex items-center justify-between bg-dark-950/70">
             <div class="flex items-center gap-2.5">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="SysCore" class="h-7 w-auto object-contain">
-                <span class="text-[10px] font-mono tracking-tight text-gray-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-full">v2.5</span>
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="SysCore"
+                    class="h-7 w-auto object-contain">
+                <span
+                    class="text-[10px] font-mono tracking-tight text-gray-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-full">v2.5</span>
             </div>
-            <button type="button" onclick="toggleMobileNav(true)" class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 text-lg leading-none transition" aria-label="Menü schließen">
+            <button type="button" onclick="toggleMobileNav(true)"
+                class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-800 text-lg leading-none transition"
+                aria-label="Menü schließen">
                 &times;
             </button>
         </div>
@@ -809,49 +824,79 @@
                 <nav class="space-y-1 text-sm">
                     <a href="{{ url_for('system.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'system' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                            </path>
+                        </svg>
                         <span>Dashboard & Metriken</span>
                     </a>
 
                     <a href="{{ url_for('webserver.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'webserver' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9">
+                            </path>
+                        </svg>
                         <span>Webserver & Domains</span>
                     </a>
 
                     <a href="{{ url_for('mail.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'mail' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                            </path>
+                        </svg>
                         <span>E-Mail-Zentrale</span>
                     </a>
 
                     <a href="{{ url_for('files.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                        </svg>
                         <span>Dateimanager</span>
                     </a>
 
                     <a href="{{ url_for('database.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'database' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4">
+                            </path>
+                        </svg>
                         <span>Datenbanken (MySQL)</span>
                     </a>
 
                     <a href="{{ url_for('apps.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                        </svg>
                         <span>App-Importer (ZIP)</span>
                     </a>
 
                     <a href="{{ url_for('backups.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'backups' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                            </path>
+                        </svg>
                         <span>Backups & Restore</span>
                     </a>
 
                     <a href="{{ url_for('users.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'users' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+                            </path>
+                        </svg>
                         <span>Benutzer & Rollen</span>
                     </a>
                 </nav>
@@ -865,25 +910,42 @@
                 <nav class="space-y-1 text-sm">
                     <a href="{{ url_for('security.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'security' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                        <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
+                            </path>
+                        </svg>
                         <span>Sicherheitszentrale</span>
                     </a>
 
                     <a href="{{ url_for('packages.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'packages' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                        </svg>
                         <span>Paket- & Stack-Installer</span>
                     </a>
 
                     <a href="{{ url_for('cron.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'cron' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
                         <span>Cronjobs & Aufgaben</span>
                     </a>
 
                     <a href="{{ url_for('settings.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'settings' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                            </path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
                         <span>Einstellungen & Audit</span>
                     </a>
                 </nav>
@@ -894,7 +956,8 @@
         <div class="p-4 border-t border-dark-800 bg-dark-950/70 text-[11px] text-gray-500 font-mono space-y-1.5">
             <div class="flex items-center justify-between">
                 <span class="text-gray-400 font-medium">SysCore:</span>
-                <span class="text-emerald-400 font-semibold">{{ syscore_version }} <span class="text-gray-500">#{{ syscore_commit }}</span></span>
+                <span class="text-emerald-400 font-semibold">{{ syscore_version }} <span class="text-gray-500">#{{
+                        syscore_commit }}</span></span>
             </div>
             <div class="flex justify-between">
                 <span>Host:</span>
