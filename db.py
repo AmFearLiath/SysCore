@@ -64,6 +64,7 @@ SCHEMA_STATEMENTS = [
         totp_secret TEXT,
         totp_enabled INTEGER NOT NULL DEFAULT 0,
         is_active INTEGER NOT NULL DEFAULT 1,
+        is_owner INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_login TIMESTAMP
     );
@@ -347,10 +348,70 @@ def get_db(custom_type=None, custom_mysql=None):
         MYSQL_LAST_ERROR = None
         return _get_sqlite_db()
 
-def _prepare_sql(query):
-    if getattr(config, "DB_TYPE", "sqlite") == "mysql" and not FALLBACK_TO_SQLITE:
-        return query.replace("?", "%s")
-    return query
+def _prepare_sql(query, args=None):
+    """
+    Passt SQL-Syntax für MySQL / MariaDB an:
+    - Wandelt SQLite 'INSERT OR REPLACE INTO' in 'REPLACE INTO' um.
+    - Wenn keine Parameter übergeben werden, wird args=None zurückgegeben (verhindert 'not enough arguments for format string').
+    - Wenn Parameter übergeben werden, werden vorhandene literale '%' Zeichen (z.B. in LIKE '%') zu '%%' verdoppelt
+      und die '?' Platzhalter zu '%s' konvertiert.
+    """
+    is_mysql = getattr(config, "DB_TYPE", "sqlite") == "mysql" and not FALLBACK_TO_SQLITE
+    if not is_mysql:
+        return query, args
+
+    prepared = re.sub(r'(?i)\bINSERT\s+OR\s+REPLACE\s+INTO\b', 'REPLACE INTO', query)
+
+    if not args:
+        return prepared, None
+
+    prepared = prepared.replace("%", "%%").replace("?", "%s")
+    return prepared, args
+
+def is_system_owner(user):
+    """
+    Prüft unfehlbar, ob ein Benutzer der unantastbare System-Owner ist.
+    Gibt True zurück, wenn is_owner == 1 ist, oder der Username mit SYSCORE_OWNER_USER
+    oder BOOTSTRAP_ADMIN_USER übereinstimmt.
+    """
+    if not user:
+        return False
+
+    if isinstance(user, str):
+        uname = user
+        is_own = False
+    elif isinstance(user, dict):
+        is_own = user.get("is_owner") in (1, "1", True)
+        uname = user.get("username", "")
+    elif hasattr(user, "keys"):  # sqlite3.Row oder MySQLRow
+        try:
+            is_own = bool(user["is_owner"]) if "is_owner" in user.keys() else False
+        except Exception:
+            is_own = False
+        try:
+            uname = user["username"] if "username" in user.keys() else ""
+        except Exception:
+            uname = ""
+    else:
+        is_own = getattr(user, "is_owner", 0) in (1, "1", True)
+        uname = getattr(user, "username", str(user))
+
+    if is_own:
+        return True
+
+    uname = (uname or "").strip().lower()
+    if not uname:
+        return False
+
+    owner_cfg = (getattr(config, "OWNER_USER", "") or "").strip().lower()
+    if owner_cfg and uname == owner_cfg:
+        return True
+
+    bootstrap_admin = (getattr(config, "BOOTSTRAP_ADMIN_USER", "") or "").strip().lower()
+    if not owner_cfg and bootstrap_admin and uname == bootstrap_admin:
+        return True
+
+    return False
 
 def setup_mysql_database_and_tables(m_cfg):
     """
@@ -477,7 +538,7 @@ def init_db():
                 generated = True
 
             p_hash = generate_password_hash(admin_pass)
-            insert_user_sql = "INSERT INTO `users` (username, password_hash, role, email, is_active) VALUES (%s, %s, 'root_admin', %s, 1);" if is_mysql else "INSERT INTO users (username, password_hash, role, email, is_active) VALUES (?, ?, 'root_admin', ?, 1);"
+            insert_user_sql = "INSERT INTO `users` (username, password_hash, role, email, is_active, is_owner) VALUES (%s, %s, 'root_admin', %s, 1, 1);" if is_mysql else "INSERT INTO users (username, password_hash, role, email, is_active, is_owner) VALUES (?, ?, 'root_admin', ?, 1, 1);"
             cursor.execute(insert_user_sql, (admin_user, p_hash, admin_email))
 
             if not is_mysql:
@@ -501,6 +562,32 @@ def init_db():
                 ip_address="127.0.0.1",
                 status="success"
             )
+
+        # Sicherstellen, dass die Spalte is_owner existiert (Migrationssicherheit bei Upgrades)
+        try:
+            cursor.execute("SELECT is_owner FROM `users` LIMIT 1;")
+        except Exception:
+            try:
+                cursor.execute("ALTER TABLE `users` ADD COLUMN is_owner INT NOT NULL DEFAULT 0;" if is_mysql else "ALTER TABLE users ADD COLUMN is_owner INTEGER NOT NULL DEFAULT 0;")
+                if not is_mysql:
+                    conn.commit()
+            except Exception:
+                pass
+
+        # Sicherstellen, dass mindestens ein System-Owner existiert
+        try:
+            cursor.execute("SELECT COUNT(*) FROM `users` WHERE is_owner = 1;")
+            ow_res = cursor.fetchone()
+            owner_cnt = ow_res[0] if ow_res else 0
+            if owner_cnt == 0:
+                owner_cand = (getattr(config, "OWNER_USER", "") or getattr(config, "BOOTSTRAP_ADMIN_USER", "admin")).strip()
+                if is_mysql:
+                    cursor.execute("UPDATE `users` SET is_owner = 1 WHERE username = %s LIMIT 1;", (owner_cand,))
+                else:
+                    cursor.execute("UPDATE users SET is_owner = 1 WHERE username = ?;", (owner_cand,))
+                    conn.commit()
+        except Exception as e:
+            print(f"[SysCore DB Note] System Owner check notice: {e}")
 
         conn.close()
     except Exception as e:
@@ -674,9 +761,13 @@ def query_db(query, args=(), one=False):
     global FALLBACK_TO_SQLITE, MYSQL_LAST_ERROR
     conn = get_db()
     cursor = conn.cursor()
-    sql = _prepare_sql(query)
+    sql, exec_args = _prepare_sql(query, args)
     try:
-        cursor.execute(sql, args)
+        if exec_args is not None:
+            cursor.execute(sql, exec_args)
+        else:
+            cursor.execute(sql)
+
         if getattr(config, "DB_TYPE", "sqlite") == "mysql" and not FALLBACK_TO_SQLITE:
             cols = [desc[0] for desc in cursor.description] if cursor.description else []
             raw_rows = cursor.fetchall()
@@ -704,9 +795,13 @@ def execute_db(query, args=()):
     global FALLBACK_TO_SQLITE, MYSQL_LAST_ERROR
     conn = get_db()
     cursor = conn.cursor()
-    sql = _prepare_sql(query)
+    sql, exec_args = _prepare_sql(query, args)
     try:
-        cursor.execute(sql, args)
+        if exec_args is not None:
+            cursor.execute(sql, exec_args)
+        else:
+            cursor.execute(sql)
+
         if getattr(config, "DB_TYPE", "sqlite") != "mysql" or FALLBACK_TO_SQLITE:
             conn.commit()
         last_id = cursor.lastrowid
@@ -719,6 +814,6 @@ def execute_db(query, args=()):
         if getattr(config, "DB_TYPE", "sqlite") == "mysql" and not FALLBACK_TO_SQLITE:
             FALLBACK_TO_SQLITE = True
             MYSQL_LAST_ERROR = str(e)
-            print(f"[SysCore DB Exception] {e}. Wiederhole Execute auf SQLite...")
+            print(f"[SysCore DB Exception in execute_db] {e}. Wiederhole Schreiboperation auf SQLite...")
             return execute_db(query, args)
         raise

@@ -36,10 +36,11 @@ PANEL_HOST = os.getenv("SYSCORE_HOST", "0.0.0.0")
 PANEL_PORT = int(os.getenv("SYSCORE_PORT", "8888"))
 DEBUG = os.getenv("SYSCORE_DEBUG", "false").lower() in ("true", "1", "yes")
 
-# --- Bootstrap Zugangsdaten (Optional, nur falls keine interaktive CLI-Erstellung erfolgt) ---
+# --- Bootstrap Zugangsdaten & System-Owner ---
 BOOTSTRAP_ADMIN_USER = os.getenv("SYSCORE_ADMIN_USER", "admin")
 BOOTSTRAP_ADMIN_PASS = os.getenv("SYSCORE_ADMIN_PASS", "")
 BOOTSTRAP_ADMIN_EMAIL = os.getenv("SYSCORE_ADMIN_EMAIL", "admin@localhost")
+OWNER_USER = os.getenv("SYSCORE_OWNER_USER", "").strip()
 
 # --- Datenbank Engine & Konfiguration (SQLite vs MySQL) ---
 DB_TYPE = os.getenv("SYSCORE_DB_TYPE", "sqlite").lower()

@@ -102,14 +102,19 @@
     <!-- ==================== TAB 1: BENUTZERKONTEN ==================== -->
     {% if active_tab == 'users' %}
     <div class="space-y-4">
-        <!-- Live Table Filter -->
-        <div class="flex items-center justify-between gap-4">
+        <!-- Live Table Filter & Actions -->
+        <div class="flex items-center justify-between gap-4 flex-wrap">
             <div class="relative w-full max-w-sm">
                 <input type="text" id="userSearchInput" onkeyup="filterUserTable()" placeholder="Benutzer filtern..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3.5 py-2 pl-9 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 font-mono">
                 <svg class="w-4 h-4 text-gray-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </div>
-            <div class="text-xs font-mono text-gray-400 hidden sm:block">
-                {{ users|length }} Benutzer registriert
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="openOwnerModal()" class="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm" title="System-Owner anzeigen oder Inhaberstatus verwalten">
+                    <span>👑 System-Owner</span>
+                </button>
+                <div class="text-xs font-mono text-gray-400 hidden sm:block">
+                    {{ users|length }} Benutzer registriert
+                </div>
             </div>
         </div>
 
@@ -131,12 +136,17 @@
                         {% for u in users %}
                         <tr class="hover:bg-dark-900/50 transition user-row">
                             <td class="py-3 px-4 font-bold text-white flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs uppercase {{ 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' if u.role == 'root_admin' else 'bg-dark-800 text-gray-300 border border-dark-700' }}">
+                                <div class="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs uppercase {{ 'bg-amber-500/20 text-amber-300 border border-amber-500/30' if u.is_owner else ('bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' if u.role == 'root_admin' else 'bg-dark-800 text-gray-300 border border-dark-700') }}">
                                     {{ u.username[:2] }}
                                 </div>
                                 <div>
                                     <div class="flex items-center gap-1.5">
                                         <span>{{ u.username }}</span>
+                                        {% if u.is_owner %}
+                                        <span class="text-[10px] text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30 font-bold flex items-center gap-1 shrink-0" title="Unantastbarer System-Owner (kann von anderen Benutzern niemals gesperrt, degradiert, gelöscht oder bearbeitet werden)">
+                                            👑 Owner
+                                        </span>
+                                        {% endif %}
                                         {% if u.id == current_user_obj.id %}
                                         <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 font-normal">Du</span>
                                         {% endif %}
@@ -148,7 +158,7 @@
                                 {{ u.email or '-' }}
                             </td>
                             <td class="py-3 px-4">
-                                <span class="px-2.5 py-1 rounded-full text-[10px] font-semibold {{ 'badge-emerald' if u.role == 'root_admin' else ('badge-teal' if u.role == 'web_admin' else 'badge-cyan') }}">
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-semibold {{ 'badge-amber border border-amber-500/30' if u.is_owner else ('badge-emerald' if u.role == 'root_admin' else ('badge-teal' if u.role == 'web_admin' else 'badge-cyan')) }}">
                                     {{ u.role_display or u.role }}
                                 </span>
                             </td>
@@ -180,22 +190,29 @@
                             </td>
                             <td class="py-3 px-4 text-right">
                                 <div class="flex items-center justify-end gap-1.5">
+                                    {% if u.is_owner and u.id != current_user_obj.id %}
+                                    <!-- Für andere Benutzer ist der Owner vollständig gesperrt und unantastbar -->
+                                    <span class="px-2.5 py-1 bg-amber-950/40 border border-amber-500/30 text-amber-300 rounded-lg text-[10px] font-mono flex items-center gap-1 cursor-not-allowed" title="Dieser Benutzer ist der geschützte System-Owner und kann von anderen Benutzern niemals bearbeitet, degradiert, gesperrt oder gelöscht werden.">
+                                        <svg class="w-3 h-3 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                        <span>Geschützt</span>
+                                    </span>
+                                    {% else %}
                                     <!-- Bearbeiten -->
-                                    <button onclick="openEditUserModal({{ u.id }}, '{{ u.username }}', '{{ u.email or '' }}', '{{ u.role }}', {{ u.is_active }})" class="p-1.5 bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white rounded-lg transition" title="Benutzer bearbeiten">
+                                    <button onclick="openEditUserModal({{ u.id }}, '{{ u.username }}', '{{ u.email or '' }}', '{{ u.role }}', {{ u.is_active }}, {{ u.is_owner or 0 }})" class="p-1.5 bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white rounded-lg transition" title="Benutzer bearbeiten">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                                     </button>
 
                                     <!-- 2FA Reset (falls aktiv) -->
                                     {% if u.totp_enabled %}
-                                    <form method="POST" action="{{ url_for('users.reset_2fa', user_id=u.id) }}" class="inline" onsubmit="return confirm('Möchtest du die Zwei-Faktor-Authentifizierung für {{ u.username }} wirklich zurücksetzen? Der Benutzer kann sich danach sofort wieder nur mit seinem Passwort anmelden.');">
+                                    <form method="POST" action="{{ url_for('users.reset_2fa', user_id=u.id) }}" class="inline" onsubmit="return confirm('Möchtest du die Zwei-Faktor-Authentifizierung für {{ u.username }} wirklich zurücksetzen?');">
                                         <button type="submit" class="p-1.5 bg-dark-800 hover:bg-amber-500/20 text-gray-400 hover:text-amber-400 rounded-lg transition" title="2FA zurücksetzen">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
                                         </button>
                                     </form>
                                     {% endif %}
 
-                                    <!-- Sperren / Entsperren -->
-                                    {% if u.id != current_user_obj.id %}
+                                    <!-- Sperren / Entsperren (nicht für eigenen Account und nicht für Owner) -->
+                                    {% if u.id != current_user_obj.id and not u.is_owner %}
                                     <form method="POST" action="{{ url_for('users.toggle_status', user_id=u.id) }}" class="inline">
                                         <button type="submit" class="p-1.5 bg-dark-800 hover:bg-dark-700 text-gray-400 hover:text-white rounded-lg transition" title="{{ 'Konto sperren' if u.is_active else 'Konto entsperren' }}">
                                             {% if u.is_active %}
@@ -212,6 +229,7 @@
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                         </button>
                                     </form>
+                                    {% endif %}
                                     {% endif %}
                                 </div>
                             </td>
@@ -479,6 +497,15 @@
             <button onclick="closeModal('modal-edit-user')" class="text-gray-400 hover:text-white">&times;</button>
         </div>
 
+        <div id="edit-user-owner-hint" class="hidden p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl text-xs text-amber-200 font-mono space-y-1">
+            <div class="font-bold text-amber-300 flex items-center gap-1.5">
+                <span>👑 System-Owner:</span>
+            </div>
+            <p class="font-sans text-[11px] leading-relaxed">
+                Dieser Benutzer ist der geschützte System-Owner. Seine Rolle und sein aktiver Status sind fest verankert und können nicht herabgestuft werden.
+            </p>
+        </div>
+
         <form id="editUserForm" method="POST" class="space-y-4 text-xs font-mono">
             <div>
                 <label class="block text-gray-400 mb-1">Benutzername (statisch)</label>
@@ -515,6 +542,54 @@
             </div>
         </form>
     </div>
+</div>
+
+<!-- MODAL: SYSTEM-OWNER FESTLEGEN -->
+<div id="modal-set-owner" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-md p-6 space-y-4 border border-amber-500/40 shadow-2xl animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">👑</span>
+                <div>
+                    <h3 class="text-sm font-bold text-white font-mono">System-Owner festlegen</h3>
+                    <p class="text-[11px] text-gray-400 font-sans">Unantastbarer Hauptinhaber von SysCore</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('modal-set-owner')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <div class="p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl text-xs text-amber-200/90 font-mono space-y-1.5 leading-relaxed">
+            <div class="font-bold text-amber-300 flex items-center gap-1.5">
+                <span>🛡️ Hohe Schutzstufe:</span>
+            </div>
+            <p class="font-sans text-[11px]">
+                Der festgelegte System-Owner kann von keinem anderen Benutzer gesperrt, degradiert, gelöscht oder fremd bearbeitet werden. Nur der Inhaber selbst kann sein Profil ändern oder den Status an einen anderen Root Administrator übergeben.
+            </p>
+        </div>
+
+        <form method="POST" action="{{ url_for('users.set_owner') }}" class="space-y-4 text-xs font-mono">
+            <div>
+                <label class="block text-gray-400 mb-1">Neuen System-Owner auswählen (Root Administrator)</label>
+                <select name="owner_user_id" required class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-amber-500 rounded-xl text-white outline-none">
+                    {% for u in users %}
+                    {% if u.role == 'root_admin' and u.is_active %}
+                    <option value="{{ u.id }}" {{ 'selected' if u.is_owner else '' }}>
+                        {{ u.username }} ({{ u.email or 'keine E-Mail' }}) {{ ' 👑 [Aktueller Owner]' if u.is_owner else '' }}
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-set-owner')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl font-mono">Abbrechen</button>
+                <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold font-mono transition flex items-center gap-1.5 shadow-lg shadow-amber-900/20">
+                    <span>👑 Als Owner festlegen</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 </div>
 
 <!-- MODAL: Neue Rolle anlegen -->
@@ -636,13 +711,32 @@
         if (m) m.classList.remove('hidden');
     }
 
-    function openEditUserModal(id, username, email, role, isActive) {
+    function openOwnerModal() {
+        const m = document.getElementById('modal-set-owner');
+        if (m) m.classList.remove('hidden');
+    }
+
+    function openEditUserModal(id, username, email, role, isActive, isOwner) {
         document.getElementById('edit-user-title-name').textContent = username;
         document.getElementById('edit-user-username').value = username;
         document.getElementById('edit-user-email').value = email;
         document.getElementById('edit-user-role').value = role;
         document.getElementById('edit-user-active').checked = (isActive === 1);
         document.getElementById('editUserForm').action = "/users/update/" + id;
+
+        const ownerHint = document.getElementById('edit-user-owner-hint');
+        const roleSelect = document.getElementById('edit-user-role');
+        const activeCb = document.getElementById('edit-user-active');
+        if (isOwner === 1) {
+            if (ownerHint) ownerHint.classList.remove('hidden');
+            if (roleSelect) roleSelect.disabled = true;
+            if (activeCb) activeCb.disabled = true;
+        } else {
+            if (ownerHint) ownerHint.classList.add('hidden');
+            if (roleSelect) roleSelect.disabled = false;
+            if (activeCb) activeCb.disabled = false;
+        }
+
         document.getElementById('modal-edit-user').classList.remove('hidden');
     }
 

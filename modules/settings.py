@@ -832,6 +832,8 @@ def update_env_file(updates: dict):
         config.MYSQL_PASS = updates["SYSCORE_MYSQL_PASS"]
     if "SYSCORE_MYSQL_DB" in updates:
         config.MYSQL_DB = updates["SYSCORE_MYSQL_DB"]
+    if "SYSCORE_OWNER_USER" in updates:
+        config.OWNER_USER = updates["SYSCORE_OWNER_USER"]
 
 @settings_bp.route("/database/test", methods=["POST"])
 @login_required

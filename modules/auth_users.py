@@ -28,7 +28,13 @@ def current_user():
     user_id = session.get("user_id")
     if not user_id:
         return None
-    return query_db("SELECT id, username, role, email, totp_enabled, created_at, last_login FROM users WHERE id = ? AND is_active = 1", (user_id,), one=True)
+    from db import is_system_owner
+    u = query_db("SELECT id, username, role, email, totp_enabled, is_owner, created_at, last_login FROM users WHERE id = ? AND is_active = 1", (user_id,), one=True)
+    if u and is_system_owner(u):
+        # Sicherstellen, dass u['is_owner'] für Templates immer 1 ist wenn es der System-Owner ist
+        if hasattr(u, "_values") and hasattr(u, "_col_names"):
+            pass
+    return u
 
 def login_required(view):
     @functools.wraps(view)

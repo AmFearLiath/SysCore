@@ -1,7 +1,8 @@
 import functools
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import generate_password_hash
-from db import query_db, execute_db, log_audit
+from db import query_db, execute_db, log_audit, is_system_owner
+import config
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 
@@ -114,7 +115,7 @@ def index():
     tab = request.args.get("tab", "users")
     
     # 1. Benutzerliste mit Rolleninformationen
-    users = query_db("""
+    raw_users = query_db("""
     SELECT 
         u.id, 
         u.username, 
@@ -122,6 +123,7 @@ def index():
         u.email, 
         u.totp_enabled, 
         u.is_active, 
+        u.is_owner,
         u.created_at, 
         u.last_login,
         r.display_name AS role_display,
@@ -131,6 +133,21 @@ def index():
     LEFT JOIN roles r ON u.role = r.name
     ORDER BY u.id ASC
     """)
+
+    current_uid = session.get("user_id")
+    users = []
+    current_user_is_owner = False
+    has_owner = False
+
+    for u in raw_users:
+        u_dict = dict(u) if hasattr(u, "keys") else dict(u)
+        is_own = is_system_owner(u_dict)
+        u_dict["is_owner"] = 1 if is_own else 0
+        if is_own:
+            has_owner = True
+            if current_uid == u_dict["id"]:
+                current_user_is_owner = True
+        users.append(u_dict)
 
     # 2. Rollenliste mit Zählung der zugeordneten Benutzer
     roles = query_db("""
@@ -179,7 +196,9 @@ def index():
         total_users=total_users,
         active_users=active_users,
         totp_users=totp_users,
-        total_roles=total_roles
+        total_roles=total_roles,
+        has_owner=has_owner,
+        current_user_is_owner=current_user_is_owner
     )
 
 # --- Benutzer-Aktionen ---
@@ -249,10 +268,19 @@ def update_user(user_id):
 
     current_uid = session.get("user_id")
 
+    # Schutz für den System-Owner: Kann von anderen niemals bearbeitet, degradiert oder deaktiviert werden
+    is_owner = is_system_owner(target)
+    if is_owner and current_uid != target["id"]:
+        flash("Der System-Owner ist unantastbar und kann von anderen Benutzern niemals bearbeitet, degradiert oder geändert werden.", "error")
+        return redirect(url_for("users.index", tab="users"))
+
     # Eigener Account Schutz
     if current_uid == user_id:
         if is_active == 0:
             flash("Du kannst deinen eigenen Benutzeraccount nicht deaktivieren.", "error")
+            return redirect(url_for("users.index", tab="users"))
+        if is_owner and role != "root_admin":
+            flash("Der System-Owner muss stets ein Root Administrator bleiben.", "error")
             return redirect(url_for("users.index", tab="users"))
         if role != target["role"]:
             flash("Du kannst deine eigene Rolle nicht über diese Ansicht ändern.", "error")
@@ -305,9 +333,13 @@ def toggle_status(user_id):
         flash("Du kannst deinen eigenen Benutzeraccount nicht sperren.", "error")
         return redirect(url_for("users.index", tab="users"))
 
-    target = query_db("SELECT username, role, is_active FROM users WHERE id = ?", (user_id,), one=True)
+    target = query_db("SELECT id, username, role, is_active, is_owner FROM users WHERE id = ?", (user_id,), one=True)
     if not target:
         flash("Benutzer nicht gefunden.", "error")
+        return redirect(url_for("users.index", tab="users"))
+
+    if is_system_owner(target):
+        flash("Der System-Owner ist unantastbar und kann niemals gesperrt werden.", "error")
         return redirect(url_for("users.index", tab="users"))
 
     new_status = 0 if target["is_active"] == 1 else 1
@@ -336,9 +368,14 @@ def toggle_status(user_id):
 @users_bp.route("/reset-2fa/<int:user_id>", methods=["POST"])
 @require_users_permission
 def reset_2fa(user_id):
-    target = query_db("SELECT username FROM users WHERE id = ?", (user_id,), one=True)
+    target = query_db("SELECT id, username, is_owner FROM users WHERE id = ?", (user_id,), one=True)
     if not target:
         flash("Benutzer nicht gefunden.", "error")
+        return redirect(url_for("users.index", tab="users"))
+
+    current_uid = session.get("user_id")
+    if is_system_owner(target) and current_uid != target["id"]:
+        flash("Die Zwei-Faktor-Authentifizierung des System-Owners kann nur von ihm selbst zurückgesetzt werden.", "error")
         return redirect(url_for("users.index", tab="users"))
 
     execute_db("UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?", (user_id,))
@@ -362,9 +399,13 @@ def delete_user(user_id):
         flash("Du kannst deinen eigenen Benutzeraccount nicht löschen.", "error")
         return redirect(url_for("users.index", tab="users"))
 
-    target = query_db("SELECT username, role FROM users WHERE id = ?", (user_id,), one=True)
+    target = query_db("SELECT id, username, role, is_owner FROM users WHERE id = ?", (user_id,), one=True)
     if not target:
         flash("Benutzer nicht gefunden.", "error")
+        return redirect(url_for("users.index", tab="users"))
+
+    if is_system_owner(target):
+        flash("Der System-Owner ist unantastbar und kann niemals gelöscht werden.", "error")
         return redirect(url_for("users.index", tab="users"))
 
     if target["role"] == "root_admin":
@@ -384,6 +425,55 @@ def delete_user(user_id):
     )
 
     flash(f"Benutzer '{target['username']}' wurde gelöscht.", "success")
+    return redirect(url_for("users.index", tab="users"))
+
+@users_bp.route("/set-owner", methods=["POST"])
+@require_users_permission
+def set_owner():
+    """Erlaubt dem aktuellen System-Owner (oder Root-Admin) die Ernennung eines unantastbaren System-Owners"""
+    current_uid = session.get("user_id")
+    curr_user = query_db("SELECT * FROM users WHERE id = ?", (current_uid,), one=True)
+
+    # Wenn bereits ein Owner definiert ist, darf NUR dieser den Status übertragen
+    has_owner_in_db = query_db("SELECT id FROM users WHERE is_owner = 1", one=True)
+    if has_owner_in_db and not is_system_owner(curr_user):
+        flash("Nur der aktuelle System-Owner kann den Inhaberstatus übertragen.", "error")
+        return redirect(url_for("users.index", tab="users"))
+
+    target_id = request.form.get("owner_user_id")
+    if not target_id:
+        flash("Bitte wähle einen Benutzer aus.", "error")
+        return redirect(url_for("users.index", tab="users"))
+
+    target = query_db("SELECT * FROM users WHERE id = ? AND is_active = 1", (target_id,), one=True)
+    if not target:
+        flash("Der ausgewählte Benutzer existiert nicht oder ist deaktiviert.", "error")
+        return redirect(url_for("users.index", tab="users"))
+
+    if target["role"] != "root_admin":
+        flash("Nur ein Root Administrator kann zum System-Owner ernannt werden.", "error")
+        return redirect(url_for("users.index", tab="users"))
+
+    # In DB aktualisieren: alle anderen auf 0, neuer Owner auf 1
+    execute_db("UPDATE users SET is_owner = CASE WHEN id = ? THEN 1 ELSE 0 END", (target["id"],))
+
+    # In .env persistent hinterlegen
+    try:
+        from modules.settings import update_env_file
+        update_env_file({"SYSCORE_OWNER_USER": target["username"]})
+        config.OWNER_USER = target["username"]
+    except Exception as e:
+        print(f"[SysCore Owner Error] .env konnte nicht aktualisiert werden: {e}")
+
+    log_audit(
+        username=session.get("username", "admin"),
+        action="SET_SYSTEM_OWNER",
+        details=f"Benutzer '{target['username']}' als unantastbaren System-Owner festgelegt",
+        ip_address=request.remote_addr,
+        status="warning"
+    )
+
+    flash(f"Benutzer '{target['username']}' wurde erfolgreich als unantastbarer System-Owner festgelegt!", "success")
     return redirect(url_for("users.index", tab="users"))
 
 # --- Rollen- & Berechtigungs-Aktionen ---
