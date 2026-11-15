@@ -378,6 +378,9 @@ def _prepare_sql(query, args=None):
     """
     Passt SQL-Syntax für MySQL / MariaDB an:
     - Wandelt SQLite 'INSERT OR REPLACE INTO' in 'REPLACE INTO' um.
+    - Wandelt SQLite 'INTEGER PRIMARY KEY AUTOINCREMENT' in 'INT AUTO_INCREMENT PRIMARY KEY' um.
+    - Setzt reservierte Tabellennamen (`settings`, `roles`) automatisch in Backticks.
+    - Setzt reservierte Spaltennamen (`key`, `value`, `role`) automatisch in Backticks.
     - Wenn keine Parameter übergeben werden, wird args=None zurückgegeben (verhindert 'not enough arguments for format string').
     - Wenn Parameter übergeben werden, werden vorhandene literale '%' Zeichen (z.B. in LIKE '%') zu '%%' verdoppelt
       und die '?' Platzhalter zu '%s' konvertiert.
@@ -387,6 +390,9 @@ def _prepare_sql(query, args=None):
         return query, args
 
     prepared = re.sub(r'(?i)\bINSERT\s+OR\s+REPLACE\s+INTO\b', 'REPLACE INTO', query)
+    prepared = re.sub(r'(?i)\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b', 'INT AUTO_INCREMENT PRIMARY KEY', prepared)
+    prepared = re.sub(r'(?i)\b(FROM|INTO|UPDATE|TABLE)\s+(?<!`)(settings|roles)(?!`)\b', r'\1 `\2`', prepared)
+    prepared = re.sub(r'(?i)(?<!\bPRIMARY\s)(?<!\bFOREIGN\s)\b(?<!`)(key|value|role)(?!`)\b(?!\s*\()', r'`\1`', prepared)
 
     if not args:
         return prepared, None

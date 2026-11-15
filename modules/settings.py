@@ -131,7 +131,7 @@ def get_panel_proxy_status():
     }
 
 def get_alert_settings():
-    res = query_db("SELECT key, value FROM settings WHERE key LIKE 'alert_%'")
+    res = query_db("SELECT `key`, `value` FROM `settings` WHERE `key` LIKE 'alert_%'")
     alerts = {
         "discord_webhook": "",
         "telegram_bot_token": "",
@@ -631,7 +631,7 @@ server {{
             else:
                 flash(f"VHost erstellt, aber Certbot meldete einen Fehler: {cert_res.stderr[:200]}", "warning")
 
-        execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('panel_domain', ?)", (domain,))
+        execute_db("INSERT OR REPLACE INTO `settings` (`key`, `value`) VALUES ('panel_domain', ?)", (domain,))
         log_audit(session.get("username"), "PANEL_SSL_PROXY_SETUP", f"Panel-Proxy für '{domain}' (SSL: {ssl_success}) eingerichtet", request.remote_addr)
         
         protocol = "https" if ssl_success else "http"
@@ -726,10 +726,10 @@ def save_alerts():
     tg_chat = request.form.get("telegram_chat_id", "").strip()
     disk_thresh = request.form.get("disk_threshold", "90").strip()
 
-    execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('alert_discord_webhook', ?)", (discord,))
-    execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('alert_telegram_bot_token', ?)", (tg_token,))
-    execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('alert_telegram_chat_id', ?)", (tg_chat,))
-    execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES ('alert_disk_threshold', ?)", (disk_thresh,))
+    execute_db("INSERT OR REPLACE INTO `settings` (`key`, `value`) VALUES ('alert_discord_webhook', ?)", (discord,))
+    execute_db("INSERT OR REPLACE INTO `settings` (`key`, `value`) VALUES ('alert_telegram_bot_token', ?)", (tg_token,))
+    execute_db("INSERT OR REPLACE INTO `settings` (`key`, `value`) VALUES ('alert_telegram_chat_id', ?)", (tg_chat,))
+    execute_db("INSERT OR REPLACE INTO `settings` (`key`, `value`) VALUES ('alert_disk_threshold', ?)", (disk_thresh,))
 
     log_audit(session.get("username"), "ALERTS_SETTINGS_SAVE", "Benachrichtigungseinstellungen aktualisiert", request.remote_addr)
     flash("Server-Health Benachrichtigungseinstellungen erfolgreich gespeichert.", "success")
@@ -741,7 +741,7 @@ def save_alerts():
 def test_alert():
     discord_url = request.form.get("discord_webhook", "").strip()
     if not discord_url:
-        res = query_db("SELECT value FROM settings WHERE key = 'alert_discord_webhook'", one=True)
+        res = query_db("SELECT `value` FROM `settings` WHERE `key` = 'alert_discord_webhook'", one=True)
         if res: discord_url = res["value"]
 
     if discord_url and discord_url.startswith("http"):

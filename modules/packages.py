@@ -446,12 +446,12 @@ def configure_package(pkg_key):
     execute_db("""
     CREATE TABLE IF NOT EXISTS package_configs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        package_key TEXT UNIQUE NOT NULL,
-        domain TEXT,
-        mode TEXT DEFAULT 'subdomain',
+        package_key VARCHAR(64) UNIQUE NOT NULL,
+        domain VARCHAR(191),
+        mode VARCHAR(32) DEFAULT 'subdomain',
         port INTEGER,
         ssl_enabled INTEGER DEFAULT 1,
-        php_version TEXT DEFAULT '8.2',
+        php_version VARCHAR(32) DEFAULT '8.2',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)

@@ -248,13 +248,8 @@ def generate_dkim(domain):
     try:
         priv, pub, txt = generate_dkim_keys()
         execute_db("""
-        INSERT INTO mail_dkim (domain, selector, private_key, public_key, dns_record)
+        INSERT OR REPLACE INTO mail_dkim (domain, selector, private_key, public_key, dns_record)
         VALUES (?, 'default', ?, ?, ?)
-        ON CONFLICT(domain) DO UPDATE SET
-            private_key = excluded.private_key,
-            public_key = excluded.public_key,
-            dns_record = excluded.dns_record,
-            created_at = CURRENT_TIMESTAMP
         """, (domain, priv, pub, txt))
         log_audit(session.get("username"), "MAIL_DKIM_GENERATE", f"DKIM-Schlüsselpaar für '{domain}' erzeugt", request.remote_addr)
         flash(f"Neuer 2048-Bit DKIM-Schlüssel für {domain} generiert!", "success")
