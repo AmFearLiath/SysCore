@@ -27,7 +27,7 @@ BACKENDS_INFO = {
     },
     "postfix_dovecot": {
         "name": "Postfix & Dovecot (Nativer Linux-Stack)",
-        "badge": "Plesk-Standard",
+        "badge": "SysCore-Standard",
         "desc": "Klassischer, erprobter Enterprise-Mailstack mit Postfix (MTA), Dovecot (IMAP/POP3) und Rspamd/OpenDKIM.",
         "ports": "25, 465, 587, 993",
         "install_guide": "apt-get install -y postfix postfix-mysql dovecot-core dovecot-imapd rspamd"

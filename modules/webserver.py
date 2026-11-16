@@ -395,7 +395,7 @@ def get_ssl_cert_info(domain, vhost_content="", system_certs=None):
 # ==============================================================================
 
 def get_directory_size_formatted(path):
-    """Ermittelt schnell die belegte Speicherplatzgröße eines Domain-Verzeichnisses (Plesk-Metrik)"""
+    """Ermittelt schnell die belegte Speicherplatzgröße eines Domain-Verzeichnisses (SysCore-Metrik)"""
     if not path or not os.path.exists(path):
         return "0 B"
     total_size = 0
@@ -444,7 +444,7 @@ def build_nginx_config(
     force_https=True
 ):
     """
-    Erzeugt eine robuste, produktionsreife NGINX VHost Konfiguration im Plesk-Standard.
+    Erzeugt eine robuste, produktionsreife NGINX VHost Konfiguration im Enterprise-Standard.
     Unterstützt Aliase, SSL Dual-Server, Wartungsmodus, .htpasswd, HSTS und Gzip.
     """
     server_names = [domain]
@@ -604,7 +604,7 @@ server {{
 """
 
 def parse_domain_config(domain_name, content, system_certs=None):
-    """Parst eine .panel.conf Datei und extrahiert Modus, Ports, PHP, SSL Status und Plesk-Metriken"""
+    """Parst eine .panel.conf Datei und extrahiert Modus, Ports, PHP, SSL Status und SysCore-Metriken"""
     ssl_active_in_conf = ("listen 443 ssl" in content) or ("ssl_certificate" in content)
     is_proxy = "proxy_pass" in content
     mode = "proxy" if is_proxy else "webspace"
@@ -1908,7 +1908,7 @@ def make_htpasswd_line(username, password):
 @login_required
 @role_required(["root_admin", "web_admin"])
 def edit_domain(domain):
-    """Umfangreiche Anpassung und optionales Umbenennen einer Domain (Plesk-Standard)"""
+    """Umfangreiche Anpassung und optionales Umbenennen einer Domain (SysCore-Standard)"""
     new_domain = request.form.get("new_domain", domain).strip().lower()
     mode = request.form.get("mode", "webspace")
     proxy_port = request.form.get("proxy_port", "").strip()
@@ -2044,7 +2044,7 @@ def edit_domain(domain):
 @login_required
 @role_required(["root_admin", "web_admin"])
 def toggle_maintenance(domain):
-    """1-Klick Wartungsmodus für eine Domain ein- oder ausschalten (Plesk-Feature)"""
+    """1-Klick Wartungsmodus für eine Domain ein- oder ausschalten (SysCore-Feature)"""
     avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
     if not os.path.exists(avail_path):
         flash("VHost nicht gefunden.", "error")
@@ -2218,7 +2218,7 @@ def switch_php_version_direct(domain):
 @login_required
 @role_required(["root_admin", "web_admin"])
 def clone_domain(domain):
-    """Plesk-Style Website Klonen: Kopiert Dateien und legt neuen VHost an"""
+    """Website Klonen: Kopiert Dateien und legt neuen VHost an"""
     target_domain = request.form.get("target_domain", "").strip().lower()
 
     if not re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", target_domain):
