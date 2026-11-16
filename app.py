@@ -94,7 +94,7 @@ def inject_global_template_vars():
         "current_user_role": session.get("role", "monitor"),
         "panel_host": config.PANEL_HOST,
         "panel_port": config.PANEL_PORT,
-        "syscore_version": getattr(config, "SYSCORE_VERSION", "0.9.0.0"),
+        "syscore_version": getattr(config, "SYSCORE_VERSION", "0.9.1.0"),
         "syscore_commit": get_cached_git_commit(),
         "db_fallback_active": getattr(db, "FALLBACK_TO_SQLITE", False),
         "db_fallback_error": getattr(db, "MYSQL_LAST_ERROR", "")

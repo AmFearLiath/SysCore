@@ -16,35 +16,50 @@ FAIL2BAN_DROPIN_PATH = "/etc/fail2ban/jail.d/99-syscore.conf"
 
 def get_fail2ban_status() -> Dict[str, Any]:
     """Liest Fail2Ban-Status, aktive Jails und gebannte IPs aus."""
-    if not shutil.which("fail2ban-client"):
+    has_client = shutil.which("fail2ban-client") or os.path.exists("/usr/bin/fail2ban-client")
+    if not has_client:
         return {"installed": False, "running": False, "jails": [], "banned_ips": []}
+
+    is_running = False
+    # Systemctl Prüfung
+    if shutil.which("systemctl"):
+        try:
+            s_chk = subprocess.run(["systemctl", "is-active", "fail2ban"], capture_output=True, text=True, timeout=3)
+            if s_chk.stdout.strip() == "active":
+                is_running = True
+        except Exception:
+            pass
+
     try:
-        res = subprocess.run(["fail2ban-client", "status"], capture_output=True, text=True, timeout=5)
-        if res.returncode != 0:
-            return {"installed": True, "running": False, "jails": [], "banned_ips": []}
+        # run_privileged nutzen, da fail2ban.sock Root-Rechte erfordert (SEC-001)
+        res = run_privileged(["fail2ban-client", "status"], timeout=5)
+        if res.returncode == 0:
+            is_running = True
 
         jails = []
         banned = []
-        for line in res.stdout.splitlines():
-            if "Jail list:" in line:
-                raw_jails = line.split("Jail list:")[-1].strip().split(",")
-                jails = [j.strip() for j in raw_jails if j.strip()]
+        if res.returncode == 0 and res.stdout:
+            for line in res.stdout.splitlines():
+                if "Jail list:" in line:
+                    raw_jails = line.split("Jail list:")[-1].strip().split(",")
+                    jails = [j.strip() for j in raw_jails if j.strip()]
 
-        for jail in jails:
-            try:
-                j_res = subprocess.run(["fail2ban-client", "status", jail], capture_output=True, text=True, timeout=5)
-                for j_line in j_res.stdout.splitlines():
-                    if "Banned IP list:" in j_line:
-                        ips = j_line.split("Banned IP list:")[-1].strip().split()
-                        for ip in ips:
-                            if ip.strip():
-                                banned.append({"ip": ip.strip(), "jail": jail})
-            except Exception:
-                pass
+            for jail in jails:
+                try:
+                    j_res = run_privileged(["fail2ban-client", "status", jail], timeout=5)
+                    if j_res.returncode == 0 and j_res.stdout:
+                        for j_line in j_res.stdout.splitlines():
+                            if "Banned IP list:" in j_line:
+                                ips = j_line.split("Banned IP list:")[-1].strip().split()
+                                for ip in ips:
+                                    if ip.strip():
+                                        banned.append({"ip": ip.strip(), "jail": jail})
+                except Exception:
+                    pass
 
-        return {"installed": True, "running": True, "jails": jails, "banned_ips": banned}
+        return {"installed": True, "running": is_running, "jails": jails, "banned_ips": banned}
     except Exception as e:
-        return {"installed": True, "running": False, "jails": [], "banned_ips": [], "error": str(e)}
+        return {"installed": True, "running": is_running, "jails": [], "banned_ips": [], "error": str(e)}
 
 def get_fail2ban_config() -> Dict[str, Any]:
     """Liest die Fail2Ban Konfiguration aus dem SysCore Drop-in oder liefert Standards."""
@@ -160,11 +175,35 @@ enabled = {'true' if nginx_enabled else 'false'}
 
 def fail2ban_service_action(action: str) -> Tuple[bool, str]:
     """Startet, stoppt oder startet Fail2ban neu."""
-    if action not in ("start", "stop", "restart", "enable"):
+    if action not in ("start", "stop", "restart", "enable", "disable"):
         return False, "Ungültige Aktion."
     try:
+        # Sicherstellen dass /var/run/fail2ban existiert (erforderlich für fail2ban.sock)
+        if action in ("start", "restart") and hasattr(os, "geteuid"):
+            try:
+                os.makedirs("/var/run/fail2ban", exist_ok=True)
+            except Exception:
+                run_privileged(["mkdir", "-p", "/var/run/fail2ban"])
+
         res = run_privileged(["systemctl", action, "fail2ban"], timeout=15)
-        return (res.returncode == 0), (res.stdout or res.stderr).strip()
+        
+        # Fallback auf fail2ban-client falls systemctl fehlschlägt
+        if res.returncode != 0 and shutil.which("fail2ban-client"):
+            if action in ("start", "restart"):
+                fb_res = run_privileged(["fail2ban-client", action], timeout=10)
+                if fb_res.returncode == 0:
+                    return True, f"Fail2Ban erfolgreich {action}ed (via fail2ban-client)."
+            elif action == "stop":
+                run_privileged(["fail2ban-client", "stop"], timeout=10)
+                return True, "Fail2Ban gestoppt."
+
+        # Wenn Start erfolgreich war, Dienst auch automatisch im Boot aktivieren
+        if action == "start" and res.returncode == 0:
+            run_privileged(["systemctl", "enable", "fail2ban"], timeout=10)
+
+        success = (res.returncode == 0)
+        msg = (res.stdout or res.stderr).strip() or (f"Dienstaktion '{action}' erfolgreich" if success else f"Aktion '{action}' fehlgeschlagen")
+        return success, msg
     except Exception as e:
         return False, str(e)
 

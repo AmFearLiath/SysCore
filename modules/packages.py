@@ -1,6 +1,6 @@
 """
 SysCore Package Manager - Unified Package, Application & Stack Engine
-Version 0.9.0.0
+Version 0.9.1.0
 Verwaltet Systempakete, Webanwendungen, Stacks, Container und Repositories
 vollständig integriert mit dem Sentinel Software Inventory & UFW Port-Schutz.
 """

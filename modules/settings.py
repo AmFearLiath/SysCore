@@ -123,7 +123,7 @@ def get_alert_settings():
 
 # In-Memory Cache für Git Updater & Commit Hash (verhindert netzwerkbedingte Ladeverzögerungen)
 _UPDATER_CACHE = {"timestamp": 0, "data": None}
-_COMMIT_CACHE = {"timestamp": 0, "short": "0.9.0.0"}
+_COMMIT_CACHE = {"timestamp": 0, "short": "0.9.1.0"}
 UPDATER_CACHE_TTL = 300  # 5 Minuten Cache für Git Remote-Prüfungen
 
 def get_cached_git_commit():
@@ -142,7 +142,7 @@ def get_cached_git_commit():
             return _COMMIT_CACHE["short"]
     except Exception:
         pass
-    return _COMMIT_CACHE.get("short", "0.9.0.0")
+    return _COMMIT_CACHE.get("short", "0.9.1.0")
 
 def clear_updater_cache():
     global _UPDATER_CACHE, _COMMIT_CACHE
@@ -531,7 +531,7 @@ def api_updater_check():
         "success": True,
         "is_up_to_date": is_up_to_date,
         "has_update": has_update,
-        "local_short": status.get("local_short", "0.9.0.0"),
+        "local_short": status.get("local_short", "0.9.1.0"),
         "remote_short": status.get("remote_short", ""),
         "commits_behind": 1 if has_update else 0
     })
@@ -776,7 +776,7 @@ def test_alert():
             req = urllib.request.Request(
                 discord_url,
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json", "User-Agent": "SysCore/2.5"}
+                headers={"Content-Type": "application/json", "User-Agent": f"SysCore/{config.SYSCORE_VERSION}"}
             )
             urllib.request.urlopen(req, timeout=5)
             flash("Test-Benachrichtigung erfolgreich an Discord gesendet!", "success")

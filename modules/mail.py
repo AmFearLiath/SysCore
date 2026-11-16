@@ -485,6 +485,68 @@ server {{
 
     return True, "NGINX VHost erfolgreich konfiguriert", effective_url
 
+def request_webmail_ssl(webmail_domain: str) -> Tuple[bool, str]:
+    """
+    Fordert ein Let's Encrypt SSL-Zertifikat für die Webmail-Domain via Certbot an
+    und aktualisiert den NGINX VHost sofort auf sicheres HTTPS (Port 443).
+    """
+    if not webmail_domain:
+        return False, "Keine Webmail-Domain angegeben."
+
+    clean_domain = webmail_domain.strip().lower()
+    cert_path = f"/etc/letsencrypt/live/{clean_domain}/fullchain.pem"
+    key_path = f"/etc/letsencrypt/live/{clean_domain}/privkey.pem"
+
+    # 1. Prüfen, ob bereits ein valides Zertifikat für genau diese Domain existiert
+    if os.path.exists(cert_path) and os.path.exists(key_path):
+        return True, f"SSL-Zertifikat für {clean_domain} ist bereits aktiv vorhanden."
+
+    # 2. Certbot Verfügbarkeit prüfen
+    certbot_bin = shutil.which("certbot") or ("/usr/bin/certbot" if os.path.exists("/usr/bin/certbot") else None)
+    if not certbot_bin:
+        return False, "Certbot ist auf diesem Server nicht installiert."
+
+    # 3. Vorbereitung: ACME Webroot & Nginx Port 80 Challenge Endpoint sicherstellen
+    acme_dir = "/var/www/html/.well-known/acme-challenge"
+    os.makedirs(acme_dir, exist_ok=True)
+    try:
+        os.chmod(acme_dir, 0o755)
+        if shutil.which("chown"):
+            subprocess.run(["chown", "-R", "www-data:www-data", "/var/www/html"], check=False)
+    except Exception:
+        pass
+
+    # Vorab Port 80 VHost sicherstellen & Nginx neu laden
+    cfg = query_db("SELECT webmail_client FROM mail_server_config WHERE id = 1", one=True)
+    active_client = cfg["webmail_client"] if cfg else "snappymail"
+    deploy_webmail_vhost(active_client, clean_domain)
+
+    email_arg = ["--email", config.CERTBOT_EMAIL] if config.CERTBOT_EMAIL and "@" in config.CERTBOT_EMAIL else ["--register-unsafely-without-email"]
+    
+    last_err = ""
+    # Methode 1: Webroot Challenge
+    cmd_webroot = [certbot_bin, "certonly", "--webroot", "-w", "/var/www/html", "-d", clean_domain, "--non-interactive", "--agree-tos"] + email_arg
+    res1 = subprocess.run(cmd_webroot, capture_output=True, text=True, timeout=90)
+    if res1.returncode != 0:
+        last_err = (res1.stderr or res1.stdout).strip()
+
+    # Methode 2: Nginx Plugin Fallback falls Webroot scheitert
+    if not (os.path.exists(cert_path) and os.path.exists(key_path)):
+        cmd_nginx = [certbot_bin, "certonly", "--nginx", "-d", clean_domain, "--non-interactive", "--agree-tos"] + email_arg
+        res2 = subprocess.run(cmd_nginx, capture_output=True, text=True, timeout=90)
+        if res2.returncode != 0 and not last_err:
+            last_err = (res2.stderr or res2.stdout).strip()
+
+    if os.path.exists(cert_path) and os.path.exists(key_path):
+        # VHost mit neuem SSL-Zertifikat aktualisieren
+        deploy_webmail_vhost(active_client, clean_domain)
+        # DB URL aktualisieren
+        execute_db("UPDATE mail_server_config SET webmail_url = ? WHERE id = 1", (f"https://{clean_domain}",))
+        return True, f"Let's Encrypt SSL-Zertifikat für '{clean_domain}' erfolgreich ausgestellt und HTTPS aktiviert!"
+
+    err_summary = [l.strip() for l in last_err.splitlines() if l.strip() and not l.startswith("Saving debug log")]
+    return False, f"Certbot konnte kein Zertifikat für '{clean_domain}' ausstellen: {' | '.join(err_summary[-2:]) if err_summary else 'DNS zeigt eventuell noch nicht auf diesen Server.'}"
+
 # --- ROUTES ---
 
 @mail_bp.route("/")
@@ -521,6 +583,10 @@ def index():
     primary_domain = domains[0] if domains else "amfearliath.de"
     dns_check = check_domain_dns_records(primary_domain, server_ip)
 
+    # Webmail SSL Status ermitteln
+    curr_webmail_domain = config_row["webmail_domain"] if config_row and config_row["webmail_domain"] else f"webmail.{primary_domain}"
+    webmail_has_ssl = os.path.exists(f"/etc/letsencrypt/live/{curr_webmail_domain}/fullchain.pem")
+
     return render_template(
         "mail.html",
         active_tab=tab,
@@ -536,7 +602,9 @@ def index():
         mail_services=mail_services,
         mail_queue=mail_queue,
         dns_check=dns_check,
-        server_ip=server_ip
+        server_ip=server_ip,
+        webmail_has_ssl=webmail_has_ssl,
+        curr_webmail_domain=curr_webmail_domain
     )
 
 # --- Postfächer & Konten Management ---
@@ -848,6 +916,14 @@ def activate_webmail(client):
         if not setup_ok:
             flash(f"Hinweis bei Bereitstellung: {setup_msg}", "warning")
 
+    # Automatisch Let's Encrypt SSL-Zertifikat prüfen / anfordern falls noch keins existiert
+    cert_exists = os.path.exists(f"/etc/letsencrypt/live/{webmail_domain}/fullchain.pem")
+    if not cert_exists and shutil.which("certbot"):
+        try:
+            request_webmail_ssl(webmail_domain)
+        except Exception:
+            pass
+
     vhost_ok, vhost_msg, effective_url = deploy_webmail_vhost(client, webmail_domain)
 
     execute_db("""
@@ -887,6 +963,7 @@ def save_webmail_routing():
     """Speichert die Subdomain & Domain für das externe Webmail und baut den VHost neu"""
     subdomain = request.form.get("webmail_subdomain", "webmail").strip().lower()
     selected_domain = request.form.get("domain", "").strip().lower()
+    req_ssl = (request.form.get("request_ssl") == "1")
 
     if not selected_domain:
         domains = get_registered_domains()
@@ -896,6 +973,15 @@ def save_webmail_routing():
 
     cfg = query_db("SELECT webmail_client FROM mail_server_config WHERE id = 1", one=True)
     active_client = cfg["webmail_client"] if cfg else "snappymail"
+
+    # Falls SSL angefordert wurde
+    ssl_msg = ""
+    if req_ssl and shutil.which("certbot"):
+        ssl_ok, ssl_res = request_webmail_ssl(full_webmail_domain)
+        if ssl_ok:
+            ssl_msg = " + Let's Encrypt SSL-Zertifikat aktiv!"
+        else:
+            ssl_msg = f" (Hinweis: {ssl_res})"
 
     vhost_ok, vhost_msg, effective_url = deploy_webmail_vhost(active_client, full_webmail_domain)
 
@@ -909,7 +995,26 @@ def save_webmail_routing():
     """, (subdomain, full_webmail_domain, effective_url))
 
     log_audit(session.get("username"), "MAIL_WEBMAIL_ROUTING", f"Webmail-Domain auf '{full_webmail_domain}' geändert", request.remote_addr)
-    flash(f"Webmail-Routing erfolgreich auf '{full_webmail_domain}' aktualisiert!", "success")
+    flash(f"Webmail-Routing erfolgreich auf '{full_webmail_domain}' aktualisiert!{ssl_msg}", "success")
+    return redirect(url_for("mail.index", tab="webmail"))
+
+@mail_bp.route("/webmail/ssl/request", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def request_webmail_ssl_action():
+    """Fordert ein Let's Encrypt SSL-Zertifikat für die konfigurierte Webmail-Domain an"""
+    cfg = query_db("SELECT webmail_domain FROM mail_server_config WHERE id = 1", one=True)
+    domains = get_registered_domains()
+    primary = domains[0] if domains else "amfearliath.de"
+    webmail_domain = cfg["webmail_domain"] if cfg and cfg["webmail_domain"] else f"webmail.{primary}"
+
+    ok, msg = request_webmail_ssl(webmail_domain)
+    if ok:
+        log_audit(session.get("username"), "MAIL_WEBMAIL_SSL_SUCCESS", f"SSL für {webmail_domain} ausgestellt", request.remote_addr, "success")
+        flash(msg, "success")
+    else:
+        log_audit(session.get("username"), "MAIL_WEBMAIL_SSL_FAIL", f"SSL für {webmail_domain} fehlgeschlagen: {msg}", request.remote_addr, "error")
+        flash(msg, "warning")
     return redirect(url_for("mail.index", tab="webmail"))
 
 @mail_bp.route("/webmail/open")

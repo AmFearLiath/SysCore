@@ -232,20 +232,37 @@
         <div class="sys-card p-6 border-emerald-500/40 bg-gradient-to-r from-dark-900 via-dark-900 to-emerald-950/20 relative overflow-hidden">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div class="space-y-1.5">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold badge-emerald">
                             ★ Aktive Standard-Webmailzentrale
                         </span>
                         <span class="text-xs font-mono text-gray-400">
                             {{ webmail_options[active_webmail].name if active_webmail in webmail_options else active_webmail }}
                         </span>
+                        {% if webmail_has_ssl %}
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold badge-emerald">
+                            🔒 SSL Aktiv (HTTPS)
+                        </span>
+                        {% else %}
+                        <div class="flex items-center gap-1.5">
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono badge-amber">
+                                ⚠️ Kein SSL-Zertifikat
+                            </span>
+                            <form method="POST" action="{{ url_for('mail.request_webmail_ssl_action') }}" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[10px] font-mono transition cursor-pointer">
+                                    🔒 SSL anfordern
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
                     </div>
                     <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
                         <span>{{ webmail_options[active_webmail].icon if active_webmail in webmail_options else '✉️' }}</span>
                         <span>{{ webmail_options[active_webmail].name if active_webmail in webmail_options else active_webmail }}</span>
                     </h2>
                     <p class="text-xs font-mono text-gray-400">
-                        Erreichbar unter: <code class="text-emerald-400 font-bold">{{ mail_config.webmail_url or ('https://' + (mail_config.webmail_domain or 'webmail.' + domains[0])) }}</code>
+                        Erreichbar unter: <code class="text-emerald-400 font-bold">{{ mail_config.webmail_url or ('https://' + (curr_webmail_domain or mail_config.webmail_domain or 'webmail.' + domains[0])) }}</code>
                     </p>
                 </div>
 
@@ -881,8 +898,15 @@
                     </select>
                 </div>
 
+                <div class="pt-1">
+                    <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input type="checkbox" name="request_ssl" value="1" checked class="w-4 h-4 text-emerald-500 rounded bg-dark-950 border-dark-700 focus:ring-emerald-500">
+                        <span class="text-xs font-mono text-gray-300">Let's Encrypt SSL-Zertifikat automatisch anfordern (HTTPS)</span>
+                    </label>
+                </div>
+
                 <div class="p-3 bg-dark-950 rounded-xl border border-dark-700 text-xs text-gray-400 font-sans">
-                    SysCore generiert automatisch die NGINX-VHost-Konfiguration für diese Domain, bindet vorhandene SSL-Zertifikate ein und leitet Anfragen an das gewählte Webmail-Paket weiter.
+                    SysCore generiert automatisch die NGINX-VHost-Konfiguration für diese Domain, bindet SSL-Zertifikate ein und leitet Anfragen an das gewählte Webmail-Paket weiter.
                 </div>
 
                 <div class="pt-2 flex justify-end gap-2">
