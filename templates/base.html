@@ -332,15 +332,6 @@
                             <span>Webserver & Domains</span>
                         </a>
 
-                        <a href="{{ url_for('apps.index') }}"
-                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                            </svg>
-                            <span>App-Importer (ZIP)</span>
-                        </a>
-
                         <a href="{{ url_for('files.index') }}"
                             class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
                             <svg class="w-4 h-4 shrink-0 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -439,7 +430,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                             </svg>
-                            <span>Paket- & Stack-Installer</span>
+                            <span>Paket- & App-Manager</span>
                         </a>
 
                         <a href="{{ url_for('cron.index') }}"
@@ -686,22 +677,22 @@
 
                 <a href="{{ url_for('packages.index') }}"
                     class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
-                    data-search="packages stack installer php node composer redis phpmyadmin">
+                    data-search="packages stack installer php node composer redis phpmyadmin apps pterodactyl">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-purple-500/10 text-purple-400 rounded-md">📦</span>
-                        <span>Paket- & Stack-Installer</span>
+                        <span>Paket- & App-Manager (Stacks, Apps & Services)</span>
                     </div>
                     <span class="text-xs text-gray-500 font-mono">/packages</span>
                 </a>
 
-                <a href="{{ url_for('apps.index') }}"
+                <a href="{{ url_for('packages.index', tab='apps') }}"
                     class="cmd-palette-item flex items-center justify-between p-2.5 rounded-lg hover:bg-dark-800 text-gray-300 hover:text-white transition"
-                    data-search="app importer zip manifest deploy laravel wordpress">
+                    data-search="app importer zip manifest deploy laravel wordpress scp">
                     <div class="flex items-center gap-3">
                         <span class="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-md">🚀</span>
                         <span>App-Importer via ZIP & Manifest</span>
                     </div>
-                    <span class="text-xs text-gray-500 font-mono">/apps</span>
+                    <span class="text-xs text-gray-500 font-mono">/packages?tab=apps</span>
                 </a>
 
                 <a href="{{ url_for('backups.index') }}"
@@ -967,15 +958,6 @@
                         <span>Webserver & Domains</span>
                     </a>
 
-                    <a href="{{ url_for('apps.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                        </svg>
-                        <span>App-Importer (ZIP)</span>
-                    </a>
-
                     <a href="{{ url_for('files.index') }}" onclick="toggleMobileNav(true)"
                         class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
                         <svg class="w-4 h-4 shrink-0 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1074,7 +1056,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                         </svg>
-                        <span>Paket- & Stack-Installer</span>
+                        <span>Paket- & App-Manager</span>
                     </a>
 
                     <a href="{{ url_for('cron.index') }}" onclick="toggleMobileNav(true)"

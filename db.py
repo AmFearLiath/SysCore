@@ -83,7 +83,10 @@ ALL_TABLES = [
     "security_findings",
     "security_incidents",
     "security_automation_rules",
-    "sentinel_conversations"
+    "sentinel_conversations",
+    "package_jobs",
+    "package_repositories",
+    "package_stacks"
 ]
 
 SCHEMA_STATEMENTS = [
@@ -385,6 +388,54 @@ SCHEMA_STATEMENTS = [
         content TEXT NOT NULL,
         change_plan_json TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    # 24. Package Manager Asynchrone Jobs & Protokolle
+    """
+    CREATE TABLE IF NOT EXISTS package_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_type VARCHAR(64) NOT NULL,
+        package_key VARCHAR(100) NOT NULL,
+        title VARCHAR(191) NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        progress INTEGER DEFAULT 0,
+        logs TEXT,
+        error_message TEXT,
+        started_by VARCHAR(100) DEFAULT 'admin',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        started_at TIMESTAMP,
+        completed_at TIMESTAMP
+    );
+    """,
+    # 25. Package Manager Repositories & Paketquellen
+    """
+    CREATE TABLE IF NOT EXISTS package_repositories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_key VARCHAR(64) UNIQUE NOT NULL,
+        name VARCHAR(191) NOT NULL,
+        repo_type VARCHAR(32) NOT NULL,
+        url TEXT,
+        trust_level VARCHAR(32) DEFAULT 'Official',
+        is_enabled INTEGER DEFAULT 1,
+        sync_interval_mins INTEGER DEFAULT 1440,
+        last_synced_at TIMESTAMP,
+        last_status VARCHAR(32) DEFAULT 'ok',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    # 26. Package Manager Stacks (LEMP, LAMP, Pterodactyl, etc.)
+    """
+    CREATE TABLE IF NOT EXISTS package_stacks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        stack_key VARCHAR(64) UNIQUE NOT NULL,
+        name VARCHAR(191) NOT NULL,
+        category VARCHAR(64) DEFAULT 'Stack',
+        description TEXT,
+        status VARCHAR(32) DEFAULT 'available',
+        components_json TEXT,
+        config_json TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
 ]
@@ -813,6 +864,75 @@ def init_db():
                     conn.commit()
         except Exception as e:
             print(f"[SysCore DB Note] Security Automation Rules seed notice: {e}")
+
+        # Seed Standard Package Repositories falls leer
+        try:
+            cursor.execute("SELECT COUNT(*) FROM `package_repositories`;")
+            rep_res = cursor.fetchone()
+            if not rep_res or rep_res[0] == 0:
+                default_repos = [
+                    ('os-apt', 'Debian / Ubuntu Native APT', 'apt', 'https://deb.debian.org/debian', 'Official', 1, 1440),
+                    ('syscore-official', 'SysCore Official Registry', 'official', 'https://packages.syscore.internal', 'Official', 1, 360),
+                    ('docker-ce', 'Docker Community Registry', 'docker', 'https://download.docker.com/linux', 'Verified', 1, 1440),
+                    ('nodesource', 'NodeSource Node.js LTS', 'apt', 'https://deb.nodesource.com/node_20.x', 'Verified', 1, 1440),
+                    ('syscore-community', 'SysCore Community Catalog', 'community', 'https://community.syscore.internal', 'Community', 0, 1440)
+                ]
+                ins_rep_sql = "INSERT INTO `package_repositories` (repo_key, name, repo_type, url, trust_level, is_enabled, sync_interval_mins) VALUES (%s, %s, %s, %s, %s, %s, %s);" if is_mysql else "INSERT INTO package_repositories (repo_key, name, repo_type, url, trust_level, is_enabled, sync_interval_mins) VALUES (?, ?, ?, ?, ?, ?, ?);"
+                cursor.executemany(ins_rep_sql, default_repos)
+                if not is_mysql:
+                    conn.commit()
+        except Exception as e:
+            print(f"[SysCore DB Note] Package Repositories seed notice: {e}")
+
+        # Seed Standard Stacks falls leer
+        try:
+            cursor.execute("SELECT COUNT(*) FROM `package_stacks`;")
+            stk_res = cursor.fetchone()
+            if not stk_res or stk_res[0] == 0:
+                default_stacks = [
+                    (
+                        'pterodactyl',
+                        'Pterodactyl Game Server Stack',
+                        'Game Hosting',
+                        'Voll integrierte Game-Server-Plattform mit Web-Panel, Wings-Daemon, Docker Runtime, Queue-Worker und Port-Range-Schutz.',
+                        'available',
+                        json.dumps(["pterodactyl-panel", "pterodactyl-wings", "docker", "mariadb", "redis"]),
+                        json.dumps({"panel_path": "/var/www/pterodactyl", "wings_config": "/etc/pterodactyl/config.yml", "protected_ports": [8080, 2022]})
+                    ),
+                    (
+                        'lemp',
+                        'LEMP Stack (High Performance)',
+                        'Web & API',
+                        'Moderner Web-Stack mit NGINX Reverse Proxy, PHP-FPM, MariaDB Server und Redis Cache.',
+                        'available',
+                        json.dumps(["nginx", "php8.3", "mariadb", "redis"]),
+                        json.dumps({"webserver": "nginx", "db": "mariadb", "cache": "redis"})
+                    ),
+                    (
+                        'monitoring',
+                        'Monitoring & Observability Stack',
+                        'Operations',
+                        'Zentrales Monitoring mit Uptime Kuma Statusseiten und GoAccess Log-Analyzer.',
+                        'available',
+                        json.dumps(["uptime_kuma", "goaccess"]),
+                        json.dumps({"default_port": 3001})
+                    ),
+                    (
+                        'devops_git',
+                        'DevOps & Self-Hosted Git Stack',
+                        'DevOps',
+                        'Private Git-Infrastruktur mit leichtgewichtigem Gitea Server und Docker Compose.',
+                        'available',
+                        json.dumps(["gitea", "docker"]),
+                        json.dumps({"default_port": 3000})
+                    )
+                ]
+                ins_stk_sql = "INSERT INTO `package_stacks` (stack_key, name, category, description, status, components_json, config_json) VALUES (%s, %s, %s, %s, %s, %s, %s);" if is_mysql else "INSERT INTO package_stacks (stack_key, name, category, description, status, components_json, config_json) VALUES (?, ?, ?, ?, ?, ?, ?);"
+                cursor.executemany(ins_stk_sql, default_stacks)
+                if not is_mysql:
+                    conn.commit()
+        except Exception as e:
+            print(f"[SysCore DB Note] Package Stacks seed notice: {e}")
 
         conn.close()
     except Exception as e:

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Paket- & Stack-Installer // SysCore{% endblock %}
+{% block title %}Package Manager // SysCore{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -8,132 +8,737 @@
     <!-- Header & Action Bar -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-extrabold text-white tracking-tight">Paket- & Stack-Installer</h1>
-            <p class="text-xs text-gray-400 font-mono mt-1">1-Klick Stack-Provisionierung für PHP, Node.js, Datenbanken, Monitoring & Web-Tools.</p>
+            <div class="flex items-center gap-2.5">
+                <h1 class="text-2xl font-extrabold text-white tracking-tight">SysCore Package Manager</h1>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                    v{{ syscore_version }}
+                </span>
+            </div>
+            <p class="text-xs text-gray-400 font-mono mt-1">Zentrale Verwaltung für Systempakete, Web-Apps, Stacks, Pterodactyl Game-Server & Repositories.</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="switchTab('apps')" class="px-3.5 py-2 rounded-xl text-xs font-mono font-medium bg-dark-850 hover:bg-dark-800 border border-dark-700 text-gray-300 hover:text-white transition flex items-center gap-2">
+                <span>🚀</span>
+                <span>App deployen (ZIP)</span>
+            </button>
+            <button onclick="switchTab('activities')" class="px-3.5 py-2 rounded-xl text-xs font-mono font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-2 shadow-lg shadow-emerald-900/20">
+                <span>⚡</span>
+                <span>Aktivitäten & Jobs</span>
+            </button>
         </div>
     </div>
 
-    <!-- Category Tabs Filter -->
-    <div class="flex items-center gap-2 border-b border-dark-700 pb-2 text-xs font-mono overflow-x-auto no-scrollbar">
-        <button onclick="filterPackages('all')" class="pkg-tab-btn px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold transition">
-            Alle Pakete
+    <!-- Quick Stats Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="sys-card p-4">
+            <span class="text-[10px] font-mono uppercase text-gray-400 font-bold block">Installierte Software</span>
+            <div class="flex items-baseline gap-2 mt-1">
+                <span class="text-xl font-bold text-white font-mono">{{ installed_count }}</span>
+                <span class="text-xs text-gray-500 font-mono">/ {{ total_packages_count }} im Katalog</span>
+            </div>
+        </div>
+        <div class="sys-card p-4">
+            <span class="text-[10px] font-mono uppercase text-gray-400 font-bold block">Systemd Daemons</span>
+            <div class="flex items-baseline gap-2 mt-1">
+                <span class="text-xl font-bold text-emerald-400 font-mono">{{ services_active_count }}</span>
+                <span class="text-xs text-gray-500 font-mono">aktiv & lauschend</span>
+            </div>
+        </div>
+        <div class="sys-card p-4">
+            <span class="text-[10px] font-mono uppercase text-gray-400 font-bold block">Pterodactyl & Games</span>
+            <div class="flex items-center gap-2 mt-1">
+                {% if ptero_ports.is_safe %}
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span class="text-sm font-bold text-emerald-400 font-mono">Ports geschützt</span>
+                {% else %}
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span class="text-sm font-bold text-amber-400 font-mono">{{ ptero_ports.missing_ports|length }} Ports offen</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="sys-card p-4">
+            <span class="text-[10px] font-mono uppercase text-gray-400 font-bold block">Verfügbare Stacks</span>
+            <div class="flex items-baseline gap-2 mt-1">
+                <span class="text-xl font-bold text-purple-400 font-mono">{{ stacks|length }}</span>
+                <span class="text-xs text-gray-500 font-mono">Stacks bereit</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Navigation Tabs -->
+    <div class="flex items-center gap-1 border-b border-dark-700 pb-2 text-xs font-mono overflow-x-auto no-scrollbar">
+        <button onclick="switchTab('overview')" id="tab-btn-overview" class="tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Übersicht
         </button>
-        <button onclick="filterPackages('Tools')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
-            Web-GUIs & Tools
+        <button onclick="switchTab('discover')" id="tab-btn-discover" class="tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Katalog & Entdecken
         </button>
-        <button onclick="filterPackages('Runtimes')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
-            Runtimes (PHP/Node)
+        <button onclick="switchTab('installed')" id="tab-btn-installed" class="tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Installierte Software ({{ installed_count }})
         </button>
-        <button onclick="filterPackages('Databases')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
-            Datenbanken & Cache
+        <button onclick="switchTab('stacks')" id="tab-btn-stacks" class="tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition flex items-center gap-1.5">
+            <span>Stacks ({{ stacks|length }})</span>
+            <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
         </button>
-        <button onclick="filterPackages('Monitoring')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
-            Monitoring
+        <button onclick="switchTab('apps')" id="tab-btn-apps" class="tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition flex items-center gap-1.5">
+            <span>Eigene Apps & SCP</span>
+            <span class="text-[10px] bg-dark-800 px-1.5 py-0.2 rounded text-emerald-400">ZIP</span>
         </button>
-        <button onclick="filterPackages('Security')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
-            Sicherheit
+        <button onclick="switchTab('repositories')" id="tab-btn-repositories" class="tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Paketquellen ({{ repositories|length }})
         </button>
-        <button onclick="filterPackages('DevOps')" class="pkg-tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
-            DevOps & Git
+        <button onclick="switchTab('activities')" id="tab-btn-activities" class="tab-btn px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+            Aktivitäten & Jobs
         </button>
     </div>
 
-    <!-- Package Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="packagesGrid">
-        {% for p in packages %}
-        <div class="sys-card p-5 flex flex-col justify-between pkg-card transition hover:border-dark-600" data-category="{{ p.category }}">
-            <div class="space-y-2.5">
-                <div class="flex items-start justify-between gap-2">
+    <!-- ========================================================================= -->
+    <!-- TAB 1: OVERVIEW                                                           -->
+    <!-- ========================================================================= -->
+    <div id="tab-content-overview" class="tab-content space-y-6 hidden">
+
+        <!-- Pterodactyl Game Server Stack Highlight Banner -->
+        <div class="sys-card p-6 border-l-4 border-l-purple-500 bg-gradient-to-r from-purple-950/20 via-dark-900 to-dark-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div class="space-y-2">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-xl">🎮</span>
+                    <h2 class="text-lg font-bold text-white tracking-tight">Pterodactyl Game Server Stack</h2>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">Vollintegriert</span>
+                </div>
+                <p class="text-xs text-gray-400 leading-relaxed font-sans max-w-2xl">
+                    SysCore überwacht den Pterodactyl Panel VHost, den Wings Node Daemon, Systemd Queues und schützt dynamische Gameserver-Ports (Minecraft, CS2, Rust etc.) automatisch vor UFW-Firewall-Blockaden.
+                </p>
+                <div class="flex flex-wrap items-center gap-3 pt-1 text-[11px] font-mono">
+                    <span class="flex items-center gap-1.5 text-gray-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Wings API: 8080/TCP
+                    </span>
+                    <span class="flex items-center gap-1.5 text-gray-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Wings SFTP: 2022/TCP
+                    </span>
+                    <span class="flex items-center gap-1.5 text-cyan-400">
+                        <span>🐳</span> {{ ptero_ports.detected_ports|length }} erkannte Game-Sockets
+                    </span>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                <button onclick="switchTab('stacks')" class="px-4 py-2.5 rounded-xl text-xs font-mono font-medium bg-purple-600 hover:bg-purple-500 text-white transition flex items-center justify-center gap-2">
+                    <span>Stack verwalten</span>
+                    <span>→</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Schnell-Übersicht: Empfohlene Pakete & Stacks -->
+        <div class="space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider">Kern-Komponenten & Web-Stacks</h3>
+                <button onclick="switchTab('discover')" class="text-xs font-mono text-emerald-400 hover:text-emerald-300 transition">Alle im Katalog ansehen →</button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Stack LEMP -->
+                <div class="sys-card p-5 space-y-3 flex flex-col justify-between">
                     <div>
-                        <div class="flex items-center gap-2">
-                            <h3 class="text-base font-bold text-white tracking-tight">{{ p.name }}</h3>
-                            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-dark-900 border border-dark-700 text-gray-400">
-                                {{ p.category }}
-                            </span>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-mono text-teal-400 font-bold uppercase">Web & API</span>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-dark-950 text-gray-400 border border-dark-700">Stack</span>
                         </div>
-                        {% if p.configured_domain %}
-                        <div class="flex items-center gap-1.5 mt-1 text-[11px] font-mono text-emerald-400">
-                            <span>🌐</span>
-                            <span>{{ p.configured_domain }}</span>
-                            <span class="text-gray-500">({{ 'SSL' if p.ssl_enabled else 'HTTP' }})</span>
+                        <h4 class="text-base font-bold text-white mt-1">LEMP High-Performance</h4>
+                        <p class="text-xs text-gray-400 mt-1">NGINX Reverse Proxy, PHP 8.3 FPM, MariaDB Server & Redis Cache.</p>
+                    </div>
+                    <div class="pt-3 border-t border-dark-700 flex items-center justify-between">
+                        <span class="text-[11px] font-mono text-gray-500">4 Komponenten</span>
+                        <button onclick="switchTab('stacks')" class="text-xs font-mono text-emerald-400 hover:text-emerald-300">Konfigurieren →</button>
+                    </div>
+                </div>
+
+                <!-- Stack Monitoring -->
+                <div class="sys-card p-5 space-y-3 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-mono text-cyan-400 font-bold uppercase">Operations</span>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-dark-950 text-gray-400 border border-dark-700">Stack</span>
                         </div>
+                        <h4 class="text-base font-bold text-white mt-1">Monitoring & Observability</h4>
+                        <p class="text-xs text-gray-400 mt-1">Uptime Kuma Statusseiten und GoAccess Realtime-Log-Analyzer.</p>
+                    </div>
+                    <div class="pt-3 border-t border-dark-700 flex items-center justify-between">
+                        <span class="text-[11px] font-mono text-gray-500">Port 3001 & Logs</span>
+                        <button onclick="switchTab('stacks')" class="text-xs font-mono text-emerald-400 hover:text-emerald-300">Konfigurieren →</button>
+                    </div>
+                </div>
+
+                <!-- Stack DevOps -->
+                <div class="sys-card p-5 space-y-3 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-mono text-amber-400 font-bold uppercase">DevOps</span>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-dark-950 text-gray-400 border border-dark-700">Stack</span>
+                        </div>
+                        <h4 class="text-base font-bold text-white mt-1">Git Hosting & Docker</h4>
+                        <p class="text-xs text-gray-400 mt-1">Private GitHub-Alternative mit Gitea und Docker Engine Runtime.</p>
+                    </div>
+                    <div class="pt-3 border-t border-dark-700 flex items-center justify-between">
+                        <span class="text-[11px] font-mono text-gray-500">Port 3000 & Docker</span>
+                        <button onclick="switchTab('stacks')" class="text-xs font-mono text-emerald-400 hover:text-emerald-300">Konfigurieren →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: DISCOVER / KATALOG                                                 -->
+    <!-- ========================================================================= -->
+    <div id="tab-content-discover" class="tab-content space-y-4 hidden">
+
+        <!-- Filter & Search Bar -->
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-dark-900/60 p-3 rounded-2xl border border-dark-700">
+            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full sm:w-auto text-xs font-mono">
+                <button onclick="filterCategory('all')" class="cat-pill px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold transition">
+                    Alle ({{ packages|length }})
+                </button>
+                <button onclick="filterCategory('Webserver')" class="cat-pill px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+                    Webserver
+                </button>
+                <button onclick="filterCategory('Runtimes')" class="cat-pill px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+                    Runtimes
+                </button>
+                <button onclick="filterCategory('Databases')" class="cat-pill px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+                    Datenbanken
+                </button>
+                <button onclick="filterCategory('Game Server')" class="cat-pill px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+                    Game Server
+                </button>
+                <button onclick="filterCategory('Tools')" class="cat-pill px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+                    Web-GUIs
+                </button>
+                <button onclick="filterCategory('Monitoring')" class="cat-pill px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+                    Monitoring
+                </button>
+                <button onclick="filterCategory('Security')" class="cat-pill px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+                    Sicherheit
+                </button>
+                <button onclick="filterCategory('DevOps')" class="cat-pill px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+                    DevOps
+                </button>
+            </div>
+            <div class="w-full sm:w-64">
+                <input type="text" id="packageSearchInput" oninput="searchPackages(this.value)" placeholder="Paket suchen..." class="w-full px-3 py-1.5 text-xs font-mono bg-dark-950 border border-dark-700 rounded-lg text-white placeholder-gray-500 outline-none focus:border-emerald-500">
+            </div>
+        </div>
+
+        <!-- Package Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="packagesGrid">
+            {% for p in packages %}
+            <div class="sys-card p-5 flex flex-col justify-between pkg-card transition hover:border-dark-600" data-category="{{ p.category }}" data-name="{{ p.name.lower() }} {{ p.key.lower() }}">
+                <div class="space-y-2.5">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-base font-bold text-white tracking-tight">{{ p.name }}</h3>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-dark-950 border border-dark-700 text-gray-400">
+                                    {{ p.category }}
+                                </span>
+                            </div>
+                            {% if p.configured_domain %}
+                            <div class="flex items-center gap-1.5 mt-1 text-[11px] font-mono text-emerald-400">
+                                <span>🌐</span>
+                                <span>{{ p.configured_domain }}</span>
+                                <span class="text-gray-500">({{ 'SSL' if p.ssl_enabled else 'HTTP' }})</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        {% if p.installed %}
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-emerald flex items-center gap-1 shrink-0">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            Installiert
+                        </span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-gray shrink-0">
+                            Verfügbar
+                        </span>
                         {% endif %}
                     </div>
 
-                    {% if p.installed %}
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-emerald flex items-center gap-1 shrink-0">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                        Aktiv
-                    </span>
-                    {% else %}
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-gray shrink-0">
-                        Nicht installiert
-                    </span>
-                    {% endif %}
+                    <p class="text-xs text-gray-400 leading-relaxed font-sans">{{ p.desc }}</p>
                 </div>
 
-                <p class="text-xs text-gray-400 leading-relaxed font-sans">{{ p.desc }}</p>
+                <div class="pt-4 mt-4 border-t border-dark-700 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        {% if p.installed and p.service_name %}
+                        <span class="text-[10px] font-mono px-1.5 py-0.2 rounded {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' if p.service_status == 'active' else 'bg-dark-800 text-gray-400' }}">
+                            {{ 'Service Aktiv' if p.service_status == 'active' else p.service_status }}
+                        </span>
+                        {% else %}
+                        <span class="text-[11px] font-mono text-gray-500 truncate max-w-[120px]" title="{{ p.version }}">
+                            {{ p.version }}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                        <!-- Web-Link falls vorhanden -->
+                        {% if p.installed and p.target_url %}
+                        <a href="{{ p.target_url }}" target="_blank" class="px-2.5 py-1.5 rounded-lg text-xs font-mono text-cyan-400 hover:text-cyan-300 bg-dark-850 hover:bg-dark-800 border border-dark-700 transition flex items-center gap-1" title="{{ p.target_url }} öffnen">
+                            <span>Öffnen</span>
+                            <span>↗</span>
+                        </a>
+                        {% endif %}
+
+                        <!-- phpMyAdmin Admin User Button -->
+                        {% if p.key == 'phpmyadmin' and p.installed %}
+                        <button type="button" onclick="openPmaAdminModal()" class="px-2 py-1.5 rounded-lg text-xs font-mono text-amber-400 hover:text-amber-300 bg-dark-850 hover:bg-dark-800 border border-amber-500/30 transition flex items-center gap-1" title="MySQL Administrator für phpMyAdmin anlegen">
+                            <span>Admin</span>
+                        </button>
+                        {% endif %}
+
+                        <!-- Service Neustart Button (falls Dienst installiert) -->
+                        {% if p.installed and p.service_name %}
+                        <button type="button" onclick="restartService('{{ p.key }}', '{{ p.name }}')" class="p-1.5 rounded-lg text-xs font-mono text-teal-400 hover:text-teal-300 bg-dark-850 hover:bg-dark-800 border border-dark-700 transition" title="Dienst neu starten">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        </button>
+                        {% endif %}
+
+                        <!-- Konfigurieren & Subdomain zuweisen Button -->
+                        {% if p.installed and p.web_configurable %}
+                        <button type="button" onclick="openConfigModal('{{ p.key }}', '{{ p.name }}', '{{ p.configured_domain or '' }}', '{{ p.default_subdomain_prefix or '' }}', {{ 'true' if p.requires_php else 'false' }})"
+                                class="p-1.5 rounded-lg text-xs font-mono text-indigo-400 hover:text-indigo-300 bg-dark-850 hover:bg-dark-800 border border-dark-700 transition" title="Domain / Routing konfigurieren">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                        </button>
+                        {% endif %}
+
+                        <!-- Installieren / Updaten Button -->
+                        <button type="button" onclick="startInstallJob('{{ p.key }}', '{{ p.name }}')"
+                                class="px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition flex items-center gap-1.5 {{ 'bg-dark-800 hover:bg-dark-750 text-gray-200 border border-dark-600' if p.installed else 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20' }}">
+                            <span>{{ 'Aktualisieren' if p.installed else 'Installieren' }}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: INSTALLED SOFTWARE & SERVICES                                      -->
+    <!-- ========================================================================= -->
+    <div id="tab-content-installed" class="tab-content space-y-4 hidden">
+        <div class="sys-card overflow-hidden">
+            <div class="p-4 border-b border-dark-700 bg-dark-950/40 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider">Erkannte & Aktive Dienste</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Alle auf dem System registrierten Pakete, Systemd-Daemons und Webanwendungen.</p>
+                </div>
+                <span class="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                    {{ installed_count }} Dienste bereit
+                </span>
             </div>
 
-            <div class="pt-4 mt-4 border-t border-dark-700 flex items-center justify-between">
-                <div class="text-[11px] font-mono text-gray-500 truncate max-w-[130px]" title="{{ p.version }}">
-                    {{ p.version }}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900/80 text-gray-400 uppercase text-[10px] border-b border-dark-700">
+                        <tr>
+                            <th class="p-3.5">Software / Dienst</th>
+                            <th class="p-3.5">Kategorie</th>
+                            <th class="p-3.5">Systemd Status</th>
+                            <th class="p-3.5">VHost / Web-Routing</th>
+                            <th class="p-3.5 text-right">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-800">
+                        {% for p in packages if p.installed %}
+                        <tr class="hover:bg-dark-850/50 transition">
+                            <td class="p-3.5">
+                                <div class="font-bold text-white text-sm">{{ p.name }}</div>
+                                <div class="text-[10px] text-gray-500">{{ p.version }}</div>
+                            </td>
+                            <td class="p-3.5">
+                                <span class="px-2 py-0.5 rounded bg-dark-950 border border-dark-700 text-gray-300 text-[10px]">
+                                    {{ p.category }}
+                                </span>
+                            </td>
+                            <td class="p-3.5">
+                                {% if p.service_name %}
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full {{ 'bg-emerald-400 animate-pulse' if p.service_status == 'active' else 'bg-gray-500' }}"></span>
+                                    <span class="text-xs {{ 'text-emerald-400 font-bold' if p.service_status == 'active' else 'text-gray-400' }}">
+                                        {{ p.service_name }}: {{ p.service_status }}
+                                    </span>
+                                </div>
+                                {% else %}
+                                <span class="text-gray-500">CLI / Library</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-3.5">
+                                {% if p.configured_domain %}
+                                <a href="{{ p.target_url }}" target="_blank" class="text-emerald-400 hover:underline flex items-center gap-1">
+                                    <span>🌐 {{ p.configured_domain }}</span>
+                                    <span>↗</span>
+                                </a>
+                                {% elif p.port %}
+                                <span class="text-gray-400">Port {{ p.port }}</span>
+                                {% else %}
+                                <span class="text-gray-600">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-3.5 text-right">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    {% if p.service_name %}
+                                    <button onclick="restartService('{{ p.key }}', '{{ p.name }}')" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-750 text-teal-400 rounded border border-dark-700 text-[11px]" title="Service neu starten">
+                                        Neustart
+                                    </button>
+                                    {% endif %}
+                                    {% if p.web_configurable %}
+                                    <button onclick="openConfigModal('{{ p.key }}', '{{ p.name }}', '{{ p.configured_domain or '' }}', '{{ p.default_subdomain_prefix or '' }}', {{ 'true' if p.requires_php else 'false' }})" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-750 text-indigo-400 rounded border border-dark-700 text-[11px]">
+                                        Routing
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: STACKS (PTERODACTYL, LEMP, MONITORING, DEVOPS)                    -->
+    <!-- ========================================================================= -->
+    <div id="tab-content-stacks" class="tab-content space-y-6 hidden">
+
+        <!-- Pterodactyl Game Server Stack Card (Detailansicht) -->
+        <div class="sys-card p-6 border border-purple-500/40 bg-gradient-to-b from-dark-900 to-purple-950/20 space-y-5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-dark-700 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-xl text-purple-400">
+                        🎮
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-white tracking-tight">Pterodactyl Game Server Stack</h3>
+                        <p class="text-xs text-gray-400 font-mono">Web-Panel, Wings Node Daemon, Docker Isolation & dynamische Game-Ports.</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <form action="{{ url_for('packages.whitelist_ptero_ports') }}" method="POST">
+                        <button type="submit" class="px-4 py-2 rounded-xl text-xs font-mono font-medium {{ 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20' if not ptero_ports.is_safe else 'bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-600' }} transition flex items-center gap-2">
+                            <span>🛡️</span>
+                            <span>{{ 'Fehlende Ports jetzt in UFW freigeben' if not ptero_ports.is_safe else 'Firewall-Ports synchronisieren' }}</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Port-Schutz Status & Erkennung -->
+            <div class="p-4 bg-dark-950/80 border {{ 'border-amber-500/30 bg-amber-500/5' if not ptero_ports.is_safe else 'border-dark-700' }} rounded-xl space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-white font-mono uppercase flex items-center gap-2">
+                        <span>📡</span>
+                        <span>Erkannte Pterodactyl & Gameserver Ports</span>
+                    </span>
+                    <span class="text-[11px] font-mono {{ 'text-emerald-400' if ptero_ports.is_safe else 'text-amber-400 font-bold' }}">
+                        {{ 'Alle Ports in UFW Firewall geschützt' if ptero_ports.is_safe else ptero_ports.missing_ports|length ~ ' Ports blockiert!' }}
+                    </span>
                 </div>
 
-                <div class="flex items-center gap-1.5">
-                    <!-- Web-Link falls konfiguriert oder Port -->
-                    {% if p.installed and p.target_url %}
-                    <a href="{{ p.target_url }}" target="_blank" class="px-2.5 py-1.5 rounded-lg text-xs font-mono text-cyan-400 hover:text-cyan-300 bg-dark-850 hover:bg-dark-800 border border-dark-700 transition flex items-center gap-1" title="{{ p.target_url }} öffnen">
-                        <span>Öffnen</span>
-                        <span>↗</span>
-                    </a>
-                    {% endif %}
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {% for p in ptero_ports.detected_ports %}
+                    <div class="p-2.5 bg-dark-900 border {{ 'border-emerald-500/30' if p.is_allowed else 'border-amber-500/50' }} rounded-lg text-xs font-mono flex items-center justify-between">
+                        <div>
+                            <div class="font-bold text-white">{{ p.port }}/{{ p.proto.upper() }}</div>
+                            <div class="text-[10px] text-gray-400 truncate max-w-[120px]">{{ p.service }}</div>
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded {{ 'badge-emerald' if p.is_allowed else 'badge-amber' }}">
+                            {{ 'UFW Frei' if p.is_allowed else 'Gesperrt' }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
 
-                    <!-- phpMyAdmin Admin User Button -->
-                    {% if p.key == 'phpmyadmin' and p.installed %}
-                    <button type="button" onclick="openPmaAdminModal()" class="px-2.5 py-1.5 rounded-lg text-xs font-mono text-amber-400 hover:text-amber-300 bg-dark-850 hover:bg-dark-800 border border-amber-500/30 hover:border-amber-400 transition flex items-center gap-1" title="MySQL Administrator für phpMyAdmin anlegen">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                        <span>Admin</span>
-                    </button>
-                    {% endif %}
-
-                    <!-- Konfigurieren & Subdomain zuweisen Button -->
-                    {% if p.installed and p.web_configurable %}
-                    <button type="button" onclick="openConfigModal('{{ p.key }}', '{{ p.name }}', '{{ p.configured_domain or '' }}', '{{ p.default_subdomain_prefix or '' }}', {{ 'true' if p.requires_php else 'false' }})"
-                            class="p-1.5 rounded-lg text-xs font-mono text-indigo-400 hover:text-indigo-300 bg-dark-850 hover:bg-dark-800 border border-dark-700 transition" title="Domain / Routing konfigurieren">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
-                    </button>
-                    {% endif %}
-
-                    <!-- Installieren / Updaten Button -->
-                    <button type="button" onclick="triggerInstall('{{ p.key }}', '{{ p.name }}')"
-                            class="px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition flex items-center gap-1.5 {{ 'bg-dark-800 hover:bg-dark-750 text-gray-200 border border-dark-600' if p.installed else 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20' }}">
-                        <span>{{ 'Update' if p.installed else 'Installieren' }}</span>
-                    </button>
+            <!-- Komponenten-Status -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                <div class="p-3 bg-dark-900 rounded-xl border border-dark-700 flex items-center justify-between">
+                    <div>
+                        <div class="font-bold text-gray-200">Wings Node Daemon</div>
+                        <div class="text-[10px] text-gray-500">Port 8080 & 2022</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-[10px] badge-emerald">Aktiv</span>
+                </div>
+                <div class="p-3 bg-dark-900 rounded-xl border border-dark-700 flex items-center justify-between">
+                    <div>
+                        <div class="font-bold text-gray-200">Pterodactyl Panel</div>
+                        <div class="text-[10px] text-gray-500">/var/www/pterodactyl</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-[10px] badge-emerald">Bereit</span>
+                </div>
+                <div class="p-3 bg-dark-900 rounded-xl border border-dark-700 flex items-center justify-between">
+                    <div>
+                        <div class="font-bold text-gray-200">Docker Game Runtime</div>
+                        <div class="text-[10px] text-gray-500">Container Isolation</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-[10px] badge-emerald">Online</span>
                 </div>
             </div>
         </div>
-        {% endfor %}
+
+        <!-- Weitere Stacks -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for stk in stacks if stk.stack_key != 'pterodactyl' %}
+            <div class="sys-card p-5 space-y-4 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-mono text-emerald-400 font-bold uppercase">{{ stk.category }}</span>
+                        {% if stk.is_fully_installed %}
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded badge-emerald">Vollständig bereit</span>
+                        {% else %}
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded badge-gray">Teilweise installiert</span>
+                        {% endif %}
+                    </div>
+                    <h3 class="text-base font-bold text-white mt-1">{{ stk.name }}</h3>
+                    <p class="text-xs text-gray-400 leading-relaxed font-sans mt-1">{{ stk.description }}</p>
+
+                    <div class="mt-3 pt-3 border-t border-dark-700 space-y-1.5 text-xs font-mono">
+                        <span class="text-[10px] text-gray-500 uppercase font-bold block">Enthaltene Komponenten:</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            {% for c in stk.components_detail %}
+                            <span class="px-2 py-0.5 rounded text-[10px] {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' if c.installed else 'bg-dark-950 text-gray-500 border border-dark-800' }}">
+                                {{ c.key }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 5: EIGENE APPS & SCP / ZIP IMPORTER (KONSOLIDIERT)                    -->
+    <!-- ========================================================================= -->
+    <div id="tab-content-apps" class="tab-content space-y-6 hidden">
+
+        <!-- App Upload & Manifest Deployment Form -->
+        <div class="sys-card p-6 border-l-4 border-l-emerald-500 space-y-4">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h2 class="text-base font-bold text-white tracking-tight">Gehärteter App- & SCP-Importer</h2>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">Deploye eigene PHP-, Node- oder Static-Webanwendungen vollautomatisch via ZIP-Archiv und deklarativer <code class="text-emerald-400">syscore.manifest.json</code>.</p>
+                </div>
+                <a href="{{ url_for('packages.download_starter_template') }}" class="px-3.5 py-1.5 rounded-xl text-xs font-mono bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white transition flex items-center gap-1.5 shrink-0 border border-dark-700">
+                    <span>📦</span>
+                    <span>Starter-Template (.zip)</span>
+                </a>
+            </div>
+
+            <form action="{{ url_for('packages.deploy_app') }}" method="POST" enctype="multipart/form-data" class="space-y-4 pt-2 text-xs font-mono">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-400 mb-1.5 font-bold">Ziel-Domain oder Subdomain</label>
+                        <input type="text" name="domain" required placeholder="z.B. app.amfearliath.de" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                        <p class="text-[10px] text-gray-500 mt-1">Die App wird unter /var/www/&lt;domain&gt; isoliert entpackt.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-gray-400 mb-1.5 font-bold">App-Archiv (.zip mit Manifest)</label>
+                        <input type="file" name="app_zip" accept=".zip" required class="w-full px-3 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-gray-400 file:mr-3 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-mono file:bg-dark-800 file:text-gray-200">
+                        <p class="text-[10px] text-gray-500 mt-1">Geprüft mit Anti-Zip-Slip & deklarativer Action-Registry.</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition flex items-center gap-2">
+                        <span>🚀</span>
+                        <span>App sicher validieren & deployen</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Bisherige App Deployments -->
+        <div class="sys-card overflow-hidden">
+            <div class="p-4 border-b border-dark-700 bg-dark-950/40">
+                <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider">Bereitgestellte Web-Anwendungen</h3>
+            </div>
+            {% if app_deployments %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900/80 text-gray-400 uppercase text-[10px] border-b border-dark-700">
+                        <tr>
+                            <th class="p-3.5">Domain</th>
+                            <th class="p-3.5">App-Name</th>
+                            <th class="p-3.5">Version & Typ</th>
+                            <th class="p-3.5">Status</th>
+                            <th class="p-3.5">Bereitgestellt am</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-800">
+                        {% for app in app_deployments %}
+                        <tr class="hover:bg-dark-850/50 transition">
+                            <td class="p-3.5">
+                                <a href="https://{{ app.domain }}" target="_blank" class="text-emerald-400 font-bold hover:underline">
+                                    {{ app.domain }} ↗
+                                </a>
+                            </td>
+                            <td class="p-3.5 text-white font-bold">{{ app.app_name }}</td>
+                            <td class="p-3.5 text-gray-400">v{{ app.version }} ({{ app.app_type }})</td>
+                            <td class="p-3.5">
+                                <span class="px-2 py-0.5 rounded text-[10px] badge-emerald">{{ app.status }}</span>
+                            </td>
+                            <td class="p-3.5 text-gray-500">{{ app.deployed_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-8 text-center text-xs font-mono text-gray-500">
+                Noch keine Web-Apps über das Manifest-System bereitgestellt.
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 6: REPOSITORIES                                                       -->
+    <!-- ========================================================================= -->
+    <div id="tab-content-repositories" class="tab-content space-y-4 hidden">
+        <div class="sys-card overflow-hidden">
+            <div class="p-4 border-b border-dark-700 bg-dark-950/40 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider">Paketquellen & Kataloge</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Offizielle, verifizierte und Community-Repositories.</p>
+                </div>
+            </div>
+
+            <div class="divide-y divide-dark-800 text-xs font-mono">
+                {% for r in repositories %}
+                <div class="p-4 flex items-center justify-between hover:bg-dark-850/40 transition">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-bold text-white">{{ r.name }}</span>
+                            <span class="px-2 py-0.2 rounded text-[10px] font-mono {{ 'badge-emerald' if r.trust_level == 'Official' else ('badge-teal' if r.trust_level == 'Verified' else 'badge-amber') }}">
+                                {{ r.trust_level }}
+                            </span>
+                        </div>
+                        <div class="text-[11px] text-gray-400">{{ r.url or 'Lokale native Quelle' }}</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <form action="{{ url_for('packages.toggle_repository', repo_id=r.id) }}" method="POST">
+                            <button type="submit" class="px-3 py-1.5 rounded-lg text-xs font-mono {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' if r.is_enabled else 'bg-dark-800 text-gray-500' }}">
+                                {{ 'Aktiviert' if r.is_enabled else 'Deaktiviert' }}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 7: ACTIVITIES & JOBS                                                  -->
+    <!-- ========================================================================= -->
+    <div id="tab-content-activities" class="tab-content space-y-4 hidden">
+        <div class="sys-card overflow-hidden">
+            <div class="p-4 border-b border-dark-700 bg-dark-950/40 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider">Installations- & Update-Jobs</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Asynchrone Hintergrund-Protokolle und Status aller Aktionen.</p>
+                </div>
+            </div>
+
+            {% if recent_jobs %}
+            <div class="divide-y divide-dark-800 text-xs font-mono">
+                {% for j in recent_jobs %}
+                <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-dark-850/40 transition">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-white">#{{ j.id }} {{ j.title }}</span>
+                            <span class="px-2 py-0.2 rounded text-[10px] {{ 'badge-emerald' if j.status == 'completed' else ('badge-amber' if j.status in ['running', 'pending'] else 'badge-rose') }}">
+                                {{ j.status|upper }}
+                            </span>
+                        </div>
+                        <div class="text-[11px] text-gray-500 flex items-center gap-3">
+                            <span>Gestartet von: {{ j.started_by }}</span>
+                            <span>{{ j.created_at }}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <button onclick="viewJobLogs({{ j.id }})" class="px-3 py-1.5 rounded-lg text-xs font-mono bg-dark-800 hover:bg-dark-750 text-gray-300 hover:text-white border border-dark-700 transition">
+                            Logs ansehen 📋
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-8 text-center text-xs font-mono text-gray-500">
+                Noch keine Hintergrund-Jobs ausgeführt.
+            </div>
+            {% endif %}
+        </div>
     </div>
 
 </div>
 
-<!-- MODAL: Pack-Routing & Subdomain Konfigurator -->
+<!-- ========================================================================= -->
+<!-- MODALS                                                                    -->
+<!-- ========================================================================= -->
+
+<!-- MODAL: Job Logs & Live Terminal -->
+<div id="modal-job-logs" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-2xl p-6 space-y-4 animate-in fade-in duration-200 flex flex-col max-h-[85vh]">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span>⚡</span>
+                <span id="log-modal-title">Job-Ausführungsprotokoll</span>
+            </h3>
+            <button onclick="closeModal('modal-job-logs')" class="text-gray-400 hover:text-white text-lg">&times;</button>
+        </div>
+
+        <div class="space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-gray-400">
+                <span id="log-modal-status">Status: Läuft...</span>
+                <span id="log-modal-progress">0%</span>
+            </div>
+            <div class="w-full bg-dark-950 rounded-full h-1.5 border border-dark-700 overflow-hidden">
+                <div id="log-modal-progressbar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div id="log-modal-terminal" class="flex-1 min-h-[300px] max-h-[450px] p-4 bg-dark-950 border border-dark-700 rounded-xl font-mono text-xs text-gray-300 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+            Initialisiere Job...
+        </div>
+
+        <div class="flex justify-end pt-2 border-t border-dark-700">
+            <button type="button" onclick="closeModal('modal-job-logs')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono">Schließen</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Subdomain & Routing Konfigurator -->
 <div id="modal-pkg-config" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
     <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
         <div class="flex items-center justify-between border-b border-dark-700 pb-3">
             <h3 class="text-base font-bold text-white flex items-center gap-2">
-                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
                 <span>Paket-Routing: <span id="cfg-pkg-name" class="text-emerald-400"></span></span>
             </h3>
-            <button onclick="closeModal('modal-pkg-config')" class="text-gray-400 hover:text-white">&times;</button>
+            <button onclick="closeModal('modal-pkg-config')" class="text-gray-400 hover:text-white text-lg">&times;</button>
         </div>
 
         <form id="pkgConfigForm" method="POST" class="space-y-4 text-xs font-mono">
             <div>
                 <label class="block text-gray-400 mb-1">Gewünschte Subdomain oder Domain</label>
-                <input type="text" name="domain" id="cfg-domain-input" required placeholder="z.B. phpmyadmin.amfearliath.de" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
-                <p class="text-[10px] text-gray-500 mt-1">Hierfür wird automatisch ein dedizierter NGINX VHost angelegt.</p>
+                <input type="text" name="domain" id="cfg-domain-input" required placeholder="z.B. panel.amfearliath.de" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
             </div>
 
             <div id="cfg-php-container">
@@ -150,31 +755,6 @@
                 <label for="cfg-auto-ssl" class="text-gray-300">Let's Encrypt SSL-Zertifikat automatisch anfordern & aktivieren</label>
             </div>
 
-            <!-- Spezielle Option: phpMyAdmin MySQL Administrator anlegen -->
-            <div id="cfg-pma-admin-section" class="p-3.5 bg-dark-950/80 border border-amber-500/30 rounded-xl space-y-3 hidden">
-                <div class="flex items-center justify-between">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" name="create_pma_admin" value="1" id="cfg-create-pma-admin" onchange="togglePmaAdminFields(this.checked)" class="w-4 h-4 rounded bg-dark-900 border-dark-700 text-amber-500 focus:ring-0">
-                        <span class="text-xs font-bold text-amber-400">MySQL Administrator für phpMyAdmin erstellen</span>
-                    </label>
-                    <span class="text-[10px] text-gray-500 font-mono">ALL PRIVILEGES</span>
-                </div>
-                <div id="cfg-pma-admin-fields" class="space-y-2.5 pt-1 hidden">
-                    <div>
-                        <label class="block text-[11px] text-gray-400 mb-1">Administrator-Benutzername</label>
-                        <input type="text" name="pma_admin_user" value="pma_admin" placeholder="pma_admin" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 focus:border-amber-500 rounded-lg text-white outline-none text-xs">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] text-gray-400 mb-1">Passwort</label>
-                        <div class="flex gap-2">
-                            <input type="text" name="pma_admin_pass" id="cfg-pma-admin-pass" placeholder="Sicheres Passwort" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 focus:border-amber-500 rounded-lg text-white outline-none text-xs">
-                            <button type="button" onclick="generateRandomPass('cfg-pma-admin-pass')" class="px-3 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-lg text-xs shrink-0">🎲 Generieren</button>
-                        </div>
-                    </div>
-                    <p class="text-[10px] text-gray-500">Erstellt einen MariaDB/MySQL Superuser mit <code class="text-amber-400">ALL PRIVILEGES ... WITH GRANT OPTION</code> auf <code class="text-gray-300">localhost</code> und <code class="text-gray-300">127.0.0.1</code>.</p>
-                </div>
-            </div>
-
             <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
                 <button type="button" onclick="closeModal('modal-pkg-config')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
                 <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">VHost anlegen & bereitstellen</button>
@@ -183,12 +763,11 @@
     </div>
 </div>
 
-<!-- MODAL: phpMyAdmin Admin User Standalone Erstellung -->
+<!-- MODAL: phpMyAdmin Standalone Admin User -->
 <div id="modal-pma-admin" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
     <div class="sys-card w-full max-w-md p-6 space-y-5 animate-in fade-in duration-200">
         <div class="flex items-center justify-between border-b border-dark-700 pb-3">
             <h3 class="text-base font-bold text-white flex items-center gap-2">
-                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                 <span>MySQL Administrator für phpMyAdmin</span>
             </h3>
             <button onclick="closeModal('modal-pma-admin')" class="text-gray-400 hover:text-white">&times;</button>
@@ -208,10 +787,6 @@
                 </div>
             </div>
 
-            <div class="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300/90 leading-relaxed font-sans">
-                Dieser Benutzer erhält volle Superuser-Rechte (<code class="bg-dark-900 px-1 py-0.5 rounded text-amber-400 font-mono">GRANT ALL PRIVILEGES ON *.* WITH GRANT OPTION</code>) für Socket (<code class="font-mono">localhost</code>) und TCP (<code class="font-mono">127.0.0.1</code>), sodass das Einloggen in phpMyAdmin sofort und uneingeschränkt möglich ist.
-            </div>
-
             <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
                 <button type="button" onclick="closeModal('modal-pma-admin')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
                 <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-black font-bold rounded-xl">Administrator einrichten</button>
@@ -224,101 +799,192 @@
 
 {% block scripts %}
 <script>
+// --- Tab Navigation Engine ---
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-emerald-500/10', 'text-emerald-400', 'border', 'border-emerald-500/20', 'font-semibold');
+        btn.classList.add('text-gray-400');
+    });
+
+    const targetContent = document.getElementById('tab-content-' + tabId);
+    const targetBtn = document.getElementById('tab-btn-' + tabId);
+
+    if (targetContent) targetContent.classList.remove('hidden');
+    if (targetBtn) {
+        targetBtn.classList.remove('text-gray-400');
+        targetBtn.classList.add('bg-emerald-500/10', 'text-emerald-400', 'border', 'border-emerald-500/20', 'font-semibold');
+    }
+
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabId);
+    window.history.replaceState({}, '', url);
+}
+
+// Initialer Tab-Aufruf
+document.addEventListener("DOMContentLoaded", function() {
+    const active = "{{ active_tab or 'overview' }}";
+    switchTab(active);
+});
+
+// --- Modal Helper ---
 function closeModal(id) {
-    const m = document.getElementById(id);
-    if (m) m.classList.add('hidden');
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
 }
 
-function generateRandomPass(elementId) {
-    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*';
-    let pass = '';
-    for (let i = 0; i < 16; i++) {
-        pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    const el = document.getElementById(elementId);
-    if (el) el.value = pass;
-}
+// --- Suche & Kategorie Filter ---
+function filterCategory(cat) {
+    document.querySelectorAll('.cat-pill').forEach(btn => {
+        btn.classList.remove('bg-emerald-500/10', 'text-emerald-400', 'border', 'border-emerald-500/20', 'font-semibold');
+        btn.classList.add('text-gray-400');
+    });
+    event.currentTarget.classList.remove('text-gray-400');
+    event.currentTarget.classList.add('bg-emerald-500/10', 'text-emerald-400', 'border', 'border-emerald-500/20', 'font-semibold');
 
-function togglePmaAdminFields(show) {
-    const el = document.getElementById('cfg-pma-admin-fields');
-    if (el) {
-        if (show) {
-            el.classList.remove('hidden');
-            if (!document.getElementById('cfg-pma-admin-pass').value) {
-                generateRandomPass('cfg-pma-admin-pass');
-            }
+    document.querySelectorAll('.pkg-card').forEach(card => {
+        if (cat === 'all' || card.getAttribute('data-category') === cat) {
+            card.classList.remove('hidden');
         } else {
-            el.classList.add('hidden');
+            card.classList.add('hidden');
         }
-    }
+    });
 }
 
-function openPmaAdminModal() {
-    generateRandomPass('standalone-pma-pass');
-    document.getElementById('modal-pma-admin').classList.remove('hidden');
+function searchPackages(term) {
+    term = term.toLowerCase().trim();
+    document.querySelectorAll('.pkg-card').forEach(card => {
+        const nameData = card.getAttribute('data-name') || '';
+        if (!term || nameData.includes(term)) {
+            card.classList.remove('hidden');
+        } else {
+            card.classList.add('hidden');
+        }
+    });
 }
 
-function openConfigModal(pkgKey, pkgName, configuredDomain, defaultPrefix, requiresPhp) {
+// --- Service Neustart via AJAX ---
+function restartService(pkgKey, pkgName) {
+    if (!confirm(`Möchtest du den Dienst '${pkgName}' wirklich neu starten?`)) return;
+
+    fetch(`/packages/service/${pkgKey}/restart`, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Erfolg: ${data.message}`);
+            window.location.reload();
+        } else {
+            alert(`Fehler: ${data.error || data.message}`);
+        }
+    })
+    .catch(err => alert(`Netzwerkfehler: ${err}`));
+}
+
+// --- Asynchroner Installationsjob ---
+let currentJobEventSource = null;
+
+function startInstallJob(pkgKey, pkgName) {
+    if (!confirm(`Möchtest du '${pkgName}' jetzt über den Package Manager installieren?`)) return;
+
+    const modal = document.getElementById('modal-job-logs');
+    modal.classList.remove('hidden');
+    document.getElementById('log-modal-title').textContent = `Installation: ${pkgName}`;
+    document.getElementById('log-modal-status').textContent = 'Starte Job...';
+    document.getElementById('log-modal-progressbar').style.width = '5%';
+    document.getElementById('log-modal-terminal').textContent = 'Initialisiere Task im Hintergrund...\n';
+
+    fetch(`/packages/install/${pkgKey}`, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.job_id) {
+            listenToJob(data.job_id);
+        } else {
+            alert('Fehler beim Starten des Jobs.');
+        }
+    })
+    .catch(err => alert(`Fehler: ${err}`));
+}
+
+function listenToJob(jobId) {
+    if (currentJobEventSource) currentJobEventSource.close();
+
+    const terminal = document.getElementById('log-modal-terminal');
+    const pbar = document.getElementById('log-modal-progressbar');
+    const statusText = document.getElementById('log-modal-status');
+
+    currentJobEventSource = new EventSource(`/packages/api/jobs/stream/${jobId}`);
+
+    currentJobEventSource.onmessage = function(event) {
+        const line = event.data;
+        terminal.textContent += line + '\n';
+        terminal.scrollTop = terminal.scrollHeight;
+
+        if (line.includes('[STATUS] COMPLETED')) {
+            statusText.textContent = 'Status: Erfolgreich abgeschlossen!';
+            statusText.classList.add('text-emerald-400');
+            pbar.style.width = '100%';
+            currentJobEventSource.close();
+        } else if (line.includes('[STATUS] FAILED')) {
+            statusText.textContent = 'Status: Fehlgeschlagen!';
+            statusText.classList.add('text-rose-400');
+            currentJobEventSource.close();
+        } else {
+            // Regelmäßig Poll für Progress
+            fetch(`/packages/api/jobs/${jobId}`)
+                .then(r => r.json())
+                .then(j => {
+                    pbar.style.width = `${j.progress || 20}%`;
+                    document.getElementById('log-modal-progress').textContent = `${j.progress || 20}%`;
+                });
+        }
+    };
+}
+
+function viewJobLogs(jobId) {
+    const modal = document.getElementById('modal-job-logs');
+    modal.classList.remove('hidden');
+    document.getElementById('log-modal-title').textContent = `Job #${jobId} Protokoll`;
+    const terminal = document.getElementById('log-modal-terminal');
+    terminal.textContent = 'Lade Protokoll...\n';
+
+    fetch(`/packages/api/jobs/${jobId}`)
+        .then(r => r.json())
+        .then(job => {
+            document.getElementById('log-modal-status').textContent = `Status: ${job.status.toUpperCase()}`;
+            document.getElementById('log-modal-progress').textContent = `${job.progress}%`;
+            document.getElementById('log-modal-progressbar').style.width = `${job.progress}%`;
+            terminal.textContent = job.logs || 'Keine Logs vorhanden.';
+            terminal.scrollTop = terminal.scrollHeight;
+        });
+}
+
+// --- VHost Routing Modal ---
+function openConfigModal(pkgKey, pkgName, currentDomain, prefix, requiresPhp) {
     document.getElementById('cfg-pkg-name').textContent = pkgName;
-    document.getElementById('pkgConfigForm').action = "/packages/configure/" + pkgKey;
-
-    // phpMyAdmin spezifische Admin-Option ein-/ausblenden
-    const pmaSection = document.getElementById('cfg-pma-admin-section');
-    if (pmaSection) {
-        if (pkgKey === 'phpmyadmin') {
-            pmaSection.classList.remove('hidden');
-        } else {
-            pmaSection.classList.add('hidden');
-        }
-    }
-
-    // Standard Subdomain Vorschlag generieren anhand des aktuellen Hosts (z.B. phpmyadmin.amfearliath.de)
-    let suggestedDomain = configuredDomain;
-    if (!suggestedDomain) {
-        const hostParts = window.location.hostname.split('.');
-        if (hostParts.length >= 2) {
-            const rootDomain = hostParts.slice(-2).join('.');
-            suggestedDomain = (defaultPrefix || pkgKey) + '.' + rootDomain;
-        } else {
-            suggestedDomain = (defaultPrefix || pkgKey) + '.' + window.location.hostname;
-        }
-    }
-
-    document.getElementById('cfg-domain-input').value = suggestedDomain;
-
-    const phpContainer = document.getElementById('cfg-php-container');
-    if (requiresPhp) {
-        phpContainer.classList.remove('hidden');
-    } else {
-        phpContainer.classList.add('hidden');
-    }
-
+    document.getElementById('pkgConfigForm').action = `/packages/configure/${pkgKey}`;
+    const inp = document.getElementById('cfg-domain-input');
+    inp.value = currentDomain || (prefix ? `${prefix}.amfearliath.de` : '');
+    const phpC = document.getElementById('cfg-php-container');
+    if (phpC) phpC.style.display = requiresPhp ? 'block' : 'none';
     document.getElementById('modal-pkg-config').classList.remove('hidden');
 }
 
-function filterPackages(category) {
-    document.querySelectorAll(".pkg-tab-btn").forEach(btn => {
-        btn.classList.remove("bg-emerald-500/10", "text-emerald-400", "border", "border-emerald-500/20", "font-semibold");
-        btn.classList.add("text-gray-400");
-    });
-    event.target.classList.remove("text-gray-400");
-    event.target.classList.add("bg-emerald-500/10", "text-emerald-400", "border", "border-emerald-500/20", "font-semibold");
-
-    document.querySelectorAll(".pkg-card").forEach(card => {
-        if (category === "all" || card.getAttribute("data-category") === category) {
-            card.classList.remove("hidden");
-        } else {
-            card.classList.add("hidden");
-        }
-    });
+// --- PMA Admin Modal ---
+function openPmaAdminModal() {
+    document.getElementById('modal-pma-admin').classList.remove('hidden');
 }
 
-function triggerInstall(pkgKey, pkgName) {
-    if (!confirm(`Soll die Installation / Aktualisierung von "${pkgName}" jetzt im Live-Terminal gestartet werden?`)) {
-        return;
-    }
-    const formData = new FormData();
-    SysCore.runStreamingCommand(`/packages/install/${pkgKey}`, formData, `Installation: ${pkgName}`);
+function generateRandomPass(id) {
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*';
+    let pass = '';
+    for (let i = 0; i < 16; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    document.getElementById(id).value = pass;
 }
 </script>
 {% endblock %}

@@ -6,7 +6,8 @@ import config
 
 ALLOWED_SERVICES = set(config.MANAGED_SERVICES) | {
     "syscore", "syscore-panel", "certbot.timer", "clamav-daemon", "mysql", "mariadb",
-    "postgresql", "php8.2-fpm", "php8.3-fpm", "php8.4-fpm", "redis-server", "crowdsec", "docker"
+    "postgresql", "php8.2-fpm", "php8.3-fpm", "php8.4-fpm", "redis-server", "crowdsec", "docker",
+    "wings", "pteroq", "fail2ban", "apache2", "wireguard", "gitea", "uptime-kuma", "nginx"
 }
 
 ALLOWED_SERVICE_ACTIONS = {

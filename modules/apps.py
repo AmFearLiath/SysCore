@@ -289,8 +289,8 @@ def create_app_database(db_name, db_user, db_pass):
 @login_required
 @role_required(["root_admin", "web_admin"])
 def index():
-    deployments = query_db("SELECT * FROM app_deployments ORDER BY deployed_at DESC")
-    return render_template("apps.html", deployments=deployments, sample_manifest_json=json.dumps(SAMPLE_MANIFEST, indent=2))
+    # Menü-Konsolidierung: App-Importer ist nun integrierter Bestandteil des Package Managers
+    return redirect(url_for("packages.index", tab="apps"))
 
 @apps_bp.route("/deploy", methods=["POST"])
 @login_required
@@ -299,12 +299,12 @@ def deploy():
     domain = request.form.get("domain", "").strip().lower()
     if not re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", domain):
         flash("Ungültige Domain.", "error")
-        return redirect(url_for("apps.index"))
+        return redirect(url_for("packages.index", tab="apps"))
 
     zip_file = request.files.get("app_zip")
     if not zip_file or not zip_file.filename.endswith(".zip"):
         flash("Bitte eine gültige .zip Datei auswählen.", "error")
-        return redirect(url_for("apps.index"))
+        return redirect(url_for("packages.index", tab="apps"))
 
     # Zielverzeichnis vorbereiten
     target_dir = os.path.join(WEB_ROOT_BASE, domain)
@@ -318,14 +318,14 @@ def deploy():
         manifest_path = os.path.join(target_dir, "syscore.manifest.json")
         if not os.path.exists(manifest_path):
             flash("Deployment fehlgeschlagen: Keine 'syscore.manifest.json' im Root des Archivs gefunden.", "error")
-            return redirect(url_for("apps.index"))
+            return redirect(url_for("packages.index", tab="apps"))
 
         with open(manifest_path, "r", encoding="utf-8") as f:
             try:
                 manifest = json.load(f)
             except Exception as e:
                 flash(f"Deployment fehlgeschlagen: 'syscore.manifest.json' ist kein valides JSON: {e}", "error")
-                return redirect(url_for("apps.index"))
+                return redirect(url_for("packages.index", tab="apps"))
 
         # Strikte Schema- und Sicherheitsvalidierung
         validate_manifest(manifest)
@@ -426,7 +426,7 @@ def deploy():
     except Exception as e:
         flash(f"Deployment-Sicherheitsfehler: {str(e)}", "error")
 
-    return redirect(url_for("apps.index"))
+    return redirect(url_for("packages.index", tab="apps"))
 
 @apps_bp.route("/starter-template")
 @login_required
