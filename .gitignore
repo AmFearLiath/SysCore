@@ -61,6 +61,11 @@ ENV/
 *.log
 logs/
 
+# Private Instructions & Security Audits (Do not sync to GitHub)
+Anweisung*.md
+Allgemeine Sicherheit*.md
+*.instruction.md
+
 # IDE & Editor Settings
 .vscode/
 .idea/
