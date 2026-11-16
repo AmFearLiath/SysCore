@@ -289,26 +289,39 @@
     <div class="flex-1 flex w-full relative">
         <!-- Sidebar Navigation (Sticky Fixierung beim Scrollen) -->
         <aside id="main-sidebar"
-            class="w-64 bg-dark-900/60 border-r border-dark-700 shrink-0 hidden md:flex flex-col justify-between sticky top-14 sm:top-16 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] overflow-y-auto self-start z-30">
-            <div class="p-4 space-y-6">
-                <!-- Navigation Section: Core Management -->
-                <div>
-                    <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">
-                        Verwaltung</div>
-                    <nav class="space-y-1 text-sm">
-                        <a href="{{ url_for('system.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'system' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
-                                </path>
-                            </svg>
-                            <span>Dashboard & Metriken</span>
-                        </a>
+            class="w-64 bg-dark-900/60 border-r border-dark-700 shrink-0 hidden md:flex flex-col justify-between sticky top-14 sm:top-16 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] overflow-y-auto self-start z-30 select-none">
+            <div class="p-3.5 space-y-4">
+                <!-- 1. Top Single Item: Dashboard -->
+                <nav class="space-y-1 text-sm font-medium">
+                    <a href="{{ url_for('system.index') }}"
+                        class="flex items-center gap-3 px-3 py-2 rounded-xl transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold shadow-sm' if request.blueprint == 'system' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                            </path>
+                        </svg>
+                        <span>Dashboard & Metriken</span>
+                    </a>
+                </nav>
 
+                <!-- 2. Web & Hosting (Collapsible) -->
+                <div class="nav-group" data-nav-group="web">
+                    <button type="button" onclick="toggleNavGroup('web')"
+                        class="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-mono uppercase text-gray-500 hover:text-gray-300 font-bold tracking-wider transition group cursor-pointer rounded-lg hover:bg-dark-800/40">
+                        <span class="flex items-center gap-2">
+                            <span>Web & Hosting</span>
+                            {% if request.blueprint in ['webserver', 'apps', 'files', 'database'] %}
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            {% endif %}
+                        </span>
+                        <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300 transform transition-transform duration-200 nav-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <nav class="space-y-1 text-sm mt-1 pl-2 border-l border-dark-800 ml-3.5 nav-subitems transition-all duration-200">
                         <a href="{{ url_for('webserver.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'webserver' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'webserver' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9">
                                 </path>
@@ -316,19 +329,18 @@
                             <span>Webserver & Domains</span>
                         </a>
 
-                        <a href="{{ url_for('mail.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'mail' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <a href="{{ url_for('apps.index') }}"
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
-                                </path>
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                             </svg>
-                            <span>E-Mail-Zentrale</span>
+                            <span>App-Importer (ZIP)</span>
                         </a>
 
                         <a href="{{ url_for('files.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z">
                                 </path>
@@ -337,55 +349,53 @@
                         </a>
 
                         <a href="{{ url_for('database.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'database' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'database' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4">
                                 </path>
                             </svg>
                             <span>Datenbanken (MySQL)</span>
                         </a>
+                    </nav>
+                </div>
 
-                        <a href="{{ url_for('apps.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- 3. Kommunikation -->
+                <div>
+                    <div class="px-3 py-1.5 text-[10px] font-mono uppercase text-gray-500 font-bold tracking-wider">
+                        Kommunikation
+                    </div>
+                    <nav class="space-y-1 text-sm mt-1">
+                        <a href="{{ url_for('mail.index') }}"
+                            class="flex items-center gap-3 px-3 py-2 rounded-xl transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold shadow-sm' if request.blueprint == 'mail' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                            </svg>
-                            <span>App-Importer (ZIP)</span>
-                        </a>
-
-                        <a href="{{ url_for('backups.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'backups' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
                                 </path>
                             </svg>
-                            <span>Backups & Restore</span>
-                        </a>
-
-                        <a href="{{ url_for('users.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'users' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
-                                </path>
-                            </svg>
-                            <span>Benutzer & Rollen</span>
+                            <span>E-Mail-Zentrale</span>
                         </a>
                     </nav>
                 </div>
 
-                <!-- Navigation Section: System & Werkzeuge -->
-                <div>
-                    <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">
-                        System & Tools</div>
-                    <nav class="space-y-1 text-sm">
+                <!-- 4. Sicherheit & Schutz (Collapsible) -->
+                <div class="nav-group" data-nav-group="security">
+                    <button type="button" onclick="toggleNavGroup('security')"
+                        class="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-mono uppercase text-gray-500 hover:text-gray-300 font-bold tracking-wider transition group cursor-pointer rounded-lg hover:bg-dark-800/40">
+                        <span class="flex items-center gap-2">
+                            <span>Sicherheit & Schutz</span>
+                            {% if request.blueprint in ['security', 'backups'] %}
+                            <span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>
+                            {% endif %}
+                        </span>
+                        <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300 transform transition-transform duration-200 nav-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <nav class="space-y-1 text-sm mt-1 pl-2 border-l border-dark-800 ml-3.5 nav-subitems transition-all duration-200">
                         <a href="{{ url_for('security.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'security' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'security' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
                                 </path>
@@ -393,9 +403,36 @@
                             <span>Sicherheitszentrale</span>
                         </a>
 
+                        <a href="{{ url_for('backups.index') }}"
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'backups' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                                </path>
+                            </svg>
+                            <span>Backups & Restore</span>
+                        </a>
+                    </nav>
+                </div>
+
+                <!-- 5. Server & System (Collapsible) -->
+                <div class="nav-group" data-nav-group="system">
+                    <button type="button" onclick="toggleNavGroup('system')"
+                        class="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-mono uppercase text-gray-500 hover:text-gray-300 font-bold tracking-wider transition group cursor-pointer rounded-lg hover:bg-dark-800/40">
+                        <span class="flex items-center gap-2">
+                            <span>Server & System</span>
+                            {% if request.blueprint in ['packages', 'cron', 'users', 'settings'] %}
+                            <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+                            {% endif %}
+                        </span>
+                        <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300 transform transition-transform duration-200 nav-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <nav class="space-y-1 text-sm mt-1 pl-2 border-l border-dark-800 ml-3.5 nav-subitems transition-all duration-200">
                         <a href="{{ url_for('packages.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'packages' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'packages' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                             </svg>
@@ -403,17 +440,27 @@
                         </a>
 
                         <a href="{{ url_for('cron.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'cron' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'cron' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                             </svg>
                             <span>Cronjobs & Aufgaben</span>
                         </a>
 
+                        <a href="{{ url_for('users.index') }}"
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'users' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+                                </path>
+                            </svg>
+                            <span>Benutzer & Rollen</span>
+                        </a>
+
                         <a href="{{ url_for('settings.index') }}"
-                            class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'settings' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'settings' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                            <svg class="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
                                 </path>
@@ -816,26 +863,38 @@
         </div>
 
         <!-- Scrollable Navigation Links -->
-        <div class="p-4 space-y-6 overflow-y-auto flex-1">
-            <!-- Navigation Section: Core Management -->
-            <div>
-                <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">
-                    Verwaltung
-                </div>
-                <nav class="space-y-1 text-sm">
-                    <a href="{{ url_for('system.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'system' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
-                            </path>
-                        </svg>
-                        <span>Dashboard & Metriken</span>
-                    </a>
+        <div class="p-3.5 space-y-4 overflow-y-auto flex-1 select-none">
+            <!-- 1. Top Single Item: Dashboard -->
+            <nav class="space-y-1 text-sm font-medium">
+                <a href="{{ url_for('system.index') }}" onclick="toggleMobileNav(true)"
+                    class="flex items-center gap-3 px-3 py-2 rounded-xl transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold shadow-sm' if request.blueprint == 'system' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                    <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                        </path>
+                    </svg>
+                    <span>Dashboard & Metriken</span>
+                </a>
+            </nav>
 
+            <!-- 2. Web & Hosting (Collapsible) -->
+            <div class="nav-group" data-nav-group="web">
+                <button type="button" onclick="toggleNavGroup('web')"
+                    class="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-mono uppercase text-gray-500 hover:text-gray-300 font-bold tracking-wider transition group cursor-pointer rounded-lg hover:bg-dark-800/40">
+                    <span class="flex items-center gap-2">
+                        <span>Web & Hosting</span>
+                        {% if request.blueprint in ['webserver', 'apps', 'files', 'database'] %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        {% endif %}
+                    </span>
+                    <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300 transform transition-transform duration-200 nav-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <nav class="space-y-1 text-sm mt-1 pl-2 border-l border-dark-800 ml-3.5 nav-subitems transition-all duration-200">
                     <a href="{{ url_for('webserver.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'webserver' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'webserver' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9">
                             </path>
@@ -843,76 +902,73 @@
                         <span>Webserver & Domains</span>
                     </a>
 
-                    <a href="{{ url_for('mail.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'mail' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
-                            </path>
-                        </svg>
-                        <span>E-Mail-Zentrale</span>
-                    </a>
-
-                    <a href="{{ url_for('files.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-                        </svg>
-                        <span>Dateimanager</span>
-                    </a>
-
-                    <a href="{{ url_for('database.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'database' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4">
-                            </path>
-                        </svg>
-                        <span>Datenbanken (MySQL)</span>
-                    </a>
-
                     <a href="{{ url_for('apps.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'apps' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                         </svg>
                         <span>App-Importer (ZIP)</span>
                     </a>
 
-                    <a href="{{ url_for('backups.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'backups' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="{{ url_for('files.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'files' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z">
                             </path>
                         </svg>
-                        <span>Backups & Restore</span>
+                        <span>Dateimanager</span>
                     </a>
 
-                    <a href="{{ url_for('users.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'users' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="{{ url_for('database.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'database' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+                                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4">
                             </path>
                         </svg>
-                        <span>Benutzer & Rollen</span>
+                        <span>Datenbanken (MySQL)</span>
                     </a>
                 </nav>
             </div>
 
-            <!-- Navigation Section: System & Werkzeuge -->
+            <!-- 3. Kommunikation -->
             <div>
-                <div class="text-[10px] font-mono uppercase text-gray-500 font-semibold px-3 mb-2 tracking-wider">
-                    System & Tools
+                <div class="px-3 py-1.5 text-[10px] font-mono uppercase text-gray-500 font-bold tracking-wider">
+                    Kommunikation
                 </div>
-                <nav class="space-y-1 text-sm">
+                <nav class="space-y-1 text-sm mt-1">
+                    <a href="{{ url_for('mail.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-3 px-3 py-2 rounded-xl transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold shadow-sm' if request.blueprint == 'mail' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                            </path>
+                        </svg>
+                        <span>E-Mail-Zentrale</span>
+                    </a>
+                </nav>
+            </div>
+
+            <!-- 4. Sicherheit & Schutz (Collapsible) -->
+            <div class="nav-group" data-nav-group="security">
+                <button type="button" onclick="toggleNavGroup('security')"
+                    class="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-mono uppercase text-gray-500 hover:text-gray-300 font-bold tracking-wider transition group cursor-pointer rounded-lg hover:bg-dark-800/40">
+                    <span class="flex items-center gap-2">
+                        <span>Sicherheit & Schutz</span>
+                        {% if request.blueprint in ['security', 'backups'] %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>
+                        {% endif %}
+                    </span>
+                    <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300 transform transition-transform duration-200 nav-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <nav class="space-y-1 text-sm mt-1 pl-2 border-l border-dark-800 ml-3.5 nav-subitems transition-all duration-200">
                     <a href="{{ url_for('security.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'security' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'security' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
                             </path>
@@ -920,9 +976,36 @@
                         <span>Sicherheitszentrale</span>
                     </a>
 
+                    <a href="{{ url_for('backups.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'backups' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                            </path>
+                        </svg>
+                        <span>Backups & Restore</span>
+                    </a>
+                </nav>
+            </div>
+
+            <!-- 5. Server & System (Collapsible) -->
+            <div class="nav-group" data-nav-group="system">
+                <button type="button" onclick="toggleNavGroup('system')"
+                    class="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-mono uppercase text-gray-500 hover:text-gray-300 font-bold tracking-wider transition group cursor-pointer rounded-lg hover:bg-dark-800/40">
+                    <span class="flex items-center gap-2">
+                        <span>Server & System</span>
+                        {% if request.blueprint in ['packages', 'cron', 'users', 'settings'] %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+                        {% endif %}
+                    </span>
+                    <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300 transform transition-transform duration-200 nav-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <nav class="space-y-1 text-sm mt-1 pl-2 border-l border-dark-800 ml-3.5 nav-subitems transition-all duration-200">
                     <a href="{{ url_for('packages.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'packages' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'packages' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                         </svg>
@@ -930,17 +1013,27 @@
                     </a>
 
                     <a href="{{ url_for('cron.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'cron' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'cron' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                         <span>Cronjobs & Aufgaben</span>
                     </a>
 
+                    <a href="{{ url_for('users.index') }}" onclick="toggleMobileNav(true)"
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'users' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+                            </path>
+                        </svg>
+                        <span>Benutzer & Rollen</span>
+                    </a>
+
                     <a href="{{ url_for('settings.index') }}" onclick="toggleMobileNav(true)"
-                        class="flex items-center gap-3 px-3 py-2 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'settings' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
-                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if request.blueprint == 'settings' else 'text-gray-400 hover:bg-dark-800 hover:text-white' }}">
+                        <svg class="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
                             </path>
@@ -1029,6 +1122,58 @@
                 return originalFetch.call(this, resource, init);
             };
         })();
+    </script>
+
+    <!-- Navigation Groups Collapsible Controller -->
+    <script>
+        function toggleNavGroup(groupId, forceState) {
+            const groups = document.querySelectorAll(`[data-nav-group="${groupId}"]`);
+            groups.forEach(group => {
+                const sub = group.querySelector('.nav-subitems');
+                const chevron = group.querySelector('.nav-chevron');
+                if (!sub) return;
+
+                const isHidden = sub.classList.contains('hidden');
+                const shouldHide = forceState !== undefined ? !forceState : !isHidden;
+
+                if (shouldHide) {
+                    sub.classList.add('hidden');
+                    if (chevron) chevron.classList.add('-rotate-90');
+                    localStorage.setItem(`syscore_nav_${groupId}`, 'collapsed');
+                } else {
+                    sub.classList.remove('hidden');
+                    if (chevron) chevron.classList.remove('-rotate-90');
+                    localStorage.setItem(`syscore_nav_${groupId}`, 'expanded');
+                }
+            });
+        }
+
+        function initNavGroups() {
+            const currentBp = "{{ request.blueprint }}";
+            const groupMapping = {
+                'web': ['webserver', 'apps', 'files', 'database'],
+                'security': ['security', 'backups'],
+                'system': ['packages', 'cron', 'users', 'settings']
+            };
+
+            ['web', 'security', 'system'].forEach(groupId => {
+                const bps = groupMapping[groupId] || [];
+                const isGroupActive = bps.includes(currentBp);
+
+                if (isGroupActive) {
+                    toggleNavGroup(groupId, true);
+                } else {
+                    const saved = localStorage.getItem(`syscore_nav_${groupId}`);
+                    if (saved === 'collapsed') {
+                        toggleNavGroup(groupId, false);
+                    } else {
+                        toggleNavGroup(groupId, true);
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', initNavGroups);
     </script>
 
     <!-- Core SysCore JS Controller -->

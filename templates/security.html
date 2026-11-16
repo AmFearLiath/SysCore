@@ -415,6 +415,68 @@
 
     <!-- ==================== TAB 3: ANCHRIFFS-RADAR ==================== -->
     <div id="sec-tab-radar" class="space-y-6 hidden">
+        <!-- Automatische Exploit-Abwehr (Auto-Ban) Steuerung & Status -->
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-dark-800 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500/20 to-amber-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-lg">
+                        🛡️
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-bold text-white font-mono">Automatischer Exploit-Schutz (Auto-Ban)</h3>
+                            <span id="autoban-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono {% if autoban_config.enabled %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% else %}bg-gray-800 text-gray-400 border border-dark-700{% endif %}">
+                                {% if autoban_config.enabled %}Aktiviert (Level 4 Auto-Drop){% else %}Deaktiviert{% endif %}
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-400 font-mono mt-0.5">Sperrt erkannte Angreifer aus den NGINX-Webserver-Logs vollautomatisch und dauerhaft in der Firewall.</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" onclick="triggerAutoBanScan(this)" class="px-3.5 py-2 bg-dark-800 hover:bg-dark-700 text-gray-200 border border-dark-600 rounded-xl text-xs font-mono transition flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        <span>Regeln jetzt anwenden</span>
+                    </button>
+                    <button type="button" data-modal-open="modal-autoban-config" class="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-mono font-medium transition flex items-center gap-1.5 shadow-sm">
+                        <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                        <span>Regeln & Schutz anpassen</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Info Tiles -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">Schutz-Status</span>
+                    <span id="overview-autoban-status" class="font-bold text-xs {% if autoban_config.enabled %}text-emerald-400{% else %}text-gray-400{% endif %}">
+                        {% if autoban_config.enabled %}● Automatisch aktiv{% else %}○ Pausiert{% endif %}
+                    </span>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">Schwellenwert</span>
+                    <span id="overview-autoban-threshold" class="font-bold text-xs text-teal-400">
+                        ab {{ autoban_config.threshold }} {% if autoban_config.threshold == 1 %}Treffer (sofort){% else %}Treffern{% endif %}
+                    </span>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">Sperrdauer</span>
+                    <span id="overview-autoban-duration" class="font-bold text-xs text-white">
+                        {% if autoban_config.ban_duration == 'permanent' %}Dauerhaft (Permanent){% elif autoban_config.ban_duration == '24h' %}24 Stunden{% elif autoban_config.ban_duration == '7d' %}7 Tage{% else %}30 Tage{% endif %}
+                    </span>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">Aktive Kategorien</span>
+                    <span id="overview-autoban-categories" class="font-bold text-xs text-rose-400">
+                        {% set active_cat_count = namespace(count=0) %}
+                        {% for k, v in autoban_config.categories.items() %}
+                            {% if v %}{% set active_cat_count.count = active_cat_count.count + 1 %}{% endif %}
+                        {% endfor %}
+                        {{ active_cat_count.count }} von {{ autoban_config.categories|length }} Vergehen aktiv
+                    </span>
+                </div>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Letzte Exploit-Probes -->
             <div class="lg:col-span-2 sys-card p-6 border-dark-700 space-y-4">
@@ -914,6 +976,136 @@
                 <button type="button" id="detail-probe-ban-btn" class="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-medium transition shadow-lg shadow-rose-900/30">IP Sperren</button>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Modal: Auto-Ban Konfiguration & Feineinstellungen -->
+<div id="modal-autoban-config" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-fade-in space-y-5" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center pb-3 border-b border-dark-800">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500/20 to-teal-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-lg">
+                    🛡️
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white font-mono flex items-center gap-2">
+                        <span>Auto-Ban Einstellungen (Angriffs-Radar)</span>
+                    </h3>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">Regeln für vollautomatisierte Firewall-Sperren definieren</p>
+                </div>
+            </div>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form id="form-autoban-settings" onsubmit="saveAutoBanSettings(event)" class="space-y-4 font-mono text-xs">
+            <!-- 1. Hauptschalter -->
+            <div class="p-3.5 bg-dark-950 border border-dark-800 rounded-xl flex items-center justify-between">
+                <div>
+                    <span class="text-sm font-bold text-white block">Automatische Sperre (Auto-Ban) aktivieren</span>
+                    <span class="text-[11px] text-gray-400">Erkannte IP-Adressen werden bei Erreichen des Schwellenwerts sofort in UFW geblockt.</span>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                    <input type="checkbox" name="enabled" id="autoban-cfg-enabled" class="sr-only peer" {% if autoban_config.enabled %}checked{% endif %}>
+                    <div class="w-11 h-6 bg-dark-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+            </div>
+
+            <!-- 2. Parameter Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1.5">
+                    <label class="block text-gray-400 uppercase text-[10px] tracking-wider font-bold">Schwellenwert (Treffer bis zur Sperre)</label>
+                    <select name="threshold" id="autoban-cfg-threshold" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white outline-none focus:border-emerald-500">
+                        <option value="1" {% if autoban_config.threshold == 1 %}selected{% endif %}>1 Treffer - Sofortige Sperre (Aggressiv)</option>
+                        <option value="2" {% if autoban_config.threshold == 2 %}selected{% endif %}>2 Treffer (Strikter Schutz)</option>
+                        <option value="3" {% if autoban_config.threshold == 3 %}selected{% endif %}>3 Treffer (Empfohlen)</option>
+                        <option value="5" {% if autoban_config.threshold == 5 %}selected{% endif %}>5 Treffer (Tolerant)</option>
+                        <option value="10" {% if autoban_config.threshold == 10 %}selected{% endif %}>10 Treffer (Nur massive Scanner)</option>
+                    </select>
+                </div>
+
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1.5">
+                    <label class="block text-gray-400 uppercase text-[10px] tracking-wider font-bold">Sperrdauer (Firewall & DB)</label>
+                    <select name="ban_duration" id="autoban-cfg-duration" class="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white outline-none focus:border-emerald-500">
+                        <option value="permanent" {% if autoban_config.ban_duration == 'permanent' %}selected{% endif %}>Permanent (Dauerhaft blockieren)</option>
+                        <option value="24h" {% if autoban_config.ban_duration == '24h' %}selected{% endif %}>24 Stunden (1 Tag)</option>
+                        <option value="7d" {% if autoban_config.ban_duration == '7d' %}selected{% endif %}>7 Tage (1 Woche)</option>
+                        <option value="30d" {% if autoban_config.ban_duration == '30d' %}selected{% endif %}>30 Tage (1 Monat)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 3. Zu sperrende Angriffs-Kategorien -->
+            <div class="p-4 bg-dark-950 border border-dark-800 rounded-xl space-y-2.5">
+                <span class="block text-gray-400 uppercase text-[10px] tracking-wider font-bold">Zu sperrende Vergehen & Exploit-Kategorien</span>
+                <div class="space-y-2">
+                    <label class="flex items-start gap-2.5 p-2 bg-dark-900/60 hover:bg-dark-900 border border-dark-800 rounded-lg cursor-pointer transition">
+                        <input type="checkbox" name="cat_sqli" id="cat-sqli" class="mt-0.5 rounded border-dark-700 text-rose-500 focus:ring-0" {% if autoban_config.categories.sqli %}checked{% endif %}>
+                        <div>
+                            <span class="text-white font-bold block">SQL-Injection Versuche</span>
+                            <span class="text-[11px] text-gray-400">Erkennung von UNION SELECT, OR 1=1, CONCAT, sleep(), benchmark()</span>
+                        </div>
+                    </label>
+
+                    <label class="flex items-start gap-2.5 p-2 bg-dark-900/60 hover:bg-dark-900 border border-dark-800 rounded-lg cursor-pointer transition">
+                        <input type="checkbox" name="cat_path_traversal" id="cat-path-traversal" class="mt-0.5 rounded border-dark-700 text-rose-500 focus:ring-0" {% if autoban_config.categories.path_traversal %}checked{% endif %}>
+                        <div>
+                            <span class="text-white font-bold block">Path Traversal & Systemdateien</span>
+                            <span class="text-[11px] text-gray-400">Versuche, auf ../, /etc/passwd, /proc/self oder Windows ini-Dateien zuzugreifen</span>
+                        </div>
+                    </label>
+
+                    <label class="flex items-start gap-2.5 p-2 bg-dark-900/60 hover:bg-dark-900 border border-dark-800 rounded-lg cursor-pointer transition">
+                        <input type="checkbox" name="cat_web_exploit" id="cat-web-exploit" class="mt-0.5 rounded border-dark-700 text-rose-500 focus:ring-0" {% if autoban_config.categories.web_exploit %}checked{% endif %}>
+                        <div>
+                            <span class="text-white font-bold block">Web-Exploits & Sensible Dateien (.env, .git)</span>
+                            <span class="text-[11px] text-gray-400">Suchen nach .env, .git/config, wp-login, xmlrpc, phpmyadmin, eval-stdin</span>
+                        </div>
+                    </label>
+
+                    <label class="flex items-start gap-2.5 p-2 bg-dark-900/60 hover:bg-dark-900 border border-dark-800 rounded-lg cursor-pointer transition">
+                        <input type="checkbox" name="cat_scanners" id="cat-scanners" class="mt-0.5 rounded border-dark-700 text-rose-500 focus:ring-0" {% if autoban_config.categories.scanners %}checked{% endif %}>
+                        <div>
+                            <span class="text-white font-bold block">Automatisierte Schwachstellen-Scanner</span>
+                            <span class="text-[11px] text-gray-400">Erkennung von sqlmap, nikto, nmap, masscan, gobuster, dirbuster</span>
+                        </div>
+                    </label>
+
+                    <label class="flex items-start gap-2.5 p-2 bg-dark-900/60 hover:bg-dark-900 border border-dark-800 rounded-lg cursor-pointer transition">
+                        <input type="checkbox" name="cat_xss" id="cat-xss" class="mt-0.5 rounded border-dark-700 text-rose-500 focus:ring-0" {% if autoban_config.categories.xss %}checked{% endif %}>
+                        <div>
+                            <span class="text-white font-bold block">Cross-Site Scripting (XSS)</span>
+                            <span class="text-[11px] text-gray-400">Einschleusen von &lt;script&gt;, javascript: oder onerror= Tags in Requests</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 4. Whitelist -->
+            <div class="p-3.5 bg-dark-950 border border-dark-800 rounded-xl space-y-1.5">
+                <div class="flex items-center justify-between">
+                    <label class="block text-gray-400 uppercase text-[10px] tracking-wider font-bold">IP-Ausnahmeliste (Whitelist)</label>
+                    <span class="text-[10px] text-emerald-400">Eigene IPs / Loopback geschützt</span>
+                </div>
+                <input type="text" name="whitelist" id="autoban-cfg-whitelist" value="{{ autoban_config.whitelist }}" placeholder="z.B. 127.0.0.1, 192.168.1.100, 85.214.x.x" class="w-full px-3.5 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white outline-none focus:border-emerald-500">
+                <p class="text-[10px] text-gray-500">Kommaseparierte IP-Adressen oder Subnetze. Diese IPs werden unter keinen Umständen automatisch geblockt.</p>
+            </div>
+
+            <!-- 5. Optionen -->
+            <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer">
+                <input type="checkbox" name="notify_incident" id="autoban-cfg-notify" class="rounded border-dark-700 text-emerald-500 focus:ring-0" {% if autoban_config.notify_incident %}checked{% endif %}>
+                <span>Automatische Sperren als Vorfall in der Sentinel Sicherheits-Timeline protokollieren</span>
+            </label>
+
+            <!-- Buttons -->
+            <div class="pt-2 flex justify-end gap-2 border-t border-dark-800">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl transition">Abbrechen</button>
+                <button type="submit" id="btn-save-autoban" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-900/30">
+                    Einstellungen speichern
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1473,6 +1665,160 @@ function escapeHtml(text) {
         "'": '&#039;'
     };
     return text.toString().replace(/[&<>"']/g, m => map[m]);
+}
+
+// ==========================================
+// Auto-Ban Engine (Angriffs-Radar) JS
+// ==========================================
+async function saveAutoBanSettings(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-save-autoban');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="inline-block animate-spin mr-1">⌛</span> Speichere...';
+    }
+
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    const payload = {
+        enabled: document.getElementById('autoban-cfg-enabled').checked,
+        threshold: parseInt(document.getElementById('autoban-cfg-threshold').value) || 1,
+        ban_duration: document.getElementById('autoban-cfg-duration').value,
+        whitelist: document.getElementById('autoban-cfg-whitelist').value,
+        notify_incident: document.getElementById('autoban-cfg-notify').checked,
+        categories: {
+            sqli: document.getElementById('cat-sqli').checked,
+            path_traversal: document.getElementById('cat-path-traversal').checked,
+            web_exploit: document.getElementById('cat-web-exploit').checked,
+            scanners: document.getElementById('cat-scanners').checked,
+            xss: document.getElementById('cat-xss').checked
+        }
+    };
+
+    try {
+        const res = await fetch("{{ url_for('security.update_autoban_settings') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+            if (window.SysCore && SysCore.toast) {
+                SysCore.toast('Auto-Ban Einstellungen erfolgreich aktualisiert!', 'success');
+            }
+            updateAutoBanUI(data.config || payload);
+            const modal = document.getElementById('modal-autoban-config');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        } else {
+            const err = data.error || 'Fehler beim Speichern der Einstellungen.';
+            if (window.SysCore && SysCore.toast) SysCore.toast(err, 'error');
+            else alert(err);
+        }
+    } catch (err) {
+        if (window.SysCore && SysCore.toast) SysCore.toast('Netzwerkfehler: ' + err, 'error');
+        else alert('Netzwerkfehler: ' + err);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Einstellungen speichern';
+        }
+    }
+}
+
+function updateAutoBanUI(cfg) {
+    const badge = document.getElementById('autoban-status-badge');
+    const statusText = document.getElementById('overview-autoban-status');
+    const thresholdText = document.getElementById('overview-autoban-threshold');
+    const durationText = document.getElementById('overview-autoban-duration');
+    const catsText = document.getElementById('overview-autoban-categories');
+
+    if (badge) {
+        if (cfg.enabled) {
+            badge.className = 'px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+            badge.textContent = 'Aktiviert (Level 4 Auto-Drop)';
+        } else {
+            badge.className = 'px-2 py-0.5 rounded text-[10px] font-mono bg-gray-800 text-gray-400 border border-dark-700';
+            badge.textContent = 'Deaktiviert';
+        }
+    }
+
+    if (statusText) {
+        statusText.className = cfg.enabled ? 'font-bold text-xs text-emerald-400' : 'font-bold text-xs text-gray-400';
+        statusText.textContent = cfg.enabled ? '● Automatisch aktiv' : '○ Pausiert';
+    }
+
+    if (thresholdText) {
+        thresholdText.textContent = `ab ${cfg.threshold} ` + (cfg.threshold === 1 ? 'Treffer (sofort)' : 'Treffern');
+    }
+
+    if (durationText) {
+        const durations = { permanent: 'Dauerhaft (Permanent)', '24h': '24 Stunden', '7d': '7 Tage', '30d': '30 Tage' };
+        durationText.textContent = durations[cfg.ban_duration] || cfg.ban_duration;
+    }
+
+    if (catsText && cfg.categories) {
+        let count = 0;
+        let total = 0;
+        for (const [k, v] of Object.entries(cfg.categories)) {
+            total++;
+            if (v) count++;
+        }
+        catsText.textContent = `${count} von ${total} Vergehen aktiv`;
+    }
+}
+
+async function triggerAutoBanScan(btn) {
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="inline-block animate-spin mr-1">⌛</span> Prüfe...';
+    }
+
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    try {
+        const res = await fetch("{{ url_for('security.apply_autoban_now') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+            if (data.banned_count > 0) {
+                if (window.SysCore && SysCore.toast) {
+                    SysCore.toast(`Auto-Ban: ${data.banned_count} Angreifer-IP(s) erfolgreich geblockt!`, 'success');
+                }
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                if (window.SysCore && SysCore.toast) {
+                    SysCore.toast(data.message || 'Prüfung abgeschlossen: Keine neuen verdächtigen IPs über dem Schwellenwert.', 'info');
+                }
+            }
+        } else {
+            const err = data.error || 'Fehler beim Ausführen der Prüfung.';
+            if (window.SysCore && SysCore.toast) SysCore.toast(err, 'error');
+        }
+    } catch (e) {
+        if (window.SysCore && SysCore.toast) SysCore.toast('Netzwerkfehler: ' + e, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-3.5 h-3.5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg><span>Regeln jetzt anwenden</span>';
+        }
+    }
 }
 
 // Sentinel Chat Submissions

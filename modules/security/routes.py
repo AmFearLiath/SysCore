@@ -41,6 +41,7 @@ from modules.security.detection.probes import scan_nginx_exploit_probes
 from modules.security.detection.threats import get_open_ports_audit
 from modules.security.detection.incidents import IncidentManager
 from modules.security.automation.rules import AutomationRulesManager
+from modules.security.automation.autoban import RadarAutoBanManager, CATEGORY_TITLES
 from modules.security.assistant.sentinel import SentinelAssistant
 
 security_bp = Blueprint("security", __name__, url_prefix="/security")
@@ -73,6 +74,15 @@ def index():
 
     exploit_scan = scan_nginx_exploit_probes(banned_ips=banned_ip_set)
     recent_probes = exploit_scan.get("recent_probes", [])
+
+    # Automatische Exploit-Sperre prüfen, falls aktiv
+    autoban_config = RadarAutoBanManager.get_config()
+    if autoban_config.get("enabled"):
+        autoban_res = RadarAutoBanManager.execute_autoban(recent_probes, banned_ip_set)
+        if autoban_res.get("banned_count", 0) > 0:
+            banned_db = db.query_db("SELECT * FROM security_ip_bans ORDER BY id DESC LIMIT 50")
+            exploit_scan = scan_nginx_exploit_probes(banned_ips=banned_ip_set)
+            recent_probes = exploit_scan.get("recent_probes", [])
 
     # 2. Software-Inventar abrufen
     inventory = SoftwareRegistry.get_all()
@@ -142,7 +152,9 @@ def index():
         snapshots=snapshot_list,
         banned_db=banned_db,
         webspaces=webspaces,
-        candidate_ports=candidate_ports
+        candidate_ports=candidate_ports,
+        autoban_config=autoban_config,
+        autoban_titles=CATEGORY_TITLES
     )
 
 # ==================== IP BANNING & FIREWALL ====================
@@ -246,6 +258,73 @@ def unban_ip():
         })
     flash(f"IP-Adresse {ip} wurde erfolgreich entsperrt.", "success")
     return redirect(url_for("security.index"))
+
+@security_bp.route("/autoban/settings", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def update_autoban_settings():
+    """Speichert die Einstellungen für die automatische Exploit-Sperre."""
+    is_ajax = (
+        request.is_json
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("Accept", "")
+    )
+
+    if request.is_json:
+        data = request.get_json() or {}
+    else:
+        cats = {
+            "sqli": "cat_sqli" in request.form,
+            "path_traversal": "cat_path_traversal" in request.form,
+            "web_exploit": "cat_web_exploit" in request.form,
+            "scanners": "cat_scanners" in request.form,
+            "xss": "cat_xss" in request.form
+        }
+        data = {
+            "enabled": request.form.get("enabled") in ("1", "true", "on"),
+            "threshold": int(request.form.get("threshold", 1)),
+            "ban_duration": request.form.get("ban_duration", "permanent"),
+            "whitelist": request.form.get("whitelist", "127.0.0.1, ::1"),
+            "notify_incident": request.form.get("notify_incident") in ("1", "true", "on"),
+            "categories": cats
+        }
+
+    ok = RadarAutoBanManager.save_config(data)
+    if ok:
+        log_audit(
+            session.get("username"),
+            "SECURITY_AUTOBAN_CONFIG",
+            f"Auto-Ban Regeln aktualisiert: aktiv={data.get('enabled')}, Schwelle={data.get('threshold')}",
+            request.remote_addr
+        )
+        saved_cfg = RadarAutoBanManager.get_config()
+        if is_ajax:
+            return jsonify({
+                "success": True,
+                "message": "Auto-Ban Einstellungen erfolgreich gespeichert.",
+                "config": saved_cfg
+            })
+        flash("Auto-Ban Einstellungen erfolgreich gespeichert.", "success")
+    else:
+        if is_ajax:
+            return jsonify({"success": False, "error": "Fehler beim Speichern der Konfiguration."}), 500
+        flash("Fehler beim Speichern der Konfiguration.", "error")
+
+    return redirect(url_for("security.index"))
+
+@security_bp.route("/autoban/apply", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def apply_autoban_now():
+    """Führt eine sofortige Auswertung der Exploit-Logs nach den Auto-Ban-Regeln durch."""
+    res = RadarAutoBanManager.execute_autoban()
+    return jsonify({
+        "success": True,
+        "active": res.get("active", False),
+        "banned_count": res.get("banned_count", 0),
+        "banned_ips": res.get("banned_ips", []),
+        "message": res.get("message", "")
+    })
 
 @security_bp.route("/firewall/toggle", methods=["POST"])
 @login_required
