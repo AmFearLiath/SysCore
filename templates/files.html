@@ -61,7 +61,7 @@
             </div>
 
             <!-- Breadcrumbs mit Domain als absoluter Sicherheits-Wurzel -->
-            <div class="flex items-center gap-1.5 text-xs font-mono text-gray-400 mt-1">
+            <div class="flex items-center gap-1.5 text-xs font-mono text-gray-400 mt-1 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
                 <a href="{{ url_for('files.index', domain=current_domain) }}" class="text-emerald-400 hover:underline font-bold flex items-center gap-1">
                     <span>🌐 {{ current_domain }}</span>
                 </a>

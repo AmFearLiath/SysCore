@@ -199,3 +199,91 @@ code, pre, .font-mono {
 .toast-item.toast-error { border-left: 4px solid #f43f5e; }
 .toast-item.toast-warning { border-left: 4px solid #f59e0b; }
 .toast-item.toast-info { border-left: 4px solid #06b6d4; }
+
+/* ========================================== */
+/* Mobile First & Touch Ergonomics Optimization */
+/* ========================================== */
+
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Scrollbar Hide Utility */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Touch Momentum Scrolling */
+.overflow-x-auto, .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile Inputs: Prevent iOS Safari Auto-Zoom on Focus */
+@media (max-width: 768px) {
+    input, select, textarea {
+        font-size: 16px !important;
+    }
+}
+
+/* Mobile Bottom Dock Glassmorphism */
+.mobile-dock-blur {
+    background-color: rgba(14, 21, 36, 0.94);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+/* Mobile Modals -> Native-Like Bottom Sheets */
+@media (max-width: 640px) {
+    .sys-modal {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+    .sys-modal > div {
+        border-bottom-left-radius: 0 !important;
+        border-bottom-right-radius: 0 !important;
+        border-top-left-radius: 1.25rem !important;
+        border-top-right-radius: 1.25rem !important;
+        max-height: 88vh !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        overflow-y: auto !important;
+        padding: 1.25rem !important;
+        padding-bottom: max(1.5rem, calc(1rem + env(safe-area-inset-bottom))) !important;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.7) !important;
+        animation: slideUpMobile 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+    }
+    .sys-modal > div::before {
+        content: '';
+        display: block;
+        width: 36px;
+        height: 4px;
+        background-color: #374151;
+        border-radius: 9999px;
+        margin: 0 auto 0.75rem auto;
+    }
+}
+
+@keyframes slideUpMobile {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+/* Toast Container Mobile Dock Offset */
+@media (max-width: 768px) {
+    #toast-container {
+        bottom: calc(4.75rem + env(safe-area-inset-bottom)) !important;
+        left: 0.75rem !important;
+        right: 0.75rem !important;
+        width: auto !important;
+        max-width: none !important;
+    }
+}

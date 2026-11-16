@@ -10,7 +10,7 @@
     </div>
 
     <!-- Navigation Tabs -->
-    <div class="flex items-center gap-2 border-b border-dark-700 pb-3 text-xs font-mono overflow-x-auto">
+    <div class="flex items-center gap-2 border-b border-dark-700 pb-3 text-xs font-mono overflow-x-auto no-scrollbar">
         {% if user_role == 'root_admin' %}
         <a href="{{ url_for('settings.index', tab='server') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'server' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
             Server & System

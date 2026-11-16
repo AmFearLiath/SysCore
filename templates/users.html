@@ -75,7 +75,7 @@
     </div>
 
     <!-- Navigation Tabs -->
-    <div class="flex items-center gap-2 border-b border-dark-700 pb-2 text-xs font-mono overflow-x-auto">
+    <div class="flex items-center gap-2 border-b border-dark-700 pb-2 text-xs font-mono overflow-x-auto no-scrollbar">
         <a href="{{ url_for('users.index', tab='users') }}" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold' if active_tab == 'users' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
             <span>Benutzerkonten</span>
@@ -434,7 +434,7 @@
 <!-- ==================== MODALE ==================== -->
 
 <!-- MODAL: Neuer Benutzer anlegen -->
-<div id="modal-create-user" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+<div id="modal-create-user" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
     <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
         <div class="flex items-center justify-between border-b border-dark-700 pb-3">
             <h3 class="text-base font-bold text-white flex items-center gap-2">
@@ -487,7 +487,7 @@
 </div>
 
 <!-- MODAL: Benutzer bearbeiten -->
-<div id="modal-edit-user" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+<div id="modal-edit-user" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
     <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
         <div class="flex items-center justify-between border-b border-dark-700 pb-3">
             <h3 class="text-base font-bold text-white flex items-center gap-2">
@@ -545,7 +545,7 @@
 </div>
 
 <!-- MODAL: SYSTEM-OWNER FESTLEGEN -->
-<div id="modal-set-owner" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+<div id="modal-set-owner" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
     <div class="sys-card w-full max-w-md p-6 space-y-4 border border-amber-500/40 shadow-2xl animate-in fade-in duration-200">
         <div class="flex items-center justify-between border-b border-dark-700 pb-3">
             <div class="flex items-center gap-2">
@@ -593,7 +593,7 @@
 </div>
 
 <!-- MODAL: Neue Rolle anlegen -->
-<div id="modal-create-role" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+<div id="modal-create-role" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
     <div class="sys-card w-full max-w-2xl p-6 space-y-5 animate-in fade-in duration-200">
         <div class="flex items-center justify-between border-b border-dark-700 pb-3">
             <h3 class="text-base font-bold text-white flex items-center gap-2">
@@ -645,7 +645,7 @@
 </div>
 
 <!-- MODAL: Rolle bearbeiten -->
-<div id="modal-edit-role" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+<div id="modal-edit-role" class="sys-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
     <div class="sys-card w-full max-w-2xl p-6 space-y-5 animate-in fade-in duration-200">
         <div class="flex items-center justify-between border-b border-dark-700 pb-3">
             <h3 class="text-base font-bold text-white flex items-center gap-2">
