@@ -89,6 +89,100 @@ def run_cli_update():
     else:
         print("[HINWEIS] Kein systemctl gefunden.\n")
 
+def run_system_doctor():
+    """Führt eine umfassende Integritäts- und Vorbereitungsprüfung durch (Pre-Flight Check)"""
+    import sys
+    import os
+    import shutil
+    import socket
+    import config
+
+    print("\n=======================================================")
+    print("   SYSCORE PRE-FLIGHT SYSTEM- & SICHERHEITSPRÜFUNG     ")
+    print("=======================================================\n")
+
+    checks_passed = 0
+    checks_total = 0
+
+    def print_result(label, ok, details=""):
+        nonlocal checks_passed, checks_total
+        checks_total += 1
+        if ok:
+            checks_passed += 1
+            status_str = "\033[92m[OK]\033[0m"
+        else:
+            status_str = "\033[93m[WARNUNG]\033[0m"
+        print(f" {status_str} {label:<42} {details}")
+
+    # 1. Python Version
+    py_ok = sys.version_info >= (3, 10)
+    py_str = f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    print_result("Python Runtime", py_ok, py_str if py_ok else f"{py_str} (Empfohlen: >= 3.10)")
+
+    # 2. Datenbank
+    try:
+        db.init_db()
+        users_cnt = db.query_db("SELECT COUNT(*) as c FROM users", one=True)
+        db_ok = True
+        db_info = f"Typ: {config.DB_TYPE.upper()} ({users_cnt['c'] if users_cnt else 0} Benutzer registriert)"
+    except Exception as e:
+        db_ok = False
+        db_info = f"Fehler: {e}"
+    print_result("Datenbank-Initialisierung", db_ok, db_info)
+
+    # 3. Secret & Berechtigungen
+    secret_keyfile = config.BASE_DIR / ".secret_key"
+    env_file = config.BASE_DIR / ".env"
+    sec_ok = bool(config.SECRET_KEY)
+    sec_details = "Aktiv"
+    if os.name != "nt":
+        if env_file.exists():
+            mode = oct(os.stat(env_file).st_mode & 0o777)
+            sec_details += f" (.env Mode: {mode})"
+    print_result("Sitzungs- & Secret-Schutz", sec_ok, sec_details)
+
+    # 4. Verzeichnisse
+    dirs_to_check = [
+        ("Webroot Basis", config.WEB_ROOT_BASE),
+        ("Backup Verzeichnis", config.BACKUP_DIR),
+        ("SysCore Basis", str(config.BASE_DIR))
+    ]
+    for d_name, d_path in dirs_to_check:
+        d_exists = os.path.exists(d_path)
+        d_writeable = os.access(d_path, os.W_OK) if d_exists else False
+        d_ok = d_exists and d_writeable
+        d_detail = "Vorhanden & schreibbar" if d_ok else ("Fehlt / Nicht schreibbar" if d_exists else "Existiert nicht")
+        print_result(f"Verzeichnis: {d_name}", d_ok, f"{d_path} ({d_detail})")
+
+    # 5. System-Binaries (Debian Root Server)
+    binaries = [
+        ("NGINX Webserver", "nginx"),
+        ("Certbot Let's Encrypt", "certbot"),
+        ("UFW Firewall", "ufw"),
+        ("Git Versionskontrolle", "git"),
+        ("Systemd Service Manager", "systemctl")
+    ]
+    for b_name, b_cmd in binaries:
+        b_found = bool(shutil.which(b_cmd))
+        print_result(f"Dienst: {b_name}", b_found, "Installiert" if b_found else "Nicht in PATH gefunden")
+
+    # 6. Web-Port Prüfung
+    port_open = False
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.settimeout(1)
+        res = sock.connect_ex(("127.0.0.1", config.PANEL_PORT))
+        port_open = (res == 0)
+    except Exception:
+        pass
+    finally:
+        sock.close()
+    print_result(f"Port {config.PANEL_PORT} Status", True, "Bereits aktiv (Daemon läuft)" if port_open else "Frei für Bindung")
+
+    print("\n-------------------------------------------------------")
+    print(f" Ergebnis: {checks_passed}/{checks_total} Prüfungen erfolgreich absolviert.")
+    print("=======================================================\n")
+
 def main():
     parser = argparse.ArgumentParser(description="SysCore Server Management CLI")
     subparsers = parser.add_subparsers(dest="command")
@@ -108,6 +202,9 @@ def main():
 
     # Command: update
     subparsers.add_parser("update", help="SysCore auf neueste Version aktualisieren und Dienst neu starten")
+
+    # Command: doctor
+    subparsers.add_parser("doctor", help="System-Gesundheits- & Sicherheitsprüfung ausführen (Pre-Flight Check)")
 
     args = parser.parse_args()
 
@@ -142,6 +239,8 @@ def main():
             email = input(f"E-Mail für '{username}' [{username}@localhost]: ").strip() or f"{username}@localhost"
 
         create_or_reset_admin(username, password, email, args.role)
+    elif args.command == "doctor":
+        run_system_doctor()
     else:
         parser.print_help()
 
