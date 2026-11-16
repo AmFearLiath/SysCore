@@ -24,6 +24,7 @@ from cryptography.hazmat.primitives import serialization
 import config
 from config import WEB_ROOT_BASE, NGINX_AVAILABLE, NGINX_ENABLED
 from modules.auth_users import login_required, role_required
+from modules.system_agent import run_privileged
 from db import query_db, execute_db, log_audit
 
 mail_bp = Blueprint("mail", __name__, url_prefix="/mail")
@@ -62,7 +63,11 @@ WEBMAIL_OPTIONS = {
         "desc": "Ultra-moderner, extrem schlanker Fork von RainLoop. Responsive Dark-Design, 2FA/WebAuthn, sofort einsatzbereit ohne SQL-Datenbank.",
         "features": ["Keine SQL-DB erforderlich", "2FA / Passkey Support", "Dark-Mode & Mobile Ergonomie", "Schneller IMAP-Cache"],
         "path": "/var/www/snappymail",
-        "download_url": "https://github.com/the-djmaze/snappymail/releases/download/v2.38.1/snappymail-2.38.1.tar.gz",
+        "download_url": "https://snappymail.eu/repository/latest.tar.gz",
+        "fallback_urls": [
+            "https://github.com/the-djmaze/snappymail/releases/latest/download/snappymail-3.0.1.tar.gz",
+            "https://github.com/the-djmaze/snappymail/releases/download/v3.0.1/snappymail-3.0.1.tar.gz"
+        ],
         "icon": "⚡"
     },
     "roundcube": {
@@ -71,7 +76,10 @@ WEBMAIL_OPTIONS = {
         "desc": "Der weltweit bewährte Open-Source Webmailer mit Responsive Elastic Theme, PGP-Verschlüsselung, Adressbuch und Plugin-Ökosystem.",
         "features": ["Vollständiges Adressbuch", "PGP / GPG Verschlüsselung", "Elastic Responsive Theme", "Plugin-Erweiterungen"],
         "path": "/var/www/roundcube",
-        "download_url": "https://github.com/roundcube/roundcubemail/releases/download/1.6.9/roundcubemail-1.6.9-complete.tar.gz",
+        "download_url": "https://github.com/roundcube/roundcubemail/releases/download/1.6.10/roundcubemail-1.6.10-complete.tar.gz",
+        "fallback_urls": [
+            "https://github.com/roundcube/roundcubemail/releases/download/1.6.9/roundcubemail-1.6.9-complete.tar.gz"
+        ],
         "icon": "📦"
     },
     "rainloop": {
@@ -81,6 +89,9 @@ WEBMAIL_OPTIONS = {
         "features": ["Modulare Architektur", "Multi-Domain IMAP", "Einfache Konfiguration", "Geringer Ressourcenverbrauch"],
         "path": "/var/www/rainloop",
         "download_url": "https://www.rainloop.net/repository/webmail/rainloop-latest.zip",
+        "fallback_urls": [
+            "https://github.com/RainLoop/rainloop-webmail/releases/download/v1.17.0/rainloop-community-1.17.0.zip"
+        ],
         "icon": "💧"
     },
     "native": {
@@ -127,9 +138,16 @@ def get_installed_webmails() -> Dict[str, bool]:
             status[key] = True
         else:
             path = opt["path"]
-            # Mindestens Verzeichnis mit Inhalt vorhanden
-            is_inst = os.path.exists(path) and len(os.listdir(path)) > 0 if os.path.exists(path) else False
-            status[key] = is_inst
+            idx = os.path.join(path, "index.php")
+            if os.path.exists(idx) and os.path.getsize(idx) > 200:
+                try:
+                    with open(idx, "r", encoding="utf-8", errors="ignore") as f:
+                        header = f.read(500)
+                    status[key] = ("SysCore Webmail Bridge" not in header)
+                except Exception:
+                    status[key] = True
+            else:
+                status[key] = False
     return status
 
 def generate_dkim_keys() -> Tuple[str, str, str]:
@@ -240,6 +258,37 @@ def check_domain_dns_records(domain: str, server_ip: str) -> Dict[str, Any]:
             pass
     return res
 
+def download_webmail_archive(url: str, dest_path: str, fallback_urls: Optional[List[str]] = None) -> Tuple[bool, str]:
+    """Lädt ein Webmail-Archiv via curl oder urllib mit User-Agent herunter"""
+    all_urls = [url] + (fallback_urls or [])
+    last_err = ""
+
+    for target_url in all_urls:
+        if not target_url:
+            continue
+
+        # 1. Bevorzugter Download via curl
+        if shutil.which("curl"):
+            cmd = ["curl", "-fsSL", "--retry", "2", "--connect-timeout", "15", "--max-time", "180", "-H", "User-Agent: Mozilla/5.0 (SysCore/0.9.1.0)", "-o", dest_path, target_url]
+            res = run_privileged(cmd, timeout=190)
+            if res.returncode == 0 and os.path.exists(dest_path) and os.path.getsize(dest_path) > 10240:
+                return True, target_url
+            last_err = (res.stderr or res.stdout).strip() or f"curl exited with code {res.returncode}"
+
+        # 2. Fallback urllib
+        try:
+            req = urllib.request.Request(target_url, headers={"User-Agent": "Mozilla/5.0 (SysCore/0.9.1.0)"})
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                if resp.status in (200, 301, 302):
+                    with open(dest_path, "wb") as f_out:
+                        shutil.copyfileobj(resp, f_out)
+                    if os.path.exists(dest_path) and os.path.getsize(dest_path) > 10240:
+                        return True, target_url
+        except Exception as e:
+            last_err = str(e)
+
+    return False, last_err or "Keine Verbindung zum Download-Server möglich."
+
 def setup_webmail_client(client: str) -> Tuple[bool, str]:
     """Installiert oder aktualisiert das gewählte Webmail-Paket in /var/www/<client>"""
     if client == "native":
@@ -250,89 +299,87 @@ def setup_webmail_client(client: str) -> Tuple[bool, str]:
         return False, "Unbekannter Webmail-Client"
 
     target_dir = opt["path"]
-    os.makedirs(target_dir, exist_ok=True)
+    run_privileged(["mkdir", "-p", target_dir])
     url = opt.get("download_url")
+    fallback_urls = opt.get("fallback_urls", [])
 
-    # Auf POSIX-Systemen echten Download versuchen
-    if hasattr(os, "geteuid") and url:
+    if not url:
+        return False, "Keine Download-Quelle für dieses Paket definiert."
+
+    # PHP-Voraussetzungen auf Debian/Ubuntu prüfen & nachinstallieren
+    if shutil.which("apt-get"):
         try:
-            archive_path = os.path.join(tempfile.gettempdir(), f"{client}_dl_{int(datetime.now().timestamp())}")
-            urllib.request.urlretrieve(url, archive_path)
+            run_privileged(["apt-get", "install", "-y", "php-curl", "php-mbstring", "php-xml", "php-zip"], timeout=90)
+        except Exception:
+            pass
 
-            if url.endswith(".tar.gz") or url.endswith(".tgz"):
+    temp_dir = tempfile.mkdtemp(prefix="syscore_webmail_")
+    ext = ".zip" if url.endswith(".zip") else ".tar.gz"
+    archive_path = os.path.join(temp_dir, f"{client}_package{ext}")
+
+    try:
+        # 1. Download
+        dl_ok, dl_info = download_webmail_archive(url, archive_path, fallback_urls)
+        if not dl_ok:
+            return False, f"Download von {opt['name']} fehlgeschlagen ({dl_info})"
+
+        # 2. Entpacken
+        if archive_path.endswith(".tar.gz") or archive_path.endswith(".tgz"):
+            if shutil.which("tar"):
+                res = run_privileged(["tar", "-xzf", archive_path, "-C", target_dir], timeout=90)
+                if res.returncode != 0:
+                    with tarfile.open(archive_path, "r:gz") as tar:
+                        tar.extractall(path=target_dir)
+            else:
                 with tarfile.open(archive_path, "r:gz") as tar:
                     tar.extractall(path=target_dir)
-            elif url.endswith(".zip"):
+        elif archive_path.endswith(".zip"):
+            if shutil.which("unzip"):
+                res = run_privileged(["unzip", "-q", "-o", archive_path, "-d", target_dir], timeout=90)
+                if res.returncode != 0:
+                    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                        zip_ref.extractall(target_dir)
+            else:
                 with zipfile.ZipFile(archive_path, 'r') as zip_ref:
                     zip_ref.extractall(target_dir)
 
-            # Roundcube entpackt in einen Unterordner
-            subdirs = [d for d in os.listdir(target_dir) if os.path.isdir(os.path.join(target_dir, d)) and d.startswith("roundcube")]
-            if subdirs:
+        # 3. Unterordner auflösen falls das Paket in einen Unterordner gepackt wurde (z.B. roundcubemail-1.6.x/)
+        try:
+            subdirs = [d for d in os.listdir(target_dir) if os.path.isdir(os.path.join(target_dir, d)) and not d.startswith(".")]
+            if len(subdirs) == 1 and not os.path.exists(os.path.join(target_dir, "index.php")):
                 sub_path = os.path.join(target_dir, subdirs[0])
-                for item in os.listdir(sub_path):
-                    src = os.path.join(sub_path, item)
-                    dst = os.path.join(target_dir, item)
-                    if not os.path.exists(dst):
-                        shutil.move(src, dst)
-                shutil.rmtree(sub_path, ignore_errors=True)
-
-            try:
-                os.remove(archive_path)
-            except Exception:
-                pass
-
-            # Berechtigungen für www-data
-            if shutil.which("chown"):
-                subprocess.run(["chown", "-R", "www-data:www-data", target_dir], capture_output=True)
-                subprocess.run(["chmod", "-R", "755", target_dir], capture_output=True)
-                for w in ["data", "temp", "logs"]:
-                    wp = os.path.join(target_dir, w)
-                    if os.path.exists(wp):
-                        subprocess.run(["chmod", "-R", "775", wp], capture_output=True)
-
-            return True, f"{opt['name']} erfolgreich heruntergeladen und einsatzbereit!"
-        except Exception as e:
-            # Fallback falls kein Internet oder GitHub Rate Limit
+                if os.path.exists(os.path.join(sub_path, "index.php")):
+                    for item in os.listdir(sub_path):
+                        src = os.path.join(sub_path, item)
+                        dst = os.path.join(target_dir, item)
+                        if not os.path.exists(dst):
+                            shutil.move(src, dst)
+                    shutil.rmtree(sub_path, ignore_errors=True)
+        except Exception:
             pass
 
-    # Fallback Index Datei falls leer
-    index_file = os.path.join(target_dir, "index.php")
-    if not os.path.exists(index_file) or os.path.getsize(index_file) == 0:
-        with open(index_file, "w", encoding="utf-8") as f:
-            f.write(f"""<?php
-/**
- * SysCore Webmail Bridge - {opt['name']}
- */
-?>
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{opt['name']} // SysCore Webmail</title>
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: #0b0f19; color: #f3f4f6; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }}
-        .card {{ background: #111827; border: 1px solid #1f2937; border-radius: 1rem; padding: 2.5rem; max-width: 500px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }}
-        h1 {{ color: #10b981; margin-top: 0; font-size: 1.5rem; }}
-        p {{ color: #9ca3af; font-size: 0.9rem; line-height: 1.5; }}
-        .badge {{ display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; font-size: 0.75rem; margin-bottom: 1rem; }}
-        a.btn {{ display: inline-block; margin-top: 1.5rem; background: #059669; color: #fff; padding: 0.75rem 1.5rem; border-radius: 0.75rem; text-decoration: none; font-weight: 600; font-size: 0.875rem; }}
-        a.btn:hover {{ background: #10b981; }}
-    </style>
-</head>
-<body>
-    <div class="card">
-        <div class="badge">SysCore Webmail aktiv</div>
-        <h1>{opt['name']}</h1>
-        <p>Der Webmail-VHost wurde erfolgreich durch SysCore bereitgestellt und mit PHP-FPM verknüpft.</p>
-        <p>Installationspfad: <code>{target_dir}</code></p>
-        <a href="/mail?tab=webmail" class="btn">Zurück zum SysCore Cockpit</a>
-    </div>
-</body>
-</html>
-""")
-    return True, f"{opt['name']} Verzeichnis vorbereitet."
+        # 4. Daten- & Tempverzeichnisse erstellen & Rechte setzen
+        for w in ["data", "temp", "logs", "config"]:
+            wp = os.path.join(target_dir, w)
+            run_privileged(["mkdir", "-p", wp])
+            run_privileged(["chmod", "-R", "775", wp])
+
+        run_privileged(["chown", "-R", "www-data:www-data", target_dir])
+        run_privileged(["chmod", "-R", "755", target_dir])
+
+        # 5. Verifikation
+        index_file = os.path.join(target_dir, "index.php")
+        if not os.path.exists(index_file) or os.path.getsize(index_file) < 50:
+            return False, f"Installation unvollständig: {target_dir}/index.php wurde nicht entpackt."
+
+        return True, f"{opt['name']} erfolgreich heruntergeladen und einsatzbereit!"
+    except Exception as e:
+        return False, f"Fehler bei Installation von {opt['name']}: {e}"
+    finally:
+        try:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        except Exception:
+            pass
 
 def deploy_webmail_vhost(client: str, webmail_domain: str) -> Tuple[bool, str, str]:
     """Erzeugt und verlinkt die NGINX VHost Konfiguration für das gewählte Webmail"""

@@ -300,6 +300,54 @@ PACKAGES_REGISTRY = {
         "requires_php": True,
         "default_subdomain_prefix": "adminer"
     },
+    "snappymail": {
+        "name": "SnappyMail (Modern Webmail)",
+        "category": "Tools",
+        "type": "tool",
+        "desc": "Ultra-moderner, schneller Webmail-Client mit Dark-Mode, 2FA/Passkeys und minimalem RAM-Bedarf",
+        "check_cmd": ["test", "-f", "/var/www/snappymail/index.php"],
+        "check_paths": ["/var/www/snappymail/index.php"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "apt-get update && apt-get install -y php-curl php-mbstring php-xml php-zip curl",
+            "mkdir -p /var/www/snappymail /var/www/snappymail/data",
+            "curl -fsSL https://snappymail.eu/repository/latest.tar.gz -o /tmp/snappymail.tar.gz",
+            "tar -xzf /tmp/snappymail.tar.gz -C /var/www/snappymail",
+            "rm -f /tmp/snappymail.tar.gz",
+            "chown -R www-data:www-data /var/www/snappymail",
+            "chmod -R 755 /var/www/snappymail",
+            "chmod -R 775 /var/www/snappymail/data"
+        ],
+        "web_configurable": True,
+        "doc_root": "/var/www/snappymail",
+        "requires_php": True,
+        "default_subdomain_prefix": "webmail"
+    },
+    "roundcube": {
+        "name": "Roundcube Webmail",
+        "category": "Tools",
+        "type": "tool",
+        "desc": "Bewährte Enterprise Webmail-Suite mit Adressbuch, PGP-Verschlüsselung und Elastic Theme",
+        "check_cmd": ["test", "-f", "/var/www/roundcube/index.php"],
+        "check_paths": ["/var/www/roundcube/index.php"],
+        "install_cmds": [
+            "export DEBIAN_FRONTEND=noninteractive",
+            "apt-get update && apt-get install -y php-curl php-mbstring php-xml php-zip php-intl php-gd curl",
+            "mkdir -p /var/www/roundcube /tmp/rc_install",
+            "curl -fsSL https://github.com/roundcube/roundcubemail/releases/download/1.6.10/roundcubemail-1.6.10-complete.tar.gz -o /tmp/rc.tar.gz",
+            "tar -xzf /tmp/rc.tar.gz -C /tmp/rc_install --strip-components=1",
+            "cp -r /tmp/rc_install/* /var/www/roundcube/",
+            "rm -rf /tmp/rc.tar.gz /tmp/rc_install",
+            "mkdir -p /var/www/roundcube/temp /var/www/roundcube/logs",
+            "chown -R www-data:www-data /var/www/roundcube",
+            "chmod -R 755 /var/www/roundcube",
+            "chmod -R 775 /var/www/roundcube/temp /var/www/roundcube/logs"
+        ],
+        "web_configurable": True,
+        "doc_root": "/var/www/roundcube",
+        "requires_php": True,
+        "default_subdomain_prefix": "roundcube"
+    },
 
     # --- Sicherheit & Netzwerk ---
     "fail2ban": {
