@@ -21,7 +21,7 @@ except ImportError:
     pass
 
 # --- Basis-Version ---
-SYSCORE_VERSION = "v2.5"
+SYSCORE_VERSION = "0.9.0.0"
 
 # --- Basis-Verzeichnis des SysCore-Projekts ---
 BASE_DIR = Path(__file__).resolve().parent

@@ -123,7 +123,7 @@ def get_alert_settings():
 
 # In-Memory Cache für Git Updater & Commit Hash (verhindert netzwerkbedingte Ladeverzögerungen)
 _UPDATER_CACHE = {"timestamp": 0, "data": None}
-_COMMIT_CACHE = {"timestamp": 0, "short": "v2.5"}
+_COMMIT_CACHE = {"timestamp": 0, "short": "0.9.0.0"}
 UPDATER_CACHE_TTL = 300  # 5 Minuten Cache für Git Remote-Prüfungen
 
 def get_cached_git_commit():
@@ -142,7 +142,7 @@ def get_cached_git_commit():
             return _COMMIT_CACHE["short"]
     except Exception:
         pass
-    return _COMMIT_CACHE.get("short", "v2.5")
+    return _COMMIT_CACHE.get("short", "0.9.0.0")
 
 def clear_updater_cache():
     global _UPDATER_CACHE, _COMMIT_CACHE
@@ -502,7 +502,7 @@ def api_updater_check():
         "success": True,
         "is_up_to_date": is_up_to_date,
         "has_update": has_update,
-        "local_short": status.get("local_short", "v2.5"),
+        "local_short": status.get("local_short", "0.9.0.0"),
         "remote_short": status.get("remote_short", ""),
         "commits_behind": 1 if has_update else 0
     })

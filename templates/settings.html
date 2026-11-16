@@ -296,7 +296,7 @@
                                     {{ 'SysCore ist auf dem neuesten Stand' if updater_info.is_up_to_date else 'Neues System-Update auf GitHub verfügbar!' }}
                                 </h3>
                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-mono {{ 'badge-emerald' if updater_info.is_up_to_date else 'badge-amber' }}">
-                                    {{ 'v2.5 Release' if updater_info.is_up_to_date else 'Update bereit' }}
+                                    {{ 'v' ~ syscore_version ~ ' Release' if updater_info.is_up_to_date else 'Update bereit' }}
                                 </span>
                             </div>
                             <p class="text-xs text-gray-400 font-mono mt-1">
