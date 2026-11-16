@@ -49,6 +49,24 @@ def add_security_headers(response):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
+# Intelligente automatische HTTPS-Umleitung für Domain-Aufrufe über Port 8888
+@app.before_request
+def auto_redirect_port_8888_to_https():
+    """
+    Falls der Benutzer das Panel im Browser direkt über http://domain.de:8888 aufruft,
+    leiten wir ihn automatisch auf https://domain.de (Port 443 mit NGINX SSL) um.
+    Lokale Aufrufe (127.0.0.1, localhost) und direkte IP-Aufrufe bleiben für Notfallzugriff erlaubt.
+    """
+    raw_host = request.host  # z.B. syscore.amfearliath.de:8888
+    if f":{config.PANEL_PORT}" in raw_host and not request.is_secure:
+        host_no_port = raw_host.split(":")[0].strip().lower()
+        # Nur echte Domains umleiten, nicht 127.0.0.1, localhost oder reine IP-Adressen
+        is_ip = host_no_port.replace(".", "").isdigit() or host_no_port in ["127.0.0.1", "localhost", "0.0.0.0", "::1"]
+        if not is_ip:
+            qs = f"?{request.query_string.decode('utf-8')}" if request.query_string else ""
+            target_url = f"https://{host_no_port}{request.path}{qs}"
+            return redirect(target_url, code=301)
+
 # Zentraler CSRF-Schutz initialisieren (SEC-008)
 init_csrf(app)
 

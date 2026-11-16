@@ -522,7 +522,9 @@ def build_nginx_config(
     return 503;
 """
     elif mode == "proxy":
-        location_content = f"""{htpasswd_block}    location / {{
+        location_content = f"""{htpasswd_block}    client_max_body_size 512M;
+
+    location / {{
         proxy_pass http://127.0.0.1:{proxy_port};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -531,6 +533,9 @@ def build_nginx_config(
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 300s;
     }}"""
     else:
         location_content = f"""{htpasswd_block}    root {target_path};
@@ -553,6 +558,7 @@ def build_nginx_config(
     if not ssl_enabled or not cert_path or not key_path:
         return f"""server {{
     listen 80;
+    listen [::]:80;
     server_name {server_name_str};
 
     access_log {log_dir}/{domain}.access.log;
@@ -580,6 +586,7 @@ def build_nginx_config(
     return f"""# 1. HTTP Server (Port 80)
 server {{
     listen 80;
+    listen [::]:80;
     server_name {server_name_str};
 
 {acme_block}
@@ -590,6 +597,7 @@ server {{
 # 2. HTTPS Server (Port 443 SSL)
 server {{
     listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name {server_name_str};
 
     ssl_certificate {cert_path};
@@ -605,6 +613,70 @@ server {{
 {location_content}
 }}
 """
+
+def get_managed_vhost_files():
+    """
+    Ermittelt alle VHost-Dateien in sites-available (.panel.conf und .conf).
+    Falls für eine Domain sowohl .conf als auch .panel.conf existiert,
+    wird diejenige priorisiert, die in sites-enabled aktiv verlinkt ist.
+    """
+    if not os.path.exists(NGINX_AVAILABLE):
+        return []
+
+    candidates = {}
+    for f in sorted(os.listdir(NGINX_AVAILABLE)):
+        if f == "default" or f.startswith("."):
+            continue
+        if f.endswith(".panel.conf"):
+            d = f[:-11]
+            candidates.setdefault(d, []).append(f)
+        elif f.endswith(".conf"):
+            d = f[:-5]
+            candidates.setdefault(d, []).append(f)
+
+    result = []
+    for d, files in sorted(candidates.items()):
+        if len(files) == 1:
+            result.append((d, files[0]))
+        else:
+            # Welcher Symlink ist in sites-enabled aktiv?
+            active_file = None
+            if os.path.exists(NGINX_ENABLED):
+                for cand in files:
+                    en_path = os.path.join(NGINX_ENABLED, cand)
+                    if os.path.exists(en_path):
+                        active_file = cand
+                        break
+            chosen = active_file if active_file else (f"{d}.panel.conf" if f"{d}.panel.conf" in files else files[0])
+            result.append((d, chosen))
+
+    return result
+
+def get_vhost_path(domain):
+    """Ermittelt den Pfad zur VHost-Datei (prüft .panel.conf und .conf und priorisiert die aktive)"""
+    p1 = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
+    p2 = os.path.join(NGINX_AVAILABLE, f"{domain}.conf")
+    if os.path.exists(p1) and os.path.exists(p2):
+        en2 = os.path.join(NGINX_ENABLED, f"{domain}.conf")
+        if os.path.exists(en2):
+            return p2
+        return p1
+    if os.path.exists(p1):
+        return p1
+    if os.path.exists(p2):
+        return p2
+    return p1
+
+def get_enabled_vhost_path(domain):
+    """Ermittelt den Pfad zur Symlink-Datei in sites-enabled"""
+    e1 = os.path.join(NGINX_ENABLED, f"{domain}.panel.conf")
+    e2 = os.path.join(NGINX_ENABLED, f"{domain}.conf")
+    if os.path.exists(e1):
+        return e1
+    if os.path.exists(e2):
+        return e2
+    avail = get_vhost_path(domain)
+    return os.path.join(NGINX_ENABLED, os.path.basename(avail))
 
 def parse_domain_config(domain_name, content, system_certs=None):
     """Parst eine .panel.conf Datei und extrahiert Modus, Ports, PHP, SSL Status und SysCore-Metriken"""
@@ -873,14 +945,11 @@ def diagnose_webserver_issues(system_certs=None):
         })
 
     # 5. Domain-spezifische Probleme & SSL-Audits prüfen
-    if os.path.exists(NGINX_AVAILABLE):
-        for filename in sorted(os.listdir(NGINX_AVAILABLE)):
-            if not filename.endswith(".panel.conf"):
-                continue
-            domain = filename.replace(".panel.conf", "")
-            try:
-                with open(os.path.join(NGINX_AVAILABLE, filename), "r", encoding="utf-8") as f:
-                    content = f.read()
+    vhost_files = get_managed_vhost_files()
+    for domain, filename in vhost_files:
+        try:
+            with open(os.path.join(NGINX_AVAILABLE, filename), "r", encoding="utf-8") as f:
+                content = f.read()
                 d_info = parse_domain_config(domain, content, system_certs=system_certs)
 
                 # Problem A: SSL im VHost aktiv, aber Zertifikatsdatei fehlt auf der Festplatte
@@ -956,8 +1025,8 @@ def diagnose_webserver_issues(system_certs=None):
                             "fix_label": f"Auf aktive PHP {fallback_php} umstellen"
                         })
 
-            except Exception:
-                continue
+        except Exception:
+            continue
 
     return issues
 
@@ -975,17 +1044,14 @@ def index():
     issues = diagnose_webserver_issues(system_certs=all_certs)
 
     domains = []
-    if os.path.exists(NGINX_AVAILABLE):
-        for filename in sorted(os.listdir(NGINX_AVAILABLE)):
-            if not filename.endswith(".panel.conf"):
-                continue
-            domain_name = filename.replace(".panel.conf", "")
-            try:
-                with open(os.path.join(NGINX_AVAILABLE, filename), "r", encoding="utf-8") as f:
-                    content = f.read()
-                domains.append(parse_domain_config(domain_name, content, system_certs=all_certs))
-            except Exception:
-                continue
+    vhost_files = get_managed_vhost_files()
+    for domain_name, filename in vhost_files:
+        try:
+            with open(os.path.join(NGINX_AVAILABLE, filename), "r", encoding="utf-8") as f:
+                content = f.read()
+            domains.append(parse_domain_config(domain_name, content, system_certs=all_certs))
+        except Exception:
+            continue
 
     # Git Deploy Hooks anhängen
     hooks = {}
@@ -1227,9 +1293,7 @@ def diagnose_domain_ssl(domain):
     })
 
     # Check 3: NGINX VHost Konfiguration
-    avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
-    if not os.path.exists(avail_path):
-        avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.conf")
+    avail_path = get_vhost_path(domain)
 
     vhost_exists = os.path.exists(avail_path)
     vhost_content = ""
@@ -1246,7 +1310,7 @@ def diagnose_domain_ssl(domain):
             has_redirect = "return 301 https://" in vhost_content
             is_proxy_to_8888 = ("proxy_pass http://127.0.0.1:8888" in vhost_content) or ("proxy_pass http://localhost:8888" in vhost_content)
 
-            en_path = os.path.join(NGINX_ENABLED, os.path.basename(avail_path))
+            en_path = get_enabled_vhost_path(domain)
             enabled_link = os.path.exists(en_path)
         except Exception:
             pass
