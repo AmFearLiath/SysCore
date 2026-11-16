@@ -64,7 +64,14 @@ def index():
     ports = get_open_ports_audit()
     clamav = get_clamav_status()
     waf = get_waf_status()
-    exploit_scan = scan_nginx_exploit_probes()
+
+    # Gebannte IPs vorab ermitteln für saubere Filterung
+    banned_db = db.query_db("SELECT * FROM security_ip_bans ORDER BY id DESC LIMIT 50")
+    banned_ip_set = {b["ip_address"] for b in banned_db} if banned_db else set()
+    if f2b.get("banned_ips"):
+        banned_ip_set.update(f2b["banned_ips"])
+
+    exploit_scan = scan_nginx_exploit_probes(banned_ips=banned_ip_set)
     recent_probes = exploit_scan.get("recent_probes", [])
 
     # 2. Software-Inventar abrufen
@@ -101,7 +108,6 @@ def index():
     snapshot_list = [dict(s) for s in snapshots] if snapshots else []
 
     # 9. Gebannte IPs & Webspaces für Scans
-    banned_db = db.query_db("SELECT * FROM security_ip_bans ORDER BY id DESC LIMIT 50")
     webspaces = []
     if os.path.exists(config.WEB_ROOT_BASE):
         try:
@@ -145,29 +151,60 @@ def index():
 @login_required
 @role_required(["root_admin"])
 def ban_ip():
-    """Sperrt eine IP-Adresse manuell."""
-    ip = request.form.get("ip_address", "").strip()
-    reason = request.form.get("reason", "Manuelle Sperre im SysCore Angriffs-Radar").strip()
-    ban_type = request.form.get("ban_type", "ufw").strip()
+    """Sperrt eine IP-Adresse manuell (unterstützt Form-Post & async AJAX/JSON)."""
+    is_ajax = (
+        request.is_json
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("Accept", "")
+    )
+
+    if request.is_json:
+        data = request.get_json() or {}
+        ip = data.get("ip_address", "").strip()
+        reason = data.get("reason", "Manuelle Sperre im SysCore Angriffs-Radar").strip()
+        ban_type = data.get("ban_type", "ufw").strip()
+    else:
+        ip = request.form.get("ip_address", "").strip()
+        reason = request.form.get("reason", "Manuelle Sperre im SysCore Angriffs-Radar").strip()
+        ban_type = request.form.get("ban_type", "ufw").strip()
 
     if not re.match(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$", ip):
+        if is_ajax:
+            return jsonify({"success": False, "error": "Ungültige IPv4-Adresse."}), 400
         flash("Ungültige IPv4-Adresse.", "error")
         return redirect(url_for("security.index"))
 
     if ip in ("127.0.0.1", "0.0.0.0"):
+        if is_ajax:
+            return jsonify({"success": False, "error": "Lokale Loopback-IPs können nicht gesperrt werden."}), 400
         flash("Lokale Loopback-IPs können nicht gesperrt werden.", "error")
         return redirect(url_for("security.index"))
 
     add_ufw_deny(ip)
 
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    username = session.get("username", "admin")
     try:
         db.execute_db("""
-            INSERT OR REPLACE INTO security_ip_bans (ip_address, reason, banned_by, ban_type)
-            VALUES (?, ?, ?, ?)
-        """, (ip, reason, session.get("username", "admin"), ban_type))
-        log_audit(session.get("username"), "SECURITY_BAN_IP", f"IP {ip} gesperrt ({reason})", request.remote_addr)
+            INSERT OR REPLACE INTO security_ip_bans (ip_address, reason, banned_by, ban_type, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (ip, reason, username, ban_type, now_str))
+        log_audit(username, "SECURITY_BAN_IP", f"IP {ip} gesperrt ({reason})", request.remote_addr)
+
+        if is_ajax:
+            return jsonify({
+                "success": True,
+                "message": f"IP-Adresse {ip} erfolgreich gesperrt und in der Firewall geblockt.",
+                "ip": ip,
+                "reason": reason,
+                "banned_by": username,
+                "ban_type": ban_type,
+                "created_at": now_str
+            })
         flash(f"IP-Adresse {ip} erfolgreich gesperrt und in der Firewall geblockt.", "success")
     except Exception as e:
+        if is_ajax:
+            return jsonify({"success": False, "error": f"Fehler beim Sperren der IP: {e}"}), 500
         flash(f"Fehler beim Sperren der IP: {e}", "error")
 
     return redirect(url_for("security.index"))
@@ -176,9 +213,22 @@ def ban_ip():
 @login_required
 @role_required(["root_admin"])
 def unban_ip():
-    """Entsperrt eine IP-Adresse."""
-    ip = request.form.get("ip_address", "").strip()
+    """Entsperrt eine IP-Adresse (unterstützt Form-Post & async AJAX/JSON)."""
+    is_ajax = (
+        request.is_json
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("Accept", "")
+    )
+
+    if request.is_json:
+        data = request.get_json() or {}
+        ip = data.get("ip_address", "").strip()
+    else:
+        ip = request.form.get("ip_address", "").strip()
+
     if not ip:
+        if is_ajax:
+            return jsonify({"success": False, "error": "Keine IP angegeben."}), 400
         flash("Keine IP angegeben.", "error")
         return redirect(url_for("security.index"))
 
@@ -187,6 +237,13 @@ def unban_ip():
 
     db.execute_db("DELETE FROM security_ip_bans WHERE ip_address = ?", (ip,))
     log_audit(session.get("username"), "SECURITY_UNBAN_IP", f"IP {ip} entsperrt", request.remote_addr)
+
+    if is_ajax:
+        return jsonify({
+            "success": True,
+            "message": f"IP-Adresse {ip} wurde erfolgreich entsperrt.",
+            "ip": ip
+        })
     flash(f"IP-Adresse {ip} wurde erfolgreich entsperrt.", "success")
     return redirect(url_for("security.index"))
 

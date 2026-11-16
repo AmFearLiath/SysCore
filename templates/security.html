@@ -438,21 +438,26 @@
                                 <th class="py-2 text-right">Aktion</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-dark-800">
+                        <tbody class="divide-y divide-dark-800" id="radar-probes-tbody">
                             {% for p in exploit_scan.recent_probes %}
-                            <tr class="hover:bg-dark-900/50">
-                                <td class="py-2 text-gray-500 text-[11px] whitespace-nowrap">{{ p.timestamp }}</td>
-                                <td class="py-2 font-bold text-rose-400">{{ p.ip }}</td>
+                            <tr class="hover:bg-dark-900/50" data-probe-id="{{ loop.index0 }}" data-probe-ip="{{ p.ip }}">
+                                <td class="py-2 text-gray-400 text-[11px] whitespace-nowrap">{{ p.timestamp }}</td>
+                                <td class="py-2 font-bold text-rose-400 font-mono">{{ p.ip }}</td>
                                 <td class="py-2 text-gray-300">{{ p.category }}</td>
-                                <td class="py-2 text-amber-300 text-[11px] max-w-xs truncate">{{ p.matched }}</td>
-                                <td class="py-2 text-right">
-                                    <form method="POST" action="{{ url_for('security.ban_ip') }}" class="inline">
-                                        <input type="hidden" name="ip_address" value="{{ p.ip }}">
-                                        <input type="hidden" name="reason" value="Exploit-Probe: {{ p.category }}">
-                                        <button type="submit" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded text-[10px] transition">
+                                <td class="py-2 text-amber-300 text-[11px] max-w-xs truncate" title="{{ p.matched }}">{{ p.matched }}</td>
+                                <td class="py-2 text-right space-x-1 whitespace-nowrap">
+                                    <button type="button" onclick="openProbeDetailModal({{ loop.index0 }})" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-600 rounded text-[10px] transition">
+                                        Details
+                                    </button>
+                                    <span class="action-ban-container inline-block">
+                                        {% if p.is_banned %}
+                                        <span class="px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded text-[10px]">Gesperrt</span>
+                                        {% else %}
+                                        <button type="button" onclick="banIpAsync('{{ p.ip }}', 'Exploit-Probe: {{ p.category }}', this)" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded text-[10px] transition">
                                             Sperren
                                         </button>
-                                    </form>
+                                        {% endif %}
+                                    </span>
                                 </td>
                             </tr>
                             {% else %}
@@ -469,26 +474,25 @@
 
             <!-- Top Angreifer & Schnellsperre -->
             <div class="sys-card p-6 border-dark-700 space-y-4">
-                <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
-                    <span>🎯 Top Angreifer-IPs</span>
-                </h3>
-                <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span>🎯 Top Angreifer-IPs</span>
+                    </h3>
+                    <span class="text-[11px] text-gray-500 font-mono" id="top-attackers-count">{{ exploit_scan.top_attackers|length }} aktiv</span>
+                </div>
+                <div class="space-y-2" id="top-attackers-container">
                     {% for top in exploit_scan.top_attackers %}
-                    <div class="p-2.5 bg-dark-950 border border-dark-800 rounded-xl flex items-center justify-between font-mono text-xs">
+                    <div class="top-attacker-card p-2.5 bg-dark-950 border border-dark-800 rounded-xl flex items-center justify-between font-mono text-xs transition-all duration-300" data-attacker-ip="{{ top.ip }}">
                         <div>
                             <span class="text-white font-bold">{{ top.ip }}</span>
                             <span class="text-rose-400 text-[11px] ml-2">({{ top.count }} Angriffe)</span>
                         </div>
-                        <form method="POST" action="{{ url_for('security.ban_ip') }}">
-                            <input type="hidden" name="ip_address" value="{{ top.ip }}">
-                            <input type="hidden" name="reason" value="Top Exploit Scanner ({{ top.count }} Treffer)">
-                            <button type="submit" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] transition">
-                                Sperren
-                            </button>
-                        </form>
+                        <button type="button" onclick="banIpAsync('{{ top.ip }}', 'Top Exploit Scanner ({{ top.count }} Treffer)', this)" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] transition">
+                            Sperren
+                        </button>
                     </div>
                     {% else %}
-                    <p class="text-xs text-gray-500 font-mono text-center py-4">Keine wiederholten Angreifer-IPs verzeichnet.</p>
+                    <p id="no-top-attackers" class="text-xs text-gray-500 font-mono text-center py-4">Keine wiederholten Angreifer-IPs verzeichnet.</p>
                     {% endfor %}
                 </div>
             </div>
@@ -499,7 +503,7 @@
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
                     <span>🚫 Aktive IP-Sperrliste (Firewall & DB)</span>
-                    <span class="px-2 py-0.5 bg-rose-500/10 text-rose-400 text-xs rounded border border-rose-500/20">{{ banned_db|length }}</span>
+                    <span id="banned-count-badge" class="px-2 py-0.5 bg-rose-500/10 text-rose-400 text-xs rounded border border-rose-500/20">{{ banned_db|length }}</span>
                 </h3>
                 <button data-modal-open="modal-ban-ip" class="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-mono transition">
                     + IP manuell sperren
@@ -517,24 +521,21 @@
                             <th class="py-2 text-right">Aktion</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-dark-800">
+                    <tbody class="divide-y divide-dark-800" id="banned-ips-tbody">
                         {% for b in banned_db %}
-                        <tr class="hover:bg-dark-900/50">
-                            <td class="py-2 font-bold text-rose-400">{{ b.ip_address }}</td>
+                        <tr class="hover:bg-dark-900/50 transition-colors" data-banned-ip="{{ b.ip_address }}">
+                            <td class="py-2 font-bold text-rose-400 font-mono">{{ b.ip_address }}</td>
                             <td class="py-2 text-gray-300">{{ b.reason }}</td>
                             <td class="py-2 text-gray-400">{{ b.banned_by }}</td>
-                            <td class="py-2 text-gray-500 text-[11px]">{{ b.created_at }}</td>
+                            <td class="py-2 text-gray-500 text-[11px] whitespace-nowrap">{{ b.created_at }}</td>
                             <td class="py-2 text-right">
-                                <form method="POST" action="{{ url_for('security.unban_ip') }}" class="inline">
-                                    <input type="hidden" name="ip_address" value="{{ b.ip_address }}">
-                                    <button type="submit" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-600 rounded text-[10px] transition">
-                                        Entsperren
-                                    </button>
-                                </form>
+                                <button type="button" onclick="unbanIpAsync('{{ b.ip_address }}', this)" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-600 rounded text-[10px] transition">
+                                    Entsperren
+                                </button>
                             </td>
                         </tr>
                         {% else %}
-                        <tr>
+                        <tr id="no-banned-row">
                             <td colspan="5" class="py-4 text-center text-gray-500">Keine manuellen oder automatischen IP-Sperren aktiv.</td>
                         </tr>
                         {% endfor %}
@@ -835,6 +836,87 @@
 
 </div>
 
+<!-- Modal: Exploit-Probe Details -->
+<div id="modal-probe-details" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-fade-in space-y-4" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center pb-3 border-b border-dark-800">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-sm">
+                    📡
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white font-mono flex items-center gap-2">
+                        <span>Exploit-Probe Detailansicht</span>
+                    </h3>
+                    <p class="text-xs text-gray-400 font-mono">Erkennung aus NGINX Access-/Error-Logs</p>
+                </div>
+            </div>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="space-y-4 font-mono text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">Zeitpunkt</span>
+                    <span id="detail-probe-time" class="text-white font-bold text-xs">-</span>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">Angreifer-IP</span>
+                    <div class="flex items-center justify-between">
+                        <span id="detail-probe-ip" class="text-rose-400 font-bold text-xs">-</span>
+                        <button type="button" onclick="copyDetailIp()" class="text-gray-400 hover:text-white text-[10px] px-1.5 py-0.5 bg-dark-800 rounded">Kopieren</button>
+                    </div>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">Kategorie</span>
+                    <span id="detail-probe-cat" class="text-amber-400 font-bold text-xs">-</span>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">Erkanntes Muster</span>
+                    <span id="detail-probe-pattern" class="text-rose-300 font-mono text-xs bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 inline-block truncate max-w-full">-</span>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1 sm:col-span-2">
+                    <span class="text-gray-500 text-[10px] uppercase block">HTTP-Anfrage & Angefragter Pfad</span>
+                    <div class="flex items-center gap-2">
+                        <span id="detail-probe-method" class="px-1.5 py-0.5 bg-teal-500/20 text-teal-300 rounded font-bold text-[11px]">-</span>
+                        <span id="detail-probe-uri" class="text-gray-200 font-bold break-all">-</span>
+                    </div>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">HTTP Status Code</span>
+                    <span id="detail-probe-status" class="text-gray-300 font-bold">-</span>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-500 text-[10px] uppercase block">Server / Host</span>
+                    <span id="detail-probe-host" class="text-gray-300 font-bold">-</span>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1 sm:col-span-2">
+                    <span class="text-gray-500 text-[10px] uppercase block">User-Agent Header</span>
+                    <span id="detail-probe-ua" class="text-gray-400 text-[11px] break-all block">-</span>
+                </div>
+            </div>
+
+            <div class="space-y-1.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-500 text-[10px] uppercase block">Originale NGINX Logzeile</span>
+                    <button type="button" onclick="copyDetailRawLog()" class="text-gray-400 hover:text-white text-[10px] px-2 py-0.5 bg-dark-800 rounded">Logzeile kopieren</button>
+                </div>
+                <pre id="detail-probe-raw" class="bg-dark-950 border border-dark-800 p-3 rounded-xl text-gray-400 text-[10px] whitespace-pre-wrap break-all select-all font-mono max-h-32 overflow-y-auto">-</pre>
+            </div>
+        </div>
+
+        <div class="pt-2 flex justify-between items-center border-t border-dark-800 font-mono text-xs">
+            <span id="detail-probe-ban-status"></span>
+            <div class="flex gap-2">
+                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl transition">Schließen</button>
+                <button type="button" id="detail-probe-ban-btn" class="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-medium transition shadow-lg shadow-rose-900/30">IP Sperren</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: IP Manuell sperren -->
 <div id="modal-ban-ip" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
     <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
@@ -1103,6 +1185,294 @@ async function previewProfileDiff(profileName) {
     } catch (e) {
         listEl.innerHTML = `<div class="text-rose-400 py-2">Netzwerkfehler: ${e}</div>`;
     }
+}
+
+// ==========================================
+// Angriffs-Radar: Exploit Probes & Async Bans
+// ==========================================
+const probesData = {{ exploit_scan.recent_probes|tojson }};
+let currentDetailProbe = null;
+
+function openProbeDetailModal(index) {
+    if (!probesData || !probesData[index]) return;
+    const probe = probesData[index];
+    currentDetailProbe = probe;
+
+    document.getElementById('detail-probe-time').textContent = probe.timestamp || '-';
+    document.getElementById('detail-probe-ip').textContent = probe.ip || '-';
+    document.getElementById('detail-probe-cat').textContent = probe.category || '-';
+    document.getElementById('detail-probe-pattern').textContent = probe.matched || '-';
+    document.getElementById('detail-probe-method').textContent = probe.method || 'REQ';
+    document.getElementById('detail-probe-uri').textContent = probe.uri || '-';
+    document.getElementById('detail-probe-status').textContent = probe.status_code || '-';
+    document.getElementById('detail-probe-host').textContent = probe.server_host || '-';
+    document.getElementById('detail-probe-ua').textContent = probe.user_agent || '-';
+    document.getElementById('detail-probe-raw').textContent = probe.raw_line || '-';
+
+    const banBtn = document.getElementById('detail-probe-ban-btn');
+    const banStatus = document.getElementById('detail-probe-ban-status');
+
+    if (probe.is_banned) {
+        banBtn.disabled = true;
+        banBtn.className = "px-4 py-2 bg-dark-800 text-gray-500 rounded-xl cursor-not-allowed";
+        banBtn.textContent = "Bereits gesperrt";
+        banStatus.innerHTML = '<span class="text-rose-400 font-mono text-xs">🚫 Diese IP ist in der Firewall blockiert</span>';
+    } else {
+        banBtn.disabled = false;
+        banBtn.className = "px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-medium transition shadow-lg shadow-rose-900/30";
+        banBtn.textContent = "IP jetzt sperren";
+        banBtn.onclick = () => {
+            banIpAsync(probe.ip, `Exploit-Probe: ${probe.category}`, banBtn);
+        };
+        banStatus.innerHTML = '<span class="text-amber-400 font-mono text-xs">⚠️ Noch nicht gesperrt</span>';
+    }
+
+    const modal = document.getElementById('modal-probe-details');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function copyDetailIp() {
+    if (currentDetailProbe && currentDetailProbe.ip) {
+        navigator.clipboard.writeText(currentDetailProbe.ip);
+        if (window.SysCore && SysCore.toast) {
+            SysCore.toast(`IP ${currentDetailProbe.ip} kopiert`, 'info');
+        }
+    }
+}
+
+function copyDetailRawLog() {
+    if (currentDetailProbe && currentDetailProbe.raw_line) {
+        navigator.clipboard.writeText(currentDetailProbe.raw_line);
+        if (window.SysCore && SysCore.toast) {
+            SysCore.toast('Logzeile in die Zwischenablage kopiert', 'info');
+        }
+    }
+}
+
+async function banIpAsync(ip, reason, triggerBtn) {
+    if (!ip || ip === 'Unbekannt') {
+        if (window.SysCore && SysCore.toast) SysCore.toast('Ungültige IP-Adresse', 'error');
+        return;
+    }
+
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    if (triggerBtn) {
+        triggerBtn.disabled = true;
+        triggerBtn.innerHTML = '<span class="inline-block animate-spin mr-1">⌛</span> Sperre...';
+    }
+
+    try {
+        const res = await fetch("{{ url_for('security.ban_ip') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                ip_address: ip,
+                reason: reason || 'Manuelle Sperre im SysCore Angriffs-Radar',
+                ban_type: 'ufw'
+            })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+            if (window.SysCore && SysCore.toast) {
+                SysCore.toast(data.message || `IP ${ip} erfolgreich gesperrt!`, 'success');
+            }
+
+            // 1. Aus Top-Angreifern entfernen
+            const topCard = document.querySelector(`.top-attacker-card[data-attacker-ip="${ip}"]`);
+            if (topCard) {
+                topCard.style.opacity = '0';
+                topCard.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    topCard.remove();
+                    const container = document.getElementById('top-attackers-container');
+                    const countEl = document.getElementById('top-attackers-count');
+                    const remaining = container ? container.querySelectorAll('.top-attacker-card').length : 0;
+                    if (countEl) countEl.textContent = `${remaining} aktiv`;
+                    if (container && remaining === 0) {
+                        container.innerHTML = '<p id="no-top-attackers" class="text-xs text-gray-500 font-mono text-center py-4">Keine wiederholten Angreifer-IPs verzeichnet.</p>';
+                    }
+                }, 300);
+            }
+
+            // 2. In Exploit-Tabelle aktualisieren
+            document.querySelectorAll(`tr[data-probe-ip="${ip}"]`).forEach(tr => {
+                const container = tr.querySelector('.action-ban-container');
+                if (container) {
+                    container.innerHTML = '<span class="px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded text-[10px]">Gesperrt</span>';
+                }
+            });
+
+            // 3. Markiere in probesData als gesperrt
+            if (window.probesData) {
+                window.probesData.forEach(p => {
+                    if (p.ip === ip) p.is_banned = true;
+                });
+            }
+
+            // 4. In aktiver Sperrliste hinzufügen
+            const bannedTbody = document.getElementById('banned-ips-tbody');
+            if (bannedTbody) {
+                const noRow = document.getElementById('no-banned-row');
+                if (noRow) noRow.remove();
+
+                const newTr = document.createElement('tr');
+                newTr.className = 'hover:bg-dark-900/50 transition-colors animate-fade-in';
+                newTr.setAttribute('data-banned-ip', ip);
+                newTr.innerHTML = `
+                    <td class="py-2 font-bold text-rose-400 font-mono">${escapeHtml(ip)}</td>
+                    <td class="py-2 text-gray-300">${escapeHtml(data.reason || reason)}</td>
+                    <td class="py-2 text-gray-400">${escapeHtml(data.banned_by || 'admin')}</td>
+                    <td class="py-2 text-gray-500 text-[11px] whitespace-nowrap">${escapeHtml(data.created_at || 'soeben')}</td>
+                    <td class="py-2 text-right">
+                        <button type="button" onclick="unbanIpAsync('${escapeHtml(ip)}', this)" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-600 rounded text-[10px] transition">
+                            Entsperren
+                        </button>
+                    </td>
+                `;
+                bannedTbody.prepend(newTr);
+
+                const badge = document.getElementById('banned-count-badge');
+                if (badge) {
+                    const currentCount = parseInt(badge.textContent.trim()) || 0;
+                    badge.textContent = currentCount + 1;
+                }
+            }
+
+            // 5. Falls Details-Modal für diese IP offen war:
+            if (currentDetailProbe && currentDetailProbe.ip === ip) {
+                currentDetailProbe.is_banned = true;
+                const detailBanBtn = document.getElementById('detail-probe-ban-btn');
+                const detailStatus = document.getElementById('detail-probe-ban-status');
+                if (detailBanBtn) {
+                    detailBanBtn.disabled = true;
+                    detailBanBtn.className = "px-4 py-2 bg-dark-800 text-gray-500 rounded-xl cursor-not-allowed";
+                    detailBanBtn.textContent = "Bereits gesperrt";
+                }
+                if (detailStatus) {
+                    detailStatus.innerHTML = '<span class="text-rose-400 font-mono text-xs">🚫 Diese IP ist in der Firewall blockiert</span>';
+                }
+            }
+
+        } else {
+            const err = data.error || 'Fehler beim Sperren der IP.';
+            if (window.SysCore && SysCore.toast) {
+                SysCore.toast(err, 'error');
+            } else {
+                alert(err);
+            }
+            if (triggerBtn) {
+                triggerBtn.disabled = false;
+                triggerBtn.textContent = 'Sperren';
+            }
+        }
+    } catch (e) {
+        if (window.SysCore && SysCore.toast) {
+            SysCore.toast(`Netzwerkfehler: ${e}`, 'error');
+        } else {
+            alert(`Netzwerkfehler: ${e}`);
+        }
+        if (triggerBtn) {
+            triggerBtn.disabled = false;
+            triggerBtn.textContent = 'Sperren';
+        }
+    }
+}
+
+async function unbanIpAsync(ip, triggerBtn) {
+    if (!ip) return;
+    if (!confirm(`Soll die Sperre für IP ${ip} wirklich aufgehoben werden?`)) return;
+
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    if (triggerBtn) {
+        triggerBtn.disabled = true;
+        triggerBtn.textContent = 'Entsperre...';
+    }
+
+    try {
+        const res = await fetch("{{ url_for('security.unban_ip') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ ip_address: ip })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+            if (window.SysCore && SysCore.toast) {
+                SysCore.toast(data.message || `IP ${ip} entsperrt!`, 'success');
+            }
+
+            const tr = document.querySelector(`tr[data-banned-ip="${ip}"]`);
+            if (tr) {
+                tr.style.opacity = '0';
+                setTimeout(() => {
+                    tr.remove();
+                    const tbody = document.getElementById('banned-ips-tbody');
+                    if (tbody && tbody.querySelectorAll('tr').length === 0) {
+                        tbody.innerHTML = '<tr id="no-banned-row"><td colspan="5" class="py-4 text-center text-gray-500">Keine manuellen oder automatischen IP-Sperren aktiv.</td></tr>';
+                    }
+                    const badge = document.getElementById('banned-count-badge');
+                    if (badge) {
+                        const currentCount = parseInt(badge.textContent.trim()) || 1;
+                        badge.textContent = Math.max(0, currentCount - 1);
+                    }
+                }, 200);
+            }
+
+            // In Probes wieder auf nicht gesperrt setzen
+            if (window.probesData) {
+                window.probesData.forEach(p => {
+                    if (p.ip === ip) p.is_banned = false;
+                });
+            }
+            document.querySelectorAll(`tr[data-probe-ip="${ip}"]`).forEach(ptr => {
+                const container = ptr.querySelector('.action-ban-container');
+                if (container) {
+                    container.innerHTML = `<button type="button" onclick="banIpAsync('${ip}', 'Exploit-Probe', this)" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded text-[10px] transition">Sperren</button>`;
+                }
+            });
+
+        } else {
+            const err = data.error || 'Fehler beim Entsperren.';
+            if (window.SysCore && SysCore.toast) SysCore.toast(err, 'error');
+            if (triggerBtn) {
+                triggerBtn.disabled = false;
+                triggerBtn.textContent = 'Entsperren';
+            }
+        }
+    } catch (e) {
+        if (window.SysCore && SysCore.toast) SysCore.toast(`Netzwerkfehler: ${e}`, 'error');
+        if (triggerBtn) {
+            triggerBtn.disabled = false;
+            triggerBtn.textContent = 'Entsperren';
+        }
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.toString().replace(/[&<>"']/g, m => map[m]);
 }
 
 // Sentinel Chat Submissions

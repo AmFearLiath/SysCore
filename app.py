@@ -2,6 +2,7 @@ import os
 import secrets
 from datetime import timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, flash
+from werkzeug.middleware.proxy_fix import ProxyFix
 import config
 import db
 from modules.csrf import init_csrf
@@ -28,12 +29,25 @@ app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = 512 * 1024 * 1024  # 512 MB Max Upload
 
+# NGINX Reverse-Proxy Headers respektieren (SEC-018 / SSL & Client-IP Support)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 # Sitzungs- & Cookie-Härtung (SEC-017)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     PERMANENT_SESSION_LIFETIME=timedelta(hours=24)
 )
+
+# Standard Security Headers (HSTS, Nosniff, Clickjacking)
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    if request.is_secure:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # Zentraler CSRF-Schutz initialisieren (SEC-008)
 init_csrf(app)
