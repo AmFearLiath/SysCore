@@ -876,22 +876,28 @@
                                                     aktiv' if d.ssl else 'Kein HTTPS' }}</div>
                                             </div>
                                         </div>
-                                        {% if not d.ssl %}
-                                        <form method="POST"
-                                            action="{{ url_for('webserver.repair_domain_ssl', domain=d.name) if d.missing_ssl_block else url_for('webserver.enable_ssl', domain=d.name) }}">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                            <button type="submit"
-                                                class="w-full px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-mono transition flex items-center justify-center gap-1 font-bold">
-                                                <span>{{ '⚡ SSL verknüpfen' if d.missing_ssl_block else '🔒 1-Klick SSL'
-                                                    }}</span>
+                                        <div class="mt-2 pt-2 border-t border-dark-800 space-y-1">
+                                            {% if not d.ssl %}
+                                            <form method="POST"
+                                                action="{{ url_for('webserver.repair_domain_ssl', domain=d.name) if d.missing_ssl_block else url_for('webserver.enable_ssl', domain=d.name) }}">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit"
+                                                    class="w-full px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-mono transition flex items-center justify-center gap-1 font-bold">
+                                                    <span>{{ '⚡ SSL verknüpfen' if d.missing_ssl_block else '🔒 1-Klick SSL' }}</span>
+                                                </button>
+                                            </form>
+                                            {% else %}
+                                            <button type="button" onclick="openModal('modal-assign-cert')"
+                                                class="w-full px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-700 rounded-lg text-[10px] font-mono transition text-center">
+                                                Zertifikat wechseln
                                             </button>
-                                        </form>
-                                        {% else %}
-                                        <button type="button" onclick="openModal('modal-assign-cert')"
-                                            class="w-full px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-700 rounded-lg text-[10px] font-mono transition text-center">
-                                            Zertifikat wechseln
-                                        </button>
-                                        {% endif %}
+                                            {% endif %}
+                                            <button type="button" onclick="openSslDiagnoseModal('{{ d.name }}')"
+                                                class="w-full px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-[10px] font-mono transition flex items-center justify-center gap-1 font-medium">
+                                                <svg class="w-3 h-3 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                                                <span>SSL-Test & Diagnose</span>
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <!-- 2. Passwortschutz (.htpasswd) -->
@@ -1956,6 +1962,73 @@
     </div>
 </div>
 
+<!-- MODAL: SSL Tiefendiagnose & Auto-Repair -->
+<div id="modal-ssl-diagnose" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-2xl p-6 space-y-4 animate-in fade-in duration-200 max-h-[90vh] flex flex-col">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3 shrink-0">
+            <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2 font-mono">
+                    <span class="text-lg">🔒</span>
+                    <span>SSL/TLS-Test & Diagnose: <span id="diag-domain-title" class="text-cyan-400"></span></span>
+                </h3>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">Tiefenprüfung von DNS, Port 443 NGINX-VHost, Let's Encrypt Zertifikaten und TLS-Handshake.</p>
+            </div>
+            <button onclick="closeModal('modal-ssl-diagnose')" class="text-gray-400 hover:text-white text-xl font-bold p-1 leading-none">&times;</button>
+        </div>
+
+        <!-- Spinner Container (Während des Tests) -->
+        <div id="diag-spinner" class="py-12 flex flex-col items-center justify-center space-y-3 font-mono text-xs text-gray-400">
+            <svg class="animate-spin w-8 h-8 text-cyan-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <span>Führe automatische SSL-Tiefenprüfung durch...</span>
+        </div>
+
+        <!-- Ergebnis Container -->
+        <div id="diag-content" class="space-y-4 font-mono text-xs flex-1 overflow-y-auto pr-1 hidden">
+            <!-- Gesamtstatus Banner -->
+            <div id="diag-overall-banner" class="p-3.5 rounded-xl border flex items-center justify-between">
+                <!-- Dynamischer Text -->
+            </div>
+
+            <!-- SysCore Panel Subdomain Spezial-Box -->
+            <div id="diag-panel-box" class="p-4 bg-teal-500/10 border border-teal-500/30 rounded-xl space-y-2 text-teal-300 text-[11px] hidden">
+                <div class="flex items-center gap-2 font-bold text-teal-200">
+                    <span>🛡️ SysCore Panel Subdomain erkannt!</span>
+                </div>
+                <p class="leading-relaxed text-gray-300" id="diag-panel-desc"></p>
+                <div class="pt-1">
+                    <button type="button" id="btn-fix-panel-proxy" onclick="triggerSslRepair(true)" class="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-lg font-bold transition shadow-lg shadow-teal-900/30">
+                        ⚡ Als SysCore Panel HTTPS-Proxy (Port 443 ➜ 8888) einrichten
+                    </button>
+                </div>
+            </div>
+
+            <!-- Checkliste aller Einzeltoleranzen -->
+            <div class="space-y-2" id="diag-checklist">
+                <!-- Dynamische Checks -->
+            </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="pt-3 border-t border-dark-700 flex items-center justify-between shrink-0 font-mono text-xs">
+            <button onclick="closeModal('modal-ssl-diagnose')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl transition">
+                Schließen
+            </button>
+            <div class="flex items-center gap-2">
+                <button type="button" id="btn-retest-ssl" onclick="loadSslDiagnose(currentDiagDomain)" class="px-3.5 py-2 bg-dark-800 hover:bg-dark-700 text-cyan-300 border border-cyan-500/30 rounded-xl transition flex items-center gap-1.5">
+                    <span>🔄 Erneut prüfen</span>
+                </button>
+                <button type="button" id="btn-auto-repair" onclick="triggerSslRepair(false)" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition shadow-lg shadow-emerald-900/30 hidden">
+                    <span>🔧 Automatisch Reparieren</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -2140,6 +2213,140 @@
             document.getElementById('hiddenCertPath').value = parts[0];
             document.getElementById('hiddenKeyPath').value = parts[1];
         }
+    }
+
+    // SSL Tiefendiagnose & Auto-Repair Logic
+    let currentDiagDomain = '';
+
+    function openSslDiagnoseModal(domain) {
+        currentDiagDomain = domain;
+        document.getElementById('diag-domain-title').textContent = domain;
+        document.getElementById('diag-spinner').classList.remove('hidden');
+        document.getElementById('diag-content').classList.add('hidden');
+        document.getElementById('btn-auto-repair').classList.add('hidden');
+        document.getElementById('diag-panel-box').classList.add('hidden');
+        openModal('modal-ssl-diagnose');
+        loadSslDiagnose(domain);
+    }
+
+    function loadSslDiagnose(domain) {
+        document.getElementById('diag-spinner').classList.remove('hidden');
+        document.getElementById('diag-content').classList.add('hidden');
+
+        fetch('/web/domain/ssl/diagnose/' + encodeURIComponent(domain))
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('diag-spinner').classList.add('hidden');
+                document.getElementById('diag-content').classList.remove('hidden');
+
+                if (!data.success || !data.diagnostics) {
+                    alert('Diagnose-Fehler: ' + (data.error || 'Unbekannt'));
+                    return;
+                }
+                renderSslDiagnose(data.diagnostics);
+            })
+            .catch(err => {
+                document.getElementById('diag-spinner').classList.add('hidden');
+                alert('Netzwerkfehler bei SSL-Diagnose: ' + err);
+            });
+    }
+
+    function renderSslDiagnose(diag) {
+        const banner = document.getElementById('diag-overall-banner');
+        if (diag.overall_status === 'ok') {
+            banner.className = 'p-3.5 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-300 flex items-center justify-between';
+            banner.innerHTML = '<span class="font-bold flex items-center gap-2"><span>✅</span> <span>Ausgezeichnet: Alle SSL-Prüfungen bestanden!</span></span><span class="text-[11px] px-2 py-0.5 bg-emerald-500/20 rounded">HTTPS Aktiv</span>';
+        } else if (diag.overall_status === 'warning') {
+            banner.className = 'p-3.5 rounded-xl border bg-amber-500/10 border-amber-500/30 text-amber-300 flex items-center justify-between';
+            banner.innerHTML = '<span class="font-bold flex items-center gap-2"><span>⚠️</span> <span>Optimierungsbedarf oder Hinweise identifiziert</span></span><span class="text-[11px] px-2 py-0.5 bg-amber-500/20 rounded">Warnung</span>';
+        } else {
+            banner.className = 'p-3.5 rounded-xl border bg-rose-500/10 border-rose-500/30 text-rose-300 flex items-center justify-between';
+            banner.innerHTML = '<span class="font-bold flex items-center gap-2"><span>❌</span> <span>Kritischer SSL-Fehler: HTTPS nicht funktionsfähig!</span></span><span class="text-[11px] px-2 py-0.5 bg-rose-500/20 rounded">Fehler</span>';
+        }
+
+        // Panel Subdomain Spezial-Box
+        const panelBox = document.getElementById('diag-panel-box');
+        if (diag.is_panel_subdomain && diag.needs_panel_proxy) {
+            panelBox.classList.remove('hidden');
+            document.getElementById('diag-panel-desc').innerHTML = `
+                <strong>${diag.domain}</strong> ist deine SysCore Panel-Domain. Das Panel läuft intern auf Port 8888.<br>
+                Das Let's Encrypt Zertifikat existiert zwar, aber der Webserver leitet Aufrufe noch nicht als HTTPS-Proxy weiter.<br>
+                <strong>Lösung:</strong> Mit Klick auf den Button unten richtet SysCore NGINX so ein, dass du das Panel direkt über <code>https://${diag.domain}</code> (ohne :8888) mit grünem Vorhängeschloss erreichst!
+            `;
+        } else {
+            panelBox.classList.add('hidden');
+        }
+
+        // Auto-Repair Button
+        const repairBtn = document.getElementById('btn-auto-repair');
+        if (diag.can_auto_repair && !diag.needs_panel_proxy) {
+            repairBtn.classList.remove('hidden');
+        } else {
+            repairBtn.classList.add('hidden');
+        }
+
+        // Checklist
+        const list = document.getElementById('diag-checklist');
+        list.innerHTML = diag.checks.map(c => {
+            let icon = '✅';
+            let borderClass = 'border-dark-800 bg-dark-950';
+            let textClass = 'text-emerald-400';
+            if (c.status === 'warning') {
+                icon = '⚠️';
+                borderClass = 'border-amber-500/30 bg-amber-500/5';
+                textClass = 'text-amber-400';
+            } else if (c.status === 'error') {
+                icon = '❌';
+                borderClass = 'border-rose-500/30 bg-rose-500/5';
+                textClass = 'text-rose-400';
+            }
+            return `
+                <div class="p-3 rounded-xl border ${borderClass} space-y-1">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-white flex items-center gap-2">
+                            <span>${icon}</span>
+                            <span>${c.title}</span>
+                        </span>
+                        <span class="text-[10px] ${textClass} font-bold uppercase">${c.status}</span>
+                    </div>
+                    <p class="text-[11px] text-gray-300 pl-6 leading-relaxed">${c.message}</p>
+                    ${c.recommendation ? `<p class="text-[10px] text-cyan-300 pl-6 pt-0.5">💡 <em>${c.recommendation}</em></p>` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    function triggerSslRepair(setAsPanelProxy) {
+        if (!currentDiagDomain) return;
+        const btn = setAsPanelProxy ? document.getElementById('btn-fix-panel-proxy') : document.getElementById('btn-auto-repair');
+        const origText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = 'Repariere & aktiviere HTTPS...';
+
+        fetch('/web/domain/ssl/diagnose-repair/' + encodeURIComponent(currentDiagDomain), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ set_as_panel_proxy: !!setAsPanelProxy })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+            if (data.success) {
+                alert('Erfolg: ' + data.message);
+                loadSslDiagnose(currentDiagDomain);
+            } else {
+                alert('Reparatur-Fehler: ' + data.message);
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+            alert('Netzwerkfehler: ' + err);
+        });
     }
 </script>
 {% endblock %}

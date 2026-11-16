@@ -9,8 +9,11 @@ import hmac
 import hashlib
 import base64
 import subprocess
+import socket
+import ssl
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_file, Response
+import config
 from config import WEB_ROOT_BASE, NGINX_AVAILABLE, NGINX_ENABLED, APACHE_PORTS_CONF, CERTBOT_EMAIL
 from modules.auth_users import login_required, role_required, log_audit
 from modules.system_agent import nginx_reload, run_privileged, manage_service
@@ -1152,6 +1155,280 @@ def repair_domain_ssl_core(domain):
 def issue_and_apply_ssl(domain):
     """Programmatisches Ausstellen & Einbinden eines SSL-Zertifikats für eine Domain/Subdomain"""
     return repair_domain_ssl_core(domain)
+
+def diagnose_domain_ssl(domain):
+    """
+    Führt eine Tiefendiagnose der SSL/TLS-Konfiguration für eine Domain durch:
+    1. DNS-Auflösung (A-Record)
+    2. Existenz und Gültigkeit der Zertifikate auf der Festplatte
+    3. NGINX VHost Konfiguration (Port 443 SSL-Serverblock, Zertifikatspfade, 301-Redirect)
+    4. SysCore Panel Subdomain-Erkennung & Reverse-Proxy Status (Port 8888)
+    5. Lokaler TLS-Handshake Test
+    """
+    checks = []
+    can_auto_repair = False
+    needs_panel_proxy = False
+
+    # Check 1: DNS-Auflösung
+    dns_status = "error"
+    dns_msg = ""
+    dns_rec = ""
+    try:
+        info = socket.gethostbyname_ex(domain)
+        dns_ips = info[2]
+        if dns_ips:
+            dns_status = "ok"
+            dns_msg = f"Domain löst erfolgreich auf IP-Adresse(n) {', '.join(dns_ips)} auf."
+        else:
+            dns_msg = "Keine IP-Adressen in DNS-Antwort gefunden."
+            dns_rec = f"Bitte prüfe den A-Record für '{domain}' bei deinem Domain-Registrar."
+    except Exception as e:
+        dns_msg = f"DNS-Auflösung fehlgeschlagen: {e}"
+        dns_rec = f"Bitte prüfe den A-Record für '{domain}' bei deinem Domain-Registrar."
+
+    checks.append({
+        "id": "dns",
+        "title": "DNS-Auflösung (A-Record)",
+        "status": dns_status,
+        "message": dns_msg,
+        "recommendation": dns_rec
+    })
+
+    # Check 2: Zertifikate auf Festplatte
+    clear_ssl_cache()
+    cert_info = find_ssl_cert_for_domain(domain)
+    has_cert_on_disk = bool(cert_info and cert_info.get("active"))
+    cert_days = cert_info.get("days_left") if cert_info else None
+
+    if has_cert_on_disk:
+        if cert_days is not None and cert_days < 10:
+            cert_status = "warning"
+            cert_msg = f"Zertifikat vorhanden ({cert_info.get('cert_path')}), läuft aber in {cert_days} Tagen ab!"
+            cert_rec = "Zertifikat über Certbot erneuern."
+            can_auto_repair = True
+        else:
+            cert_status = "ok"
+            days_str = f" ({cert_days} Tage Restlaufzeit)" if cert_days is not None else ""
+            issuer = cert_info.get("issuer", "Let's Encrypt")
+            cert_msg = f"Gültiges {issuer}-Zertifikat auf dem Server gefunden{days_str}."
+            cert_rec = ""
+    else:
+        cert_status = "error"
+        cert_msg = f"Kein passendes SSL-Zertifikat auf dem Server für '{domain}' gefunden."
+        cert_rec = "Über '1-Klick SSL anfordern' ein kostenloses Let's Encrypt Zertifikat ausstellen."
+        can_auto_repair = True
+
+    checks.append({
+        "id": "cert_files",
+        "title": "Zertifikatsdateien auf dem Server",
+        "status": cert_status,
+        "message": cert_msg,
+        "recommendation": cert_rec
+    })
+
+    # Check 3: NGINX VHost Konfiguration
+    avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
+    if not os.path.exists(avail_path):
+        avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.conf")
+
+    vhost_exists = os.path.exists(avail_path)
+    vhost_content = ""
+    has_443 = False
+    has_redirect = False
+    is_proxy_to_8888 = False
+    enabled_link = False
+
+    if vhost_exists:
+        try:
+            with open(avail_path, "r", encoding="utf-8") as f:
+                vhost_content = f.read()
+            has_443 = ("listen 443 ssl" in vhost_content) or ("listen [::]:443 ssl" in vhost_content)
+            has_redirect = "return 301 https://" in vhost_content
+            is_proxy_to_8888 = ("proxy_pass http://127.0.0.1:8888" in vhost_content) or ("proxy_pass http://localhost:8888" in vhost_content)
+
+            en_path = os.path.join(NGINX_ENABLED, os.path.basename(avail_path))
+            enabled_link = os.path.exists(en_path)
+        except Exception:
+            pass
+
+    if not vhost_exists:
+        vhost_status = "error"
+        vhost_msg = f"Keine NGINX VHost-Datei für '{domain}' in {NGINX_AVAILABLE} gefunden."
+        vhost_rec = "Domain im Domain-Manager neu anlegen oder Konfiguration generieren."
+        can_auto_repair = True
+    elif not has_443:
+        vhost_status = "error"
+        vhost_msg = "Der NGINX VHost besitzt KEINEN Port 443 SSL-Serverblock. Anfragen über HTTPS werden von NGINX nicht entgegengenommen!"
+        vhost_rec = "Klicke auf 'Automatisch Reparieren', um den Port 443 SSL-Block in die NGINX-Konfiguration einzubinden."
+        can_auto_repair = True
+    elif not enabled_link:
+        vhost_status = "warning"
+        vhost_msg = f"VHost existiert, ist aber nicht in {NGINX_ENABLED} verlinkt (inaktiv)."
+        vhost_rec = "Symlink erstellen und NGINX neu laden."
+        can_auto_repair = True
+    else:
+        vhost_status = "ok"
+        vhost_msg = "NGINX VHost ist mit Port 443 SSL und aktiver Zertifikatsanbindung konfiguriert."
+        vhost_rec = ""
+
+    checks.append({
+        "id": "vhost",
+        "title": "NGINX VHost (Port 443 SSL Serverblock)",
+        "status": vhost_status,
+        "message": vhost_msg,
+        "recommendation": vhost_rec
+    })
+
+    # Check 4: SysCore Panel Erkennung & Reverse Proxy
+    is_panel_host = (domain.lower() == getattr(config, "PANEL_HOST", "").lower()) or domain.lower().startswith("syscore.")
+    if is_panel_host:
+        if is_proxy_to_8888 and has_443:
+            p_status = "ok"
+            p_msg = f"NGINX leitet Anfragen für https://{domain} als verschlüsselten Reverse-Proxy an das SysCore Panel (Port 8888) weiter."
+            p_rec = f"Wichtig: Rufe das Panel im Browser über https://{domain} (OHNE :8888 am Ende) auf, um das SSL-Zertifikat zu nutzen!"
+        else:
+            p_status = "warning"
+            needs_panel_proxy = True
+            can_auto_repair = True
+            p_msg = f"'{domain}' ist die Subdomain des SysCore Panels! Aktuell leitet NGINX jedoch noch nicht an Port 8888 weiter (oder der 443-Proxy fehlt). Deshalb hat das Panel im Browser kein Zertifikat, wenn du es über Port 8888 aufrufst."
+            p_rec = "Klicke unten auf 'Als SysCore Panel HTTPS-Proxy (Port 443 ➜ 8888) einrichten', damit NGINX das SSL-Zertifikat bereitstellt und Anfragen an SysCore weiterleitet!"
+
+        checks.append({
+            "id": "panel_proxy",
+            "title": "SysCore Panel HTTPS-Proxy Erkennung",
+            "status": p_status,
+            "message": p_msg,
+            "recommendation": p_rec
+        })
+
+    # Check 5: Live TLS Handshake Test
+    if has_443:
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            with socket.create_connection(("127.0.0.1", 443), timeout=3) as sock:
+                with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
+                    ssock.getpeercert(binary_form=True)
+                    tls_status = "ok"
+                    tls_msg = "Lokaler TLS-Handshake auf Port 443 mit NGINX war erfolgreich."
+                    tls_rec = ""
+        except Exception as e:
+            err_str = str(e)
+            if "Connection refused" in err_str:
+                tls_status = "error"
+                tls_msg = "Verbindung auf Port 443 abgelehnt: NGINX lauscht nicht auf Port 443 oder der Dienst läuft nicht."
+                tls_rec = "NGINX Dienst neu starten ('systemctl restart nginx')."
+            else:
+                tls_status = "warning"
+                tls_msg = f"TLS Handshake Hinweis: {err_str}"
+                tls_rec = "Prüfe Firewall oder NGINX SSL-Protokolle."
+
+        checks.append({
+            "id": "tls_handshake",
+            "title": "Live TLS Handshake (Port 443)",
+            "status": tls_status,
+            "message": tls_msg,
+            "recommendation": tls_rec
+        })
+
+    # Gesamtbewertung
+    overall = "ok"
+    if any(c["status"] == "error" for c in checks):
+        overall = "error"
+    elif any(c["status"] == "warning" for c in checks):
+        overall = "warning"
+
+    return {
+        "domain": domain,
+        "overall_status": overall,
+        "checks": checks,
+        "can_auto_repair": can_auto_repair,
+        "needs_panel_proxy": needs_panel_proxy,
+        "is_panel_subdomain": is_panel_host,
+        "has_cert_on_disk": has_cert_on_disk,
+        "cert_info": cert_info
+    }
+
+def auto_repair_domain_ssl(domain, set_as_panel_proxy=False):
+    """
+    Führt eine automatische Reparatur des SSL-VHosts durch.
+    Unterstützt optional die Konfiguration als SysCore Panel HTTPS-Proxy (Port 443 ➜ 8888).
+    """
+    if set_as_panel_proxy:
+        # 1. Sicherstellen, dass Zertifikat vorhanden ist
+        clear_ssl_cache()
+        cert_info = find_ssl_cert_for_domain(domain)
+        if not cert_info:
+            ok, msg = repair_domain_ssl_core(domain)
+            if not ok:
+                return False, f"Certbot konnte kein Zertifikat ausstellen: {msg}"
+            clear_ssl_cache()
+            cert_info = find_ssl_cert_for_domain(domain)
+            if not cert_info:
+                return False, "Zertifikat konnte nach Certbot-Lauf nicht geladen werden."
+
+        # 2. VHost als Reverse Proxy zu Port 8888 generieren mit SSL!
+        new_vhost = build_nginx_config(
+            domain=domain,
+            mode="proxy",
+            target_path="/var/www/html",
+            proxy_port=8888,
+            ssl_enabled=True,
+            cert_path=cert_info["cert_path"],
+            key_path=cert_info["key_path"],
+            force_https=True
+        )
+
+        avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
+        with open(avail_path, "w", encoding="utf-8") as f:
+            f.write(new_vhost)
+
+        en_path = os.path.join(NGINX_ENABLED, f"{domain}.panel.conf")
+        if not os.path.exists(en_path) and hasattr(os, "symlink"):
+            try:
+                os.symlink(avail_path, en_path)
+            except Exception:
+                pass
+
+        ok, msg = reload_nginx()
+        if not ok:
+            return False, f"NGINX Syntaxfehler nach Panel-Proxy Einrichtung: {msg}"
+
+        return True, f"SysCore Panel HTTPS-Proxy für '{domain}' erfolgreich eingerichtet! Du kannst das Panel jetzt direkt im Browser unter https://{domain} (ohne Port :8888) mit sicherem SSL-Zertifikat aufrufen."
+
+    # Normaler VHost-Repair
+    return repair_domain_ssl_core(domain)
+
+@webserver_bp.route("/domain/ssl/diagnose/<domain>", methods=["GET"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def api_diagnose_ssl(domain):
+    """Liefert JSON-Ergebnisse des SSL-Tiefentests für eine Domain"""
+    diag = diagnose_domain_ssl(domain)
+    return jsonify({"success": True, "diagnostics": diag})
+
+@webserver_bp.route("/domain/ssl/diagnose-repair/<domain>", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def api_diagnose_repair_ssl(domain):
+    """Führt automatische Reparatur auf Basis der Diagnose durch"""
+    set_as_panel_proxy = request.form.get("set_as_panel_proxy") in ("1", "true", "True")
+    if not set_as_panel_proxy and request.is_json:
+        data = request.get_json(silent=True) or {}
+        set_as_panel_proxy = data.get("set_as_panel_proxy", False)
+
+    ok, msg = auto_repair_domain_ssl(domain, set_as_panel_proxy=set_as_panel_proxy)
+    log_audit(session.get("username"), "SSL_AUTO_REPAIR", f"SSL Reparatur für '{domain}': {msg}", request.remote_addr, "success" if ok else "error")
+
+    if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"success": ok, "message": msg})
+
+    if ok:
+        flash(msg, "success")
+    else:
+        flash(f"Reparatur fehlgeschlagen: {msg}", "error")
+    return redirect(url_for("webserver.index"))
 
 @webserver_bp.route("/fix/acme-webroot", methods=["POST"])
 @login_required
