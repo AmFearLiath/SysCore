@@ -44,33 +44,8 @@ def trigger_system_restart(delay_seconds=2):
     if os.name == "nt":
         return
 
-    # 1. Bevorzugt: systemd-run erzeugt einen unabhängigen transienten Timer
-    if shutil.which("systemd-run"):
-        try:
-            cmd = "systemctl restart syscore-panel || systemctl restart syscore"
-            res = subprocess.run([
-                "systemd-run",
-                f"--on-active={delay_seconds}s",
-                "--unit=syscore-auto-restart",
-                "sh", "-c", cmd
-            ], capture_output=True, text=True)
-            if res.returncode == 0:
-                return
-        except Exception:
-            pass
-
-    # 2. Fallback: Vollständig entkoppelter Kindprozess mit setsid und --no-block
-    try:
-        cmd = f"sleep {delay_seconds}; systemctl restart --no-block syscore-panel || systemctl restart --no-block syscore"
-        subprocess.Popen(
-            ["sh", "-c", cmd],
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL
-        )
-    except Exception:
-        pass
+    from modules.system_agent import trigger_panel_restart
+    trigger_panel_restart(delay_seconds=delay_seconds)
 
 def get_pm2_processes():
     if not shutil.which("pm2"):

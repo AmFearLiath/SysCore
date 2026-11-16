@@ -21,7 +21,24 @@ PYTHON_BIN="/usr/bin/python3"
 echo "[1/6] Installiere System-Abhängigkeiten via APT..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y python3 python3-pip python3-venv git curl ufw
+apt-get install -y python3 python3-pip python3-venv git curl ufw sudo
+
+# Privilege Separation: Unprivilegierten Benutzer 'syscore' anlegen (SEC-001)
+if ! id -u syscore >/dev/null 2>&1; then
+    echo "[SysCore Security] Erstelle unprivilegierten Systembenutzer 'syscore'..."
+    useradd -r -s /usr/sbin/nologin -d "$INSTALL_DIR" -M -c "SysCore Panel Daemon" syscore
+fi
+# syscore zur www-data Gruppe hinzufügen für Webroot-Zugriff
+usermod -a -G www-data syscore || true
+
+# Sudoers Whitelist für Privilege Separation (SEC-001)
+echo "[SysCore Security] Richte sudoers Whitelist für 'syscore' ein (/etc/sudoers.d/syscore)..."
+cat << 'EOF' > /etc/sudoers.d/syscore
+# SysCore Privilege Separation Sudoers Whitelist (SEC-001)
+Defaults:syscore !requiretty
+syscore ALL=(ALL) NOPASSWD: /bin/systemctl, /usr/bin/systemctl, /usr/bin/certbot, /usr/sbin/ufw, /usr/bin/timedatectl, /usr/sbin/chown, /usr/bin/apt-get, /usr/sbin/nginx, /usr/bin/nginx
+EOF
+chmod 0440 /etc/sudoers.d/syscore
 
 echo "[2/6] Richte Verzeichnisse ein..."
 mkdir -p "$INSTALL_DIR"
@@ -103,7 +120,17 @@ if [ "$USER_EXISTS" -eq 0 ]; then
     fi
 fi
 
-echo "[6/6] Richte systemd Daemon ein..."
+echo "[6/6] Richte Berechtigungen & systemd Daemon ein (SEC-001)..."
+
+# Dateirechte für Benutzer syscore härten (SEC-001, SEC-012)
+chown -R syscore:syscore "$INSTALL_DIR"
+chmod 750 "$INSTALL_DIR"
+if [ -f "$INSTALL_DIR/.env" ]; then chmod 600 "$INSTALL_DIR/.env"; fi
+if [ -f "$INSTALL_DIR/.secret_key" ]; then chmod 600 "$INSTALL_DIR/.secret_key"; fi
+if [ -f "$INSTALL_DIR/syscore.db" ]; then chmod 660 "$INSTALL_DIR"/syscore.db*; fi
+chown -R syscore:www-data /var/backups/syscore 2>/dev/null || true
+chmod 770 /var/backups/syscore 2>/dev/null || true
+
 cat << 'EOF' > /etc/systemd/system/syscore.service
 [Unit]
 Description=SysCore Server Management Daemon
@@ -111,12 +138,19 @@ After=network.target nginx.service
 
 [Service]
 Type=simple
-User=root
+User=syscore
+Group=syscore
 WorkingDirectory=/opt/syscore
 ExecStart=/opt/syscore/venv/bin/gunicorn -w 4 -b 0.0.0.0:8888 --timeout 120 app:app
 Restart=always
 RestartSec=5
 EnvironmentFile=/opt/syscore/.env
+
+# systemd Security Hardening Direktiven (SEC-001)
+NoNewPrivileges=false
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

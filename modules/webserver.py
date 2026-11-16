@@ -9,6 +9,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_file, Response
 from config import WEB_ROOT_BASE, NGINX_AVAILABLE, NGINX_ENABLED, APACHE_PORTS_CONF, CERTBOT_EMAIL
 from modules.auth_users import login_required, role_required, log_audit
+from modules.system_agent import nginx_reload, run_privileged, manage_service
 from db import query_db, execute_db
 
 webserver_bp = Blueprint("webserver", __name__, url_prefix="/web")
@@ -33,24 +34,37 @@ def detect_php_versions():
     return sorted(list(set(versions)))
 
 def reload_nginx():
-    """Führt nginx -t aus und lädt den Dienst nur bei fehlerfreier Syntax neu"""
+    """Führt nginx -t aus und lädt den Dienst nur bei fehlerfreier Syntax neu (SEC-001)"""
     if not shutil.which("nginx"):
         return True, "Entwicklungsumgebung: NGINX-Prüfung übersprungen."
-    test = subprocess.run(["nginx", "-t"], capture_output=True, text=True)
-    if test.returncode != 0:
-        return False, test.stderr
-    if shutil.which("systemctl"):
-        subprocess.run(["systemctl", "reload", "nginx"], check=False)
+    res = nginx_reload()
+    if res.returncode != 0:
+        return False, res.stderr
     return True, "NGINX erfolgreich neu geladen."
 
 def validate_web_path(custom_path, fallback_domain):
-    """Sichert DocumentRoot-Pfade gegen Path-Traversal ab"""
+    """
+    Sichert DocumentRoot-Pfade gegen Path-Traversal ab (SEC-005):
+    - Kanonische Prüfung gegen WEB_ROOT_BASE mit os.path.commonpath
+    - Ablehnung von Symlinks, die aus dem Webroot ausbrechen
+    """
     base = os.path.realpath(WEB_ROOT_BASE)
     if not custom_path:
         return os.path.join(base, fallback_domain, "public")
-    norm = os.path.realpath(os.path.normpath(custom_path.strip()))
-    if not norm.startswith(base):
+
+    clean_path = custom_path.strip()
+    norm = os.path.realpath(os.path.normpath(clean_path))
+
+    # Strikte Prüfung mit commonpath statt anfälligem startswith
+    if os.path.commonpath([base, norm]) != base:
         return None
+
+    # Falls Pfad ein Symlink ist, Ziel zusätzlich prüfen
+    if os.path.islink(norm):
+        link_target = os.path.realpath(norm)
+        if os.path.commonpath([base, link_target]) != base:
+            return None
+
     return norm
 
 # ==============================================================================

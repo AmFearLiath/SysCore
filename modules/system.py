@@ -8,6 +8,7 @@ import psutil
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, session
 from config import MANAGED_SERVICES
 from modules.auth_users import login_required, role_required
+from modules.system_agent import manage_service, run_privileged
 from db import log_audit
 
 system_bp = Blueprint("system", __name__)
@@ -192,11 +193,12 @@ def api_metrics():
 @login_required
 @role_required(["root_admin"])
 def control_service(name, action):
-    if name in MANAGED_SERVICES and action in ["restart", "start", "stop"]:
-        if shutil.which("systemctl"):
-            subprocess.run(["systemctl", action, name])
+    try:
+        manage_service(name, action)
         log_audit(session.get("username"), f"SERVICE_{action.upper()}", f"Dienst '{name}' -> {action}", request.remote_addr)
         flash(f"Dienst '{name}' -> {action} ausgeführt.", "success")
+    except Exception as e:
+        flash(f"Fehler bei Dienstaktion: {e}", "error")
     return redirect(url_for("system.index"))
 
 @system_bp.route("/settings/hostname", methods=["POST"])
@@ -205,9 +207,13 @@ def control_service(name, action):
 def set_hostname():
     new_host = request.form.get("hostname", "").strip()
     if re.match(r"^[a-zA-Z0-9.-]{2,64}$", new_host):
-        if shutil.which("hostnamectl"):
-            subprocess.run(["hostnamectl", "set-hostname", new_host])
-        log_audit(session.get("username"), "HOSTNAME_CHANGE", f"Hostname geändert auf '{new_host}'", request.remote_addr)
+        try:
+            if shutil.which("hostnamectl"):
+                run_privileged(["hostnamectl", "set-hostname", new_host])
+            log_audit(session.get("username"), "HOSTNAME_CHANGE", f"Hostname geändert auf '{new_host}'", request.remote_addr)
+            flash(f"Hostname erfolgreich geändert: {new_host}", "success")
+        except Exception as e:
+            flash(f"Fehler beim Setzen des Hostnames: {e}", "error")
         flash(f"Hostname auf '{new_host}' geändert.", "success")
     else:
         flash("Ungültiger Hostname.", "error")

@@ -1,4 +1,4 @@
-# SysCore — Next-Gen Server- & Webspace-Management (Plesk-Klasse)
+# SysCore — Next-Gen Server- & Webspace-Management
 
 SysCore ist ein hochmodernes, eigenständiges Server- und Webspace-Management-System, konzipiert für Debian Root-Server. Es kombiniert die Leistungsfähigkeit und Flexibilität von Plesk oder CloudPanel mit strikter Unabhängigkeit von NGINX/Apache als eigenständiger `systemd`-Daemon.
 
