@@ -11,7 +11,14 @@ SysCore ist ein hochmodernes, eigenständiges Server- und Webspace-Management-Sy
 - **Global Command Palette (`Ctrl+K` / `Cmd+K`):** Blitzschnelles Springen zwischen Domains, Datenbanken, Systemdiensten, Werkzeugen und Einstellungen per Tastenkombination.
 - **Live-Terminal Drawer:** Integrierte Streaming-Konsole für Apt-Installationen, NGINX-Tests und Log-Streaming via Server-Sent Events (SSE).
 - **Strikte Isolation & Pterodactyl-Schutz:** Eigene NGINX-VHosts nutzen ausschließlich das Suffix `.panel.conf`. Bestehende Serverkonfigurationen (`pterodactyl.conf`, System-Crontabs, System-Datenbanken) werden niemals überschrieben oder beschädigt.
-- **Sicherheit & Git-Exclusion:** Vollständige Trennung aller sensitiven Zugangsdaten über `.env` und `.gitignore`. Passwörter werden sicher mit Scrypt/Argon2 gehasht.
+- **Gehärtete Enterprise-Sicherheitsarchitektur:**
+  - **Privilege Separation:** Der Webprozess läuft unprivilegiert als Benutzer `syscore` mit restriktiver Sudoers-Whitelist (`system_agent`).
+  - **Zentraler CSRF-Schutz:** Sämtliche zustandsverändernden Routen (`POST`, `PUT`, `DELETE`) und AJAX-Calls sind per CSRF-Token und Constant-Time `hmac.compare_digest` geschützt.
+  - **Echtzeit-Berechtigungsprüfung:** Rollen und Kontostatus (`is_active`) werden bei jeder authentifizierten Anfrage live gegen die Datenbank abgeglichen.
+  - **Anti-Tar/Zip-Slip & Quarantäne-Validierung:** Vollständiger Schutz vor Directory-Traversals, Zip-Bomben und Symlink-Ausbrüchen bei App-Imports und Backups.
+  - **Deploy-Webhooks mit HMAC-SHA256 & Replay-Schutz:** Kryptografisch validierte GitHub-/GitLab-Webhooks mit Rate-Limiting und sicheren Build-Tools ohne Shell-Pipes.
+  - **Maskierte Fehlerseiten:** Keine Stacktrace- oder Pfad-Leaks an Endbenutzer; sichere Fehler-Referenz-IDs für Administratoren.
+  - **Git-Exclusion:** Sensitive Konfigurations- und Sicherheitsdateien verbleiben strikt lokal und werden niemals synchronisiert.
 
 ---
 
@@ -59,28 +66,30 @@ SysCore ist ein hochmodernes, eigenständiges Server- und Webspace-Management-Sy
   - **Sicherheit & VPN:** CrowdSec & Firewall Bouncer (Threat-Intelligence), WireGuard VPN, Fail2Ban, Certbot.
   - **DevOps & Container:** Docker & Docker Compose v2, Gitea (privater Self-Hosted Git-Server auf Port 3000).
 
-### 5. App-Importer via ZIP & Manifest (`modules/apps.py`)
+### 6. App-Importer via ZIP & Manifest (`modules/apps.py`)
 - Upload und schlüsselfertiges Deployment eigener Web-Apps als `.zip`-Archiv mit `syscore.manifest.json`.
-- **Automatische Schritte:**
-  - Zip-Slip-sicheres Entpacken in `/var/www/<domain>`.
+- **Automatische Schritte & Sicherheits-Härtung:**
+  - Zip-Slip- & Zip-Bomb-geschützte Extraktion über temporäre Quarantäne-Verzeichnisse in `/var/www/<domain>/`.
   - Automatische Generierung einer isolierten MySQL-Datenbank + User mit sicherem Zufallspasswort.
-  - Automatische Erzeugung der `.env` durch Platzhalter-Ersetzung (`{{DB_NAME}}`, `{{DB_USER}}`, `{{DB_PASS}}`, `{{DOMAIN}}`, `{{APP_KEY}}`).
-  - Ausführung von Initialisierungs-SQL (`setup_sql`) und Post-Install-Befehlen (z. B. `composer install`).
-  - Berechtigungsanpassung auf `www-data:www-data`.
+  - Sichere `.env`-Generierung durch Platzhalter-Ersetzung (`{{DB_NAME}}`, `{{DB_USER}}`, `{{DB_PASS}}`, `{{DOMAIN}}`, `{{APP_KEY}}`).
+  - Ausführung von Initialisierungs-SQL (`setup_sql`) ohne Directory Traversal.
+  - Deklarative Installations-Aktionen über eine strikte Action-Registry (`create_directories`, `set_permissions`, `composer_install`, `npm_build`) ohne Ausführung beliebiger Shell-Skripte.
+  - Automatische Rechteanpassung auf `www-data:www-data`.
 - 1-Klick-Download eines Starter-Templates direkt im Panel.
 
 ### 7. Zentrales Einstellungs-Hub, Panel-SSL & Auto-Updater (`modules/settings.py`)
 - **Panel HTTPS-Subdomain Proxy & SSL:** 1-Klick-Assistent, um SysCore selbst über eine Subdomain (z.B. `panel.amfearliath.de`) mit NGINX Reverse-Proxy und automatischem Let's Encrypt SSL-Zertifikat bereitzustellen. Unterstützung für manuelle Custom-Zertifikate.
 - **Server-Health Alarme:** Push-Benachrichtigungen via Discord Webhook oder Telegram Bot bei hoher Festplattenlast (>90%) oder Angriffen.
-- **Auto-Updater & Rollback-Engine:** Integrierte GitHub-Prüfung gegen `origin/main` mit Commit-Diff-Anzeige, 1-Klick-Update mit automatischem Dependency-Sync (`pip install`) & Daemon-Restart sowie 1-Klick-Rollback auf frühere Git-Commits.
+- **Auto-Updater & Rollback-Engine:** Integrierte GitHub-Prüfung gegen `origin/main` mit Commit-Diff-Anzeige, 1-Klick-Update mit isoliertem Virtualenv-Sync (`venv/bin/pip`) & Daemon-Restart sowie 1-Klick-Rollback auf frühere Git-Commits.
 - **Server:** Hostname, Zeitzone (`timedatectl`), Swapfile-Verwaltung, Certbot-Renewal-Test (`--dry-run`).
 - **Tuning:** Globale Limits (`client_max_body_size`, `memory_limit`, `upload_max_filesize`, `max_execution_time`) über saubere Drop-In-Dateien (`/etc/nginx/conf.d/99-syscore.conf` bzw. `99-syscore.ini`).
 - **Node.js / PM2:** Statusanzeige aller PM2-Prozesse mit Neustart- und Stop-Möglichkeit.
 - **RBAC & Sicherheit:** Benutzer erstellen, Passwörter zurücksetzen und Audit-Logs einsehen.
 
 ### 8. Dateimanager (`modules/files.py`)
-- Vollwertiger Explorer für `/var/www` mit Path-Traversal-Schutz (`os.path.realpath`).
-- Datei- und Ordner-Erstellung, Multi-Upload, Download und Löschen.
+- Strikte **Domain-Isolation** (`/var/www/<domain>/`): Jeder Dateizugriff ist hermetisch auf die ausgewählte Domain beschränkt. Kein Ausbruch auf `/var/www`, Nachbardomains oder Systemverzeichnisse möglich (`os.path.commonpath`).
+- Symlink-Containment: Verweise auf Ziele außerhalb des Domain-Roots werden blockiert.
+- Datei- und Ordner-Erstellung, Multi-Upload (mit Speicherplatz-Schutz), Download und Löschen.
 - Umbenennen (`rename`) und Berechtigungs-Editor (`chmod`).
 - ZIP-Archive direkt im Browser erstellen und entpacken.
 - Integrierter Code-Editor mit Zeilennummerierung und Dark-Cockpit-Theme.
