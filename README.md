@@ -10,7 +10,7 @@ SysCore ist ein hochmodernes, eigenständiges Server- und Webspace-Management-Sy
 - **Echtzeit-Hardware-Metriken:** CPU-Auslastung mit SVG-Sparklines, RAM, Swap, NVMe/Disk I/O, Netzwerk RX/TX und Load Average live via `/api/metrics` ohne Seiten-Reload.
 - **Global Command Palette (`Ctrl+K` / `Cmd+K`):** Blitzschnelles Springen zwischen Domains, Datenbanken, Systemdiensten, Werkzeugen und Einstellungen per Tastenkombination.
 - **Live-Terminal Drawer:** Integrierte Streaming-Konsole für Apt-Installationen, NGINX-Tests und Log-Streaming via Server-Sent Events (SSE).
-- **Strikte Isolation & Pterodactyl-Schutz:** Eigene NGINX-VHosts nutzen ausschließlich das Suffix `.panel.conf`. Bestehende Serverkonfigurationen (`pterodactyl.conf`, System-Crontabs, System-Datenbanken) werden niemals überschrieben oder beschädigt.
+- **Strikte Isolation & Konfigurations-Schutz:** Eigene NGINX-VHosts nutzen ausschließlich das Suffix `.panel.conf`. Bestehende Serverkonfigurationen (`*.conf`, System-Crontabs, System-Datenbanken) werden niemals überschrieben oder beschädigt.
 - **Gehärtete Enterprise-Sicherheitsarchitektur:**
   - **Privilege Separation:** Der Webprozess läuft unprivilegiert als Benutzer `syscore` mit restriktiver Sudoers-Whitelist (`system_agent`).
   - **Zentraler CSRF-Schutz:** Sämtliche zustandsverändernden Routen (`POST`, `PUT`, `DELETE`) und AJAX-Calls sind per CSRF-Token und Constant-Time `hmac.compare_digest` geschützt.
