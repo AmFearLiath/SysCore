@@ -162,6 +162,11 @@ SCHEMA_STATEMENTS = [
         quota_mb INTEGER DEFAULT 5120,
         used_mb REAL DEFAULT 0.0,
         is_active INTEGER NOT NULL DEFAULT 1,
+        is_catch_all INTEGER NOT NULL DEFAULT 0,
+        forward_to TEXT,
+        autoresponder_enabled INTEGER NOT NULL DEFAULT 0,
+        autoresponder_subject TEXT,
+        autoresponder_message TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """,
@@ -193,12 +198,19 @@ SCHEMA_STATEMENTS = [
         id INT PRIMARY KEY,
         backend_type VARCHAR(64) DEFAULT 'stalwart',
         webmail_client VARCHAR(64) DEFAULT 'snappymail',
+        webmail_subdomain VARCHAR(191) DEFAULT 'webmail',
+        webmail_domain VARCHAR(191) DEFAULT '',
+        webmail_url TEXT,
         smtp_host VARCHAR(191) DEFAULT '127.0.0.1',
         smtp_port INTEGER DEFAULT 587,
         imap_host VARCHAR(191) DEFAULT '127.0.0.1',
         imap_port INTEGER DEFAULT 993,
         stalwart_api_url VARCHAR(255) DEFAULT 'http://127.0.0.1:8080',
         stalwart_api_token TEXT,
+        relay_host VARCHAR(191) DEFAULT '',
+        relay_port INTEGER DEFAULT 587,
+        relay_user VARCHAR(191) DEFAULT '',
+        relay_password TEXT,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """,
@@ -933,6 +945,52 @@ def init_db():
                     conn.commit()
         except Exception as e:
             print(f"[SysCore DB Note] Package Stacks seed notice: {e}")
+
+        # Seed & Migration für E-Mail & Webmail Konfiguration
+        try:
+            cursor.execute("SELECT COUNT(*) FROM `mail_server_config`;")
+            m_res = cursor.fetchone()
+            if not m_res or m_res[0] == 0:
+                ins_m_sql = "INSERT INTO `mail_server_config` (id, backend_type, webmail_client, webmail_subdomain, webmail_domain, webmail_url, smtp_host, smtp_port, imap_host, imap_port, stalwart_api_url) VALUES (1, 'stalwart', 'snappymail', 'webmail', '', '', '127.0.0.1', 587, '127.0.0.1', 993, 'http://127.0.0.1:8080');"
+                cursor.execute(ins_m_sql)
+                if not is_mysql:
+                    conn.commit()
+        except Exception as e:
+            print(f"[SysCore DB Note] mail_server_config seed notice: {e}")
+
+        # Spalten-Migrationen für mail_server_config
+        mail_cfg_cols = [
+            ("webmail_subdomain", "VARCHAR(191) DEFAULT 'webmail'"),
+            ("webmail_domain", "VARCHAR(191) DEFAULT ''"),
+            ("webmail_url", "TEXT"),
+            ("relay_host", "VARCHAR(191) DEFAULT ''"),
+            ("relay_port", "INTEGER DEFAULT 587"),
+            ("relay_user", "VARCHAR(191) DEFAULT ''"),
+            ("relay_password", "TEXT")
+        ]
+        for col_name, col_def in mail_cfg_cols:
+            try:
+                cursor.execute(f"ALTER TABLE `mail_server_config` ADD COLUMN {col_name} {col_def};")
+                if not is_mysql:
+                    conn.commit()
+            except Exception:
+                pass
+
+        # Spalten-Migrationen für mail_accounts
+        mail_acc_cols = [
+            ("is_catch_all", "INTEGER NOT NULL DEFAULT 0"),
+            ("forward_to", "TEXT"),
+            ("autoresponder_enabled", "INTEGER NOT NULL DEFAULT 0"),
+            ("autoresponder_subject", "TEXT"),
+            ("autoresponder_message", "TEXT")
+        ]
+        for col_name, col_def in mail_acc_cols:
+            try:
+                cursor.execute(f"ALTER TABLE `mail_accounts` ADD COLUMN {col_name} {col_def};")
+                if not is_mysql:
+                    conn.commit()
+            except Exception:
+                pass
 
         conn.close()
     except Exception as e:

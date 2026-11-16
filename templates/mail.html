@@ -4,21 +4,25 @@
 {% block content %}
 <div class="space-y-6">
 
+    <!-- Top Action Bar -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <div class="flex items-center gap-3">
                 <h1 class="text-2xl font-extrabold text-white tracking-tight">E-Mail-Zentrale</h1>
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium badge-teal">
-                    Backend: {{ backends_info[mail_config.backend_type].name.split(' ')[0] }}
+                    Backend: {{ backends_info[mail_config.backend_type].name.split(' ')[0] if mail_config.backend_type in backends_info else 'Stalwart' }}
+                </span>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium {{ 'badge-emerald' if active_webmail == 'native' else 'badge-cyan' }}">
+                    Webmail: {{ webmail_options[active_webmail].name if active_webmail in webmail_options else active_webmail }}
                 </span>
             </div>
-            <p class="text-xs text-gray-400 font-mono mt-1">Verwaltung von Postfächern, Weiterleitungen, DKIM/SPF-DNS-Einträgen und Webmail-Clients.</p>
+            <p class="text-xs text-gray-400 font-mono mt-1">Verwaltung von Postfächern, Weiterleitungen, DKIM/SPF-DNS-Einträgen, Warteschlange und Webmail-Zentrale.</p>
         </div>
 
         <div class="flex items-center gap-2">
-            <a href="{{ url_for('mail.native_webmail') }}" class="px-3.5 py-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-cyan-400 hover:text-cyan-300 rounded-xl transition flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                <span>SysCore Webmail</span>
+            <a href="{{ url_for('mail.open_active_webmail') }}" target="_blank" class="px-3.5 py-2 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-emerald-400 hover:text-emerald-300 rounded-xl transition flex items-center gap-2">
+                <span>🌐</span>
+                <span>Webmail öffnen ↗</span>
             </a>
 
             <button data-modal-open="modal-account-create" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-mono font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30">
@@ -36,14 +40,17 @@
         <a href="{{ url_for('mail.index', tab='aliases') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'aliases' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
             Aliase & Weiterleitungen ({{ aliases|length }})
         </a>
+        <a href="{{ url_for('mail.index', tab='webmail') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'webmail' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            Webmail-Zentrale ({{ webmail_options[active_webmail].name.split(' ')[0] if active_webmail in webmail_options else 'Aktiv' }})
+        </a>
         <a href="{{ url_for('mail.index', tab='dns') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'dns' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
-            DNS- & Zustellbarkeits-Assistent (SPF/DKIM/DMARC)
+            DNS & Zustellbarkeit
         </a>
         <a href="{{ url_for('mail.index', tab='backend') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'backend' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
-            Mailserver-Backend & Stack
+            Mailserver-Backend & Relay
         </a>
-        <a href="{{ url_for('mail.index', tab='webmail') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'webmail' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
-            Webmail-Zentrale
+        <a href="{{ url_for('mail.index', tab='queue') }}" class="px-3 py-1.5 rounded-lg transition {{ 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' if active_tab == 'queue' else 'text-gray-400 hover:text-white hover:bg-dark-800' }}">
+            Warteschlange & Diagnose ({{ mail_queue.total }})
         </a>
     </div>
 
@@ -52,75 +59,104 @@
     <!-- ========================================== -->
     {% if active_tab == 'accounts' %}
     <div class="space-y-4">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <span class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider">Aktive Postfächer</span>
-            <span class="text-xs font-mono text-gray-500">IMAP: {{ mail_config.imap_host }}:{{ mail_config.imap_port }} · SMTP: {{ mail_config.smtp_host }}:{{ mail_config.smtp_port }}</span>
+            <span class="text-xs font-mono text-gray-500">IMAP: {{ mail_config.imap_host }}:{{ mail_config.imap_port }} (SSL) · SMTP: {{ mail_config.smtp_host }}:{{ mail_config.smtp_port }}</span>
         </div>
 
         {% if accounts %}
         <div class="sys-card overflow-hidden">
-            <table class="w-full text-left text-xs font-mono">
-                <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
-                    <tr>
-                        <th class="py-3 px-4">E-Mail-Adresse</th>
-                        <th class="py-3 px-4">Domain</th>
-                        <th class="py-3 px-4">Speicherplatz & Quota</th>
-                        <th class="py-3 px-4">Status</th>
-                        <th class="py-3 px-4 text-right">Aktionen</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-dark-700/60 text-gray-300">
-                    {% for acc in accounts %}
-                    <tr class="hover:bg-dark-900/50">
-                        <td class="py-3 px-4 font-bold text-white flex items-center gap-2">
-                            <span class="text-emerald-400">✉️</span>
-                            <span>{{ acc.email }}</span>
-                        </td>
-                        <td class="py-3 px-4 text-gray-400">{{ acc.domain }}</td>
-                        <td class="py-3 px-4">
-                            <div class="space-y-1">
-                                <div class="flex justify-between text-[11px] text-gray-400">
-                                    <span>{{ acc.used_mb }} MB belegt</span>
-                                    <span>Quota: {{ (acc.quota_mb / 1024)|round(1) }} GB</span>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-3 px-4">E-Mail-Adresse</th>
+                            <th class="py-3 px-4">Domain</th>
+                            <th class="py-3 px-4">Speicher & Quota</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4">Sonderregeln</th>
+                            <th class="py-3 px-4 text-right">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for acc in accounts %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-3 px-4 font-bold text-white flex items-center gap-2">
+                                <span class="text-emerald-400">✉️</span>
+                                <span>{{ acc.email }}</span>
+                            </td>
+                            <td class="py-3 px-4 text-gray-400">{{ acc.domain }}</td>
+                            <td class="py-3 px-4">
+                                <div class="space-y-1">
+                                    <div class="flex justify-between text-[11px] text-gray-400">
+                                        <span>{{ acc.used_mb }} MB belegt</span>
+                                        <span>Quota: {{ (acc.quota_mb / 1024)|round(1) }} GB</span>
+                                    </div>
+                                    <div class="w-36 bg-dark-950 h-1.5 rounded-full overflow-hidden border border-dark-700">
+                                        <div class="bg-gradient-to-r from-emerald-400 to-teal-400 h-full rounded-full" style="width: {{ (acc.used_mb / acc.quota_mb * 100)|round(1) if acc.quota_mb > 0 else 0 }}%"></div>
+                                    </div>
                                 </div>
-                                <div class="w-36 bg-dark-950 h-1.5 rounded-full overflow-hidden border border-dark-700">
-                                    <div class="bg-gradient-to-r from-emerald-400 to-teal-400 h-full rounded-full" style="width: {{ (acc.used_mb / acc.quota_mb * 100)|round(1) if acc.quota_mb > 0 else 0 }}%"></div>
+                            </td>
+                            <td class="py-3 px-4">
+                                <form method="POST" action="{{ url_for('mail.toggle_account_status', account_id=acc.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="px-2 py-0.5 rounded-full text-[10px] cursor-pointer transition {{ 'badge-emerald hover:opacity-80' if acc.is_active else 'badge-rose hover:opacity-80' }}" title="Klicken zum Umschalten">
+                                        {{ 'Aktiv' if acc.is_active else 'Gesperrt' }}
+                                    </button>
+                                </form>
+                            </td>
+                            <td class="py-3 px-4">
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    {% if acc.is_catch_all %}
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] badge-cyan font-mono" title="Catch-All für {{ acc.domain }}">Catch-All</span>
+                                    {% endif %}
+                                    {% if acc.forward_to %}
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] badge-teal font-mono" title="Leitet weiter an {{ acc.forward_to }}">➔ {{ acc.forward_to[:15] }}...</span>
+                                    {% endif %}
+                                    {% if acc.autoresponder_enabled %}
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] badge-amber font-mono" title="Abwesenheitsnotiz aktiv">Abwesend</span>
+                                    {% endif %}
+                                    {% if not acc.is_catch_all and not acc.forward_to and not acc.autoresponder_enabled %}
+                                    <span class="text-gray-500 text-[11px]">-</span>
+                                    {% endif %}
                                 </div>
-                            </div>
-                        </td>
-                        <td class="py-3 px-4">
-                            <span class="px-2 py-0.5 rounded-full text-[10px] {{ 'badge-emerald' if acc.is_active else 'badge-gray' }}">
-                                {{ 'Aktiv' if acc.is_active else 'Gesperrt' }}
-                            </span>
-                        </td>
-                        <td class="py-3 px-4 text-right space-x-2">
-                            <!-- In Webmail öffnen -->
-                            <a href="{{ url_for('mail.native_webmail', account=acc.email) }}" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 hover:text-white transition inline-block">
-                                Posteingang
-                            </a>
-
-                            <!-- Passwort ändern -->
-                            <button onclick="openMailPassModal('{{ acc.id }}', '{{ acc.email }}')" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 hover:text-white transition">
-                                Passwort
-                            </button>
-
-                            <!-- Löschen -->
-                            <form class="inline" method="POST" action="{{ url_for('mail.delete_account', account_id=acc.id) }}" onsubmit="return confirm('Soll das Postfach {{ acc.email }} unwiderruflich gelöscht werden?');">
-                                <button type="submit" class="p-1 text-gray-500 hover:text-rose-400 transition" title="Löschen">
-                                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </td>
+                            <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                                <!-- Einrichten / Autoconfig -->
+                                <button onclick="openClientSetupModal('{{ acc.id }}', '{{ acc.email }}', '{{ acc.domain }}')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-emerald-400 hover:text-emerald-300 transition inline-flex items-center gap-1 text-[11px]" title="Setup-Daten & Apple Profil">
+                                    <span>⚙️</span>
+                                    <span class="hidden md:inline">Einrichten</span>
                                 </button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+
+                                <!-- Optionen / Settings -->
+                                <button onclick="openAccountSettingsModal('{{ acc.id }}', '{{ acc.email }}', '{{ acc.quota_mb }}', '{{ acc.is_catch_all }}', '{{ acc.forward_to or '' }}', '{{ acc.autoresponder_enabled }}', '{{ acc.autoresponder_subject or '' }}', '{{ acc.autoresponder_message or '' }}')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 hover:text-white transition text-[11px]" title="Quota, Catch-All & Weiterleitung">
+                                    <span>Optionen</span>
+                                </button>
+
+                                <!-- Passwort ändern -->
+                                <button onclick="openMailPassModal('{{ acc.id }}', '{{ acc.email }}')" class="px-2 py-1 bg-dark-800 hover:bg-dark-700 rounded text-gray-300 hover:text-white transition text-[11px]">
+                                    Passwort
+                                </button>
+
+                                <!-- Löschen -->
+                                <form class="inline" method="POST" action="{{ url_for('mail.delete_account', account_id=acc.id) }}" onsubmit="return confirm('Soll das Postfach {{ acc.email }} unwiderruflich gelöscht werden?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="p-1 text-gray-500 hover:text-rose-400 transition" title="Löschen">
+                                        <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
         {% else %}
         <div class="sys-card p-12 text-center space-y-4">
             <div class="text-3xl">📬</div>
             <h3 class="text-base font-bold text-white">Noch keine E-Mail-Postfächer eingerichtet</h3>
-            <p class="text-xs font-mono text-gray-400 max-w-md mx-auto">Lege dein erstes Postfach an (z.B. <code class="text-emerald-400">info@{{ domains[0] }}</code>). SysCore generiert automatisch die passenden DKIM- und SPF-Schlüssel.</p>
+            <p class="text-xs font-mono text-gray-400 max-w-md mx-auto">Lege dein erstes Postfach an (z.B. <code class="text-emerald-400">kontakt@{{ domains[0] }}</code>). SysCore generiert automatisch die passenden DKIM- und SPF-Schlüssel.</p>
             <button data-modal-open="modal-account-create" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono transition shadow-lg shadow-emerald-900/30">
                 Erstes Postfach anlegen
             </button>
@@ -135,7 +171,7 @@
     {% if active_tab == 'aliases' %}
     <div class="space-y-4">
         <div class="flex items-center justify-between">
-            <span class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider">Aktive Weiterleitungen</span>
+            <span class="text-xs font-mono uppercase text-gray-400 font-semibold tracking-wider">Aktive Weiterleitungen & Aliase</span>
             <button data-modal-open="modal-alias-create" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono transition flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 <span>Neue Weiterleitung</span>
@@ -156,7 +192,10 @@
                 <tbody class="divide-y divide-dark-700/60 text-gray-300">
                     {% for a in aliases %}
                     <tr class="hover:bg-dark-900/50">
-                        <td class="py-3 px-4 font-bold text-white">{{ a.source_email }}</td>
+                        <td class="py-3 px-4 font-bold text-white flex items-center gap-2">
+                            <span class="text-teal-400">🔀</span>
+                            <span>{{ a.source_email }}</span>
+                        </td>
                         <td class="py-3 px-4 text-emerald-400 flex items-center gap-1.5">
                             <span>➔</span>
                             <span class="text-gray-200">{{ a.destination_email }}</span>
@@ -164,6 +203,7 @@
                         <td class="py-3 px-4 text-gray-500">{{ a.created_at }}</td>
                         <td class="py-3 px-4 text-right">
                             <form method="POST" action="{{ url_for('mail.delete_alias', alias_id=a.id) }}" onsubmit="return confirm('Weiterleitung löschen?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="p-1 text-gray-500 hover:text-rose-400 transition" title="Löschen">
                                     <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </button>
@@ -183,13 +223,132 @@
     {% endif %}
 
     <!-- ========================================== -->
-    <!-- TAB 3: DNS & ZUSTELLBARKEITS-ASSISTENT    -->
+    <!-- TAB 3: WEBMAIL-ZENTRALE                   -->
+    <!-- ========================================== -->
+    {% if active_tab == 'webmail' %}
+    <div class="space-y-6">
+
+        <!-- Aktiver Webmail-Status Banner -->
+        <div class="sys-card p-6 border-emerald-500/40 bg-gradient-to-r from-dark-900 via-dark-900 to-emerald-950/20 relative overflow-hidden">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="space-y-1.5">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold badge-emerald">
+                            ★ Aktive Standard-Webmailzentrale
+                        </span>
+                        <span class="text-xs font-mono text-gray-400">
+                            {{ webmail_options[active_webmail].name if active_webmail in webmail_options else active_webmail }}
+                        </span>
+                    </div>
+                    <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                        <span>{{ webmail_options[active_webmail].icon if active_webmail in webmail_options else '✉️' }}</span>
+                        <span>{{ webmail_options[active_webmail].name if active_webmail in webmail_options else active_webmail }}</span>
+                    </h2>
+                    <p class="text-xs font-mono text-gray-400">
+                        Erreichbar unter: <code class="text-emerald-400 font-bold">{{ mail_config.webmail_url or ('https://' + (mail_config.webmail_domain or 'webmail.' + domains[0])) }}</code>
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-2.5 shrink-0">
+                    <button data-modal-open="modal-webmail-routing" class="px-3.5 py-2 bg-dark-800 hover:bg-dark-750 text-gray-300 hover:text-white border border-dark-700 rounded-xl text-xs font-mono transition flex items-center gap-1.5">
+                        <span>⚙️</span>
+                        <span>Routing & Domain anpassen</span>
+                    </button>
+
+                    <a href="{{ url_for('mail.open_active_webmail') }}" target="_blank" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-mono font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+                        <span>Webmail öffnen ↗</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <h3 class="text-base font-bold text-white tracking-tight">Verfügbare Webmail-Suiten</h3>
+            <p class="text-xs text-gray-400 font-mono mt-0.5">Wähle deinen bevorzugten Webmail-Client aus, installiere alternative Suiten und aktiviere deinen gewünschten Standard per Klick.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {% for c_key, c_opt in webmail_options.items() %}
+            {% set is_active = (active_webmail == c_key) %}
+            {% set is_installed = installed_webmails.get(c_key, False) %}
+
+            <div class="sys-card p-5 flex flex-col justify-between space-y-4 relative transition-all duration-200 {{ 'border-emerald-500 shadow-xl shadow-emerald-950/30 bg-emerald-950/10' if is_active else 'hover:border-gray-600' }}">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-2xl">{{ c_opt.icon }}</span>
+                        {% if is_active %}
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold badge-emerald">
+                            ★ Standard aktiv
+                        </span>
+                        {% elif is_installed %}
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-teal">
+                            Bereitgestellt
+                        </span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-gray">
+                            Nicht installiert
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <h4 class="text-base font-bold text-white tracking-tight">{{ c_opt.name }}</h4>
+                        <span class="text-[10px] font-mono text-emerald-400">{{ c_opt.badge }}</span>
+                    </div>
+
+                    <p class="text-xs text-gray-400 leading-relaxed font-sans">{{ c_opt.desc }}</p>
+
+                    <div class="space-y-1 pt-1">
+                        {% for f in c_opt.features %}
+                        <div class="flex items-center gap-1.5 text-[11px] font-mono text-gray-400">
+                            <span class="text-emerald-400 text-xs">✓</span>
+                            <span>{{ f }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-dark-700/80 space-y-2">
+                    <div class="text-[10px] font-mono text-gray-500 truncate" title="{{ c_opt.path }}">
+                        Pfad: <span class="text-gray-400">{{ c_opt.path }}</span>
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-1">
+                        {% if is_active %}
+                        <a href="{{ url_for('mail.open_active_webmail') }}" target="_blank" class="w-full text-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-semibold transition">
+                            Öffnen ↗
+                        </a>
+                        {% elif is_installed %}
+                        <form method="POST" action="{{ url_for('mail.activate_webmail', client=c_key) }}" class="w-full">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="w-full px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-semibold transition shadow-md shadow-emerald-900/20">
+                                Als Standard aktivieren
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('mail.install_webmail', client=c_key) }}" class="w-full">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="w-full px-3 py-1.5 bg-dark-800 hover:bg-dark-700 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-mono font-semibold transition">
+                                📥 1-Klick Setup & Aktivieren
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ========================================== -->
+    <!-- TAB 4: DNS & ZUSTELLBARKEITS-ASSISTENT    -->
     <!-- ========================================== -->
     {% if active_tab == 'dns' %}
     <div class="space-y-6">
         <div>
             <h2 class="text-base font-bold text-white tracking-tight">DNS- & Zustellbarkeits-Assistent</h2>
-            <p class="text-xs text-gray-400 font-mono mt-1">Trage diese Records bei deinem Domain-Registrar (z.B. Cloudflare, Hetzner, INWX) ein, um 100% Zustellbarkeit und Spam-Schutz zu garantieren.</p>
+            <p class="text-xs text-gray-400 font-mono mt-1">Trage diese Records bei deinem Domain-Registrar ein, um 100% Zustellbarkeit und Spam-Schutz zu garantieren.</p>
         </div>
 
         {% for dom in domains %}
@@ -199,9 +358,11 @@
                 <div class="flex items-center gap-2.5">
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
                     <h3 class="text-base font-bold text-white">{{ dom }}</h3>
+                    <span class="text-xs font-mono text-gray-500">Live DNS Status</span>
                 </div>
 
                 <form method="POST" action="{{ url_for('mail.generate_dkim', domain=dom) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="px-3 py-1 bg-dark-850 hover:bg-dark-800 border border-dark-700 rounded-lg text-xs font-mono text-emerald-400 transition">
                         🔄 2048-Bit DKIM neu generieren
                     </button>
@@ -240,13 +401,23 @@
                             </td>
                         </tr>
 
+                        <!-- Webmail CNAME / A -->
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-2.5 px-3"><span class="badge-cyan px-1.5 py-0.5 rounded">A / CNAME</span></td>
+                            <td class="py-2.5 px-3 text-white">webmail</td>
+                            <td class="py-2.5 px-3 text-gray-300">{{ server_ip }}</td>
+                            <td class="py-2.5 px-3 text-right">
+                                <button onclick="SysCore.copyToClipboard('{{ server_ip }}', 'Webmail Record')" class="text-emerald-400 hover:underline">Kopieren</button>
+                            </td>
+                        </tr>
+
                         <!-- SPF -->
                         <tr class="hover:bg-dark-900/50">
                             <td class="py-2.5 px-3"><span class="badge-cyan px-1.5 py-0.5 rounded">TXT (SPF)</span></td>
                             <td class="py-2.5 px-3 text-white">@</td>
-                            <td class="py-2.5 px-3 text-gray-300">v=spf1 mx a ~all</td>
+                            <td class="py-2.5 px-3 text-gray-300">v=spf1 mx a ip4:{{ server_ip }} ~all</td>
                             <td class="py-2.5 px-3 text-right">
-                                <button onclick="SysCore.copyToClipboard('v=spf1 mx a ~all', 'SPF Record')" class="text-emerald-400 hover:underline">Kopieren</button>
+                                <button onclick="SysCore.copyToClipboard('v=spf1 mx a ip4:{{ server_ip }} ~all', 'SPF Record')" class="text-emerald-400 hover:underline">Kopieren</button>
                             </td>
                         </tr>
 
@@ -270,29 +441,9 @@
                         <tr class="hover:bg-dark-900/50">
                             <td class="py-2.5 px-3"><span class="badge-amber px-1.5 py-0.5 rounded">TXT (DMARC)</span></td>
                             <td class="py-2.5 px-3 text-white">_dmarc</td>
-                            <td class="py-2.5 px-3 text-gray-300">v=DMARC1; p=quarantine; rua=mailto:postmaster@{{ dom }}</td>
+                            <td class="py-2.5 px-3 text-gray-300">v=DMARC1; p=quarantine; rua=mailto:admin@{{ dom }}</td>
                             <td class="py-2.5 px-3 text-right">
-                                <button onclick="SysCore.copyToClipboard('v=DMARC1; p=quarantine; rua=mailto:postmaster@{{ dom }}', 'DMARC Record')" class="text-emerald-400 hover:underline">Kopieren</button>
-                            </td>
-                        </tr>
-
-                        <!-- Autoconfig (Thunderbird & Apple Mail) -->
-                        <tr class="hover:bg-dark-900/50">
-                            <td class="py-2.5 px-3"><span class="badge-cyan px-1.5 py-0.5 rounded">CNAME</span></td>
-                            <td class="py-2.5 px-3 text-white">autoconfig</td>
-                            <td class="py-2.5 px-3 text-gray-300">mail.{{ dom }} (Zero-Config Autodiscovery)</td>
-                            <td class="py-2.5 px-3 text-right">
-                                <button onclick="SysCore.copyToClipboard('mail.{{ dom }}', 'Autoconfig CNAME')" class="text-emerald-400 hover:underline">Kopieren</button>
-                            </td>
-                        </tr>
-
-                        <!-- Autodiscover (Microsoft Outlook) -->
-                        <tr class="hover:bg-dark-900/50">
-                            <td class="py-2.5 px-3"><span class="badge-cyan px-1.5 py-0.5 rounded">CNAME</span></td>
-                            <td class="py-2.5 px-3 text-white">autodiscover</td>
-                            <td class="py-2.5 px-3 text-gray-300">mail.{{ dom }} (Outlook Autodiscover)</td>
-                            <td class="py-2.5 px-3 text-right">
-                                <button onclick="SysCore.copyToClipboard('mail.{{ dom }}', 'Autodiscover CNAME')" class="text-emerald-400 hover:underline">Kopieren</button>
+                                <button onclick="SysCore.copyToClipboard('v=DMARC1; p=quarantine; rua=mailto:admin@{{ dom }}', 'DMARC Record')" class="text-emerald-400 hover:underline">Kopieren</button>
                             </td>
                         </tr>
                     </tbody>
@@ -304,16 +455,28 @@
     {% endif %}
 
     <!-- ========================================== -->
-    <!-- TAB 4: MAILSERVER-BACKEND & STACK         -->
+    <!-- TAB 5: MAILSERVER-BACKEND & RELAY         -->
     <!-- ========================================== -->
     {% if active_tab == 'backend' %}
     <div class="space-y-6">
-        <div>
-            <h2 class="text-base font-bold text-white tracking-tight">Mailserver-Backend & Architektur</h2>
-            <p class="text-xs text-gray-400 font-mono mt-1">Wähle das bevorzugte System für den Empfang und Versand deiner E-Mails.</p>
+
+        <!-- Live Daemon Status Bar -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {% for s_key, s_data in mail_services.items() %}
+            <div class="sys-card p-4 flex items-center justify-between">
+                <div>
+                    <span class="block text-xs font-mono text-gray-400">{{ s_data.name }}</span>
+                    <span class="text-sm font-bold text-white font-mono mt-0.5">{{ s_data.service }}</span>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono {{ 'badge-emerald' if s_data.active else 'badge-gray' }}">
+                    {{ 'Aktiv' if s_data.active else 'Inaktiv' }}
+                </span>
+            </div>
+            {% endfor %}
         </div>
 
         <form method="POST" action="{{ url_for('mail.save_config') }}" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <!-- 3 Backend Cards -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                 {% for b_key, b in backends_info.items() %}
@@ -338,236 +501,456 @@
             </div>
 
             <!-- Server Connection Settings -->
-            <div class="sys-card p-6 space-y-4 max-w-2xl">
-                <h3 class="text-base font-bold text-white tracking-tight">Verbindungs- & API-Einstellungen</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Local Host/Port Bindings -->
+                <div class="sys-card p-6 space-y-4">
+                    <h3 class="text-base font-bold text-white tracking-tight">Verbindungs- & Port-Einstellungen</h3>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-mono uppercase text-gray-400 mb-1">SMTP Host</label>
-                        <input type="text" name="smtp_host" value="{{ mail_config.smtp_host }}" required class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">SMTP Host</label>
+                            <input type="text" name="smtp_host" value="{{ mail_config.smtp_host }}" required class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">SMTP Port (Submission / 465)</label>
+                            <input type="number" name="smtp_port" value="{{ mail_config.smtp_port }}" required class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">IMAP Host</label>
+                            <input type="text" name="imap_host" value="{{ mail_config.imap_host }}" required class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">IMAP Port (IMAPS 993)</label>
+                            <input type="number" name="imap_port" value="{{ mail_config.imap_port }}" required class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                        </div>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-mono uppercase text-gray-400 mb-1">SMTP Port (Submission / SMTPS)</label>
-                        <input type="number" name="smtp_port" value="{{ mail_config.smtp_port }}" required class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-mono uppercase text-gray-400 mb-1">IMAP Host</label>
-                        <input type="text" name="imap_host" value="{{ mail_config.imap_host }}" required class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-mono uppercase text-gray-400 mb-1">IMAP Port (IMAPS)</label>
-                        <input type="number" name="imap_port" value="{{ mail_config.imap_port }}" required class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                    <div class="pt-2">
+                        <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Stalwart REST-API URL</label>
+                        <input type="text" name="stalwart_api_url" value="{{ mail_config.stalwart_api_url or '' }}" class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
                     </div>
                 </div>
 
-                <div class="pt-2">
-                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Stalwart REST-API URL (Optional)</label>
-                    <input type="text" name="stalwart_api_url" value="{{ mail_config.stalwart_api_url }}" class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                <!-- Outgoing SMTP Relay -->
+                <div class="sys-card p-6 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-base font-bold text-white tracking-tight">Ausgehendes SMTP-Relay (Smarthost)</h3>
+                        <span class="text-[10px] font-mono text-gray-500">Für gesperrten Port 25</span>
+                    </div>
+                    <p class="text-xs text-gray-400 font-sans">Ideal für Hetzner, AWS oder OVH Server, falls ausgehende SMTP-Ports gesperrt sind. Leitet ausgehende Mails über Sendgrid, Mailjet, Brevo oder externen SMTP weiter.</p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Relay Host</label>
+                            <input type="text" name="relay_host" value="{{ mail_config.relay_host or '' }}" placeholder="smtp.sendgrid.net" class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Relay Port</label>
+                            <input type="number" name="relay_port" value="{{ mail_config.relay_port or 587 }}" class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Relay Benutzer</label>
+                            <input type="text" name="relay_user" value="{{ mail_config.relay_user or '' }}" placeholder="apikey oder user@domain.de" class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Relay Passwort</label>
+                            <input type="password" name="relay_password" value="{{ mail_config.relay_password or '' }}" placeholder="••••••••••••" class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">
+                    Konfiguration & Relay speichern
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- ========================================== -->
+    <!-- TAB 6: WARTESCHLANGE & LIVE-DIAGNOSE      -->
+    <!-- ========================================== -->
+    {% if active_tab == 'queue' %}
+    <div class="space-y-6">
+
+        <!-- Queue Status Summary -->
+        <div class="sys-card p-6 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-dark-700 pb-4">
+                <div>
+                    <h3 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                        <span>📬</span>
+                        <span>Mail-Warteschlange (Postfix / Spool)</span>
+                    </h3>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">{{ mail_queue.raw_output }}</p>
                 </div>
 
-                <div class="pt-4 flex justify-end">
-                    <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">
-                        Backend-Einstellungen speichern
+                <div class="flex items-center gap-2">
+                    <form method="POST" action="{{ url_for('mail.queue_flush') }}" class="inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-semibold transition">
+                            ⚡ Sofort abarbeiten (Flush)
+                        </button>
+                    </form>
+
+                    <form method="POST" action="{{ url_for('mail.queue_purge') }}" onsubmit="return confirm('Möchtest du wirklich alle wartenden Mails aus der Queue löschen?');" class="inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="px-3.5 py-1.5 bg-rose-600/80 hover:bg-rose-500 text-white rounded-lg text-xs font-mono transition">
+                            🗑️ Queue leeren
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {% if mail_queue.messages %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="bg-dark-900 text-gray-400 border-b border-dark-700">
+                        <tr>
+                            <th class="py-2.5 px-3">Queue ID</th>
+                            <th class="py-2.5 px-3">Größe</th>
+                            <th class="py-2.5 px-3">Eingegangen am</th>
+                            <th class="py-2.5 px-3">Absender</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700/60 text-gray-300">
+                        {% for m in mail_queue.messages %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-2.5 px-3 font-bold text-white">{{ m.id }}</td>
+                            <td class="py-2.5 px-3 text-gray-400">{{ m.size }}</td>
+                            <td class="py-2.5 px-3 text-gray-400">{{ m.date }}</td>
+                            <td class="py-2.5 px-3 text-emerald-400">{{ m.sender }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-8 text-center text-xs font-mono text-gray-500">
+                ✅ Keine blockierten oder wartenden E-Mails in der Versand-Warteschlange.
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Interaktiver SMTP Live-Tester -->
+        <div class="sys-card p-6 space-y-4">
+            <div>
+                <h3 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                    <span>🔬</span>
+                    <span>Live SMTP-Zustellungs- & Handshake-Tester</span>
+                </h3>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">Testet den vollständigen SMTP-Handshake (EHLO, STARTTLS, Mail-Transfer) an eine beliebige Zieladresse.</p>
+            </div>
+
+            <form method="POST" action="{{ url_for('mail.run_smtp_test') }}" class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Empfänger-E-Mail (Ziel)</label>
+                    <input type="email" name="target_email" required placeholder="z.B. test@gmail.com" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Absender-Adresse</label>
+                    <input type="email" name="sender_email" placeholder="postmaster@{{ domains[0] }}" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Betreff</label>
+                    <input type="text" name="subject" value="SysCore E-Mail Diagnose Handshake Test" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Nachricht</label>
+                    <textarea name="message_text" rows="3" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">Dies ist eine automatisierte Test-E-Mail zur Überprüfung der Server-Zustellbarkeit via SysCore.</textarea>
+                </div>
+
+                <div class="sm:col-span-2 flex justify-end">
+                    <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-semibold transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
+                        <span>Testversand & Handshake starten ➔</span>
                     </button>
                 </div>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
     {% endif %}
 
+</div>
+
+<!-- ========================================== -->
+    <!-- MODALS                                     -->
     <!-- ========================================== -->
-    <!-- TAB 5: WEBMAIL-ZENTRALE                   -->
-    <!-- ========================================== -->
-    {% if active_tab == 'webmail' %}
-    <div class="space-y-6">
-        <div>
-            <h2 class="text-base font-bold text-white tracking-tight">Webmail-Clients & Benutzeroberflächen</h2>
-            <p class="text-xs text-gray-400 font-mono mt-1">Wähle deinen bevorzugten Webmail-Client oder nutze das integrierte SysCore Webmail.</p>
+
+    <!-- Modal: Neues Postfach -->
+    <div id="modal-account-create" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+        <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white tracking-tight">Neues Postfach anlegen</h3>
+                <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <form method="POST" action="{{ url_for('mail.create_account') }}" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">E-Mail-Adresse</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" name="user_part" required placeholder="z.B. kontakt"
+                            class="flex-1 px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                        <span class="text-gray-400 font-mono">@</span>
+                        <select name="domain" required class="flex-1 px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                            {% for d in domains %}
+                            <option value="{{ d }}">{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Passwort (mind. 8 Zeichen)</label>
+                    <input type="password" name="password" required minlength="8" placeholder="••••••••••••"
+                        class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Speicherplatz-Quota (MB)</label>
+                    <select name="quota_mb" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                        <option value="1024">1 GB (1.024 MB)</option>
+                        <option value="5120" selected>5 GB (5.120 MB) - Standard</option>
+                        <option value="10240">10 GB (10.240 MB)</option>
+                        <option value="25600">25 GB (25.600 MB)</option>
+                    </select>
+                </div>
+
+                <div class="pt-1 space-y-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="is_catch_all" value="1" class="w-4 h-4 text-emerald-500 rounded bg-dark-950 border-dark-700">
+                        <span class="text-xs font-mono text-gray-300">Als Catch-All Postfach für diese Domain festlegen</span>
+                    </label>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Postfach erstellen</button>
+                </div>
+            </form>
         </div>
+    </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <!-- SnappyMail -->
-            <div class="sys-card p-6 flex flex-col justify-between space-y-4">
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xl">⚡</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-mono {{ 'badge-emerald' if snappy_installed else 'badge-gray' }}">
-                            {{ 'Bereitgestellt' if snappy_installed else 'Nicht installiert' }}
-                        </span>
-                    </div>
-
-                    <h3 class="text-base font-bold text-white tracking-tight">SnappyMail</h3>
-                    <p class="text-xs text-gray-400 leading-relaxed font-sans">Moderner, extrem schneller Fork von RainLoop. Responsive Dark-Design, 2FA-Support, benötigt keine separate Datenbank.</p>
+    <!-- Modal: Postfach Optionen & Settings -->
+    <div id="modal-account-settings" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+        <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white tracking-tight">Postfach-Optionen</h3>
+                    <p id="opt-account-label" class="text-xs font-mono text-emerald-400"></p>
                 </div>
-
-                <div class="pt-4 border-t border-dark-700 flex justify-between items-center">
-                    <span class="text-[11px] font-mono text-gray-500">/var/www/snappymail</span>
-                    <form method="POST" action="{{ url_for('mail.install_webmail', client='snappymail') }}">
-                        <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono transition">
-                            {{ 'Aktualisieren' if snappy_installed else '1-Klick Setup' }}
-                        </button>
-                    </form>
-                </div>
+                <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
             </div>
 
-            <!-- Roundcube -->
-            <div class="sys-card p-6 flex flex-col justify-between space-y-4">
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xl">📦</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-mono {{ 'badge-emerald' if roundcube_installed else 'badge-gray' }}">
-                            {{ 'Bereitgestellt' if roundcube_installed else 'Nicht installiert' }}
-                        </span>
+            <form id="account-settings-form" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Speicherplatz Quota (MB)</label>
+                    <input type="number" name="quota_mb" id="opt-quota" class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                </div>
+
+                <div class="p-3 bg-dark-950 rounded-xl border border-dark-700 space-y-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="is_catch_all" id="opt-catch-all" value="1" class="w-4 h-4 text-emerald-500 rounded bg-dark-900 border-dark-700">
+                        <span class="text-xs font-mono text-white font-semibold">Catch-All Empfänger</span>
+                    </label>
+                    <p class="text-[11px] text-gray-400 font-sans">Empfängt alle E-Mails an diese Domain, für die kein anderes Postfach existiert.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Automatische Weiterleitung an</label>
+                    <input type="email" name="forward_to" id="opt-forward-to" placeholder="z.B. privat@gmail.com (Optional)" class="w-full px-3.5 py-2 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-xs outline-none">
+                </div>
+
+                <div class="p-3 bg-dark-950 rounded-xl border border-dark-700 space-y-3">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="autoresponder_enabled" id="opt-autoresponder-enabled" value="1" class="w-4 h-4 text-emerald-500 rounded bg-dark-900 border-dark-700">
+                        <span class="text-xs font-mono text-white font-semibold">Abwesenheitsnotiz (Autoresponder)</span>
+                    </label>
+                    <div>
+                        <input type="text" name="autoresponder_subject" id="opt-autoresponder-sub" placeholder="Betreff der Abwesenheitsnotiz" class="w-full px-3.5 py-1.5 bg-dark-900 border border-dark-700 focus:border-emerald-500 rounded-lg text-white font-mono text-xs outline-none mb-2">
+                        <textarea name="autoresponder_message" id="opt-autoresponder-msg" rows="3" placeholder="Ihre Abwesenheitsnachricht..." class="w-full px-3.5 py-2 bg-dark-900 border border-dark-700 focus:border-emerald-500 rounded-lg text-white font-mono text-xs outline-none"></textarea>
                     </div>
-
-                    <h3 class="text-base font-bold text-white tracking-tight">Roundcube Webmail</h3>
-                    <p class="text-xs text-gray-400 leading-relaxed font-sans">Der weltweite Open-Source-Klassiker mit Elastic-Theme, Adressbuch, PGP-Verschlüsselung und hoher Stabilität.</p>
                 </div>
 
-                <div class="pt-4 border-t border-dark-700 flex justify-between items-center">
-                    <span class="text-[11px] font-mono text-gray-500">/var/www/roundcube</span>
-                    <form method="POST" action="{{ url_for('mail.install_webmail', client='roundcube') }}">
-                        <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono transition">
-                            {{ 'Aktualisieren' if roundcube_installed else '1-Klick Setup' }}
-                        </button>
-                    </form>
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition">Speichern</button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Client-Einrichtungshilfe & Apple .mobileconfig Download -->
+    <div id="modal-client-setup" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+        <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                        <span>📱</span>
+                        <span>Client-Einrichtungshilfe</span>
+                    </h3>
+                    <p id="setup-account-email" class="text-xs font-mono text-emerald-400"></p>
+                </div>
+                <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
             </div>
 
-            <!-- SysCore Native Webmail -->
-            <div class="sys-card p-6 flex flex-col justify-between space-y-4 border-emerald-500/30">
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xl">🚀</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-emerald">
-                            Nativ aktiv
-                        </span>
+            <div class="space-y-4">
+                <!-- Apple 1-Click Profile Banner -->
+                <div class="p-4 bg-gradient-to-r from-emerald-950/40 to-teal-950/40 border border-emerald-500/30 rounded-xl flex items-center justify-between gap-4">
+                    <div>
+                        <span class="block text-xs font-bold text-white">Apple iOS & macOS 1-Klick Setup</span>
+                        <span class="text-[11px] text-gray-300 font-sans">Installiert das vollständige IMAP/SMTP-Konto automatisch in Apple Mail.</span>
                     </div>
-
-                    <h3 class="text-base font-bold text-white tracking-tight">SysCore Webmail Client</h3>
-                    <p class="text-xs text-gray-400 leading-relaxed font-sans">Direkt in das SysCore Cockpit integrierter Posteingang. Funktioniert sofort ohne externe Abhängigkeiten über IMAP/SMTP.</p>
-                </div>
-
-                <div class="pt-4 border-t border-dark-700 flex justify-between items-center">
-                    <span class="text-[11px] font-mono text-gray-500">Integriert</span>
-                    <a href="{{ url_for('mail.native_webmail') }}" class="px-3 py-1.5 bg-dark-850 hover:bg-dark-800 text-emerald-400 border border-dark-700 rounded-lg text-xs font-mono transition">
-                        Öffnen ➔
+                    <a id="setup-mobileconfig-btn" href="#" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-semibold transition shrink-0 shadow-md shadow-emerald-900/30">
+                        Profil laden 🍏
                     </a>
                 </div>
+
+                <!-- Server Credentials Card -->
+                <div class="sys-card p-4 space-y-3 font-mono text-xs">
+                    <div class="border-b border-dark-700 pb-2">
+                        <span class="text-gray-400 uppercase text-[10px] block">Posteingang (IMAP)</span>
+                        <div class="text-white flex justify-between mt-1">
+                            <span>Server: <strong id="setup-imap-host"></strong></span>
+                            <span class="text-emerald-400">Port 993 (SSL/TLS)</span>
+                        </div>
+                    </div>
+
+                    <div class="border-b border-dark-700 pb-2">
+                        <span class="text-gray-400 uppercase text-[10px] block">Postausgang (SMTP)</span>
+                        <div class="text-white flex justify-between mt-1">
+                            <span>Server: <strong id="setup-smtp-host"></strong></span>
+                            <span class="text-emerald-400">Port 465 (SSL) / 587 (STARTTLS)</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span class="text-gray-400 uppercase text-[10px] block">Benutzername</span>
+                        <div class="text-white mt-1" id="setup-username"></div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Schließen</button>
+                </div>
             </div>
         </div>
     </div>
-    {% endif %}
 
-</div>
+    <!-- Modal: Webmail-Routing & Subdomain -->
+    <div id="modal-webmail-routing" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+        <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white tracking-tight">Webmail-Routing & Domain</h3>
+                <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
 
-<!-- Modal: Neues Postfach -->
-<div id="modal-account-create" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
-    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold text-white tracking-tight">Neues Postfach anlegen</h3>
-            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
-        </div>
+            <form method="POST" action="{{ url_for('mail.save_webmail_routing') }}" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Subdomain</label>
+                    <input type="text" name="webmail_subdomain" value="{{ mail_config.webmail_subdomain or 'webmail' }}" required class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
 
-        <form method="POST" action="{{ url_for('mail.create_account') }}" class="space-y-4">
-            <div>
-                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">E-Mail-Adresse</label>
-                <div class="flex items-center gap-2">
-                    <input type="text" name="user_part" required placeholder="z.B. kontakt"
-                           class="flex-1 px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
-                    <span class="text-gray-400 font-mono">@</span>
-                    <select name="domain" required class="flex-1 px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Zugeordnete Domain</label>
+                    <select name="domain" required class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
                         {% for d in domains %}
-                        <option value="{{ d }}">{{ d }}</option>
+                        <option value="{{ d }}" {{ 'selected' if mail_config.webmail_domain and d in mail_config.webmail_domain else '' }}>{{ d }}</option>
                         {% endfor %}
                     </select>
                 </div>
-            </div>
 
-            <div>
-                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Passwort (mind. 8 Zeichen)</label>
-                <input type="password" name="password" required minlength="8" placeholder="••••••••••••"
-                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
-            </div>
-
-            <div>
-                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Speicherplatz-Quota (MB)</label>
-                <select name="quota_mb" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
-                    <option value="1024">1 GB (1.024 MB)</option>
-                    <option value="5120" selected>5 GB (5.120 MB) - Standard</option>
-                    <option value="10240">10 GB (10.240 MB)</option>
-                    <option value="25600">25 GB (25.600 MB)</option>
-                </select>
-            </div>
-
-            <div class="pt-2 flex justify-end gap-2">
-                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
-                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Postfach erstellen</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal: Neue Weiterleitung -->
-<div id="modal-alias-create" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
-    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold text-white tracking-tight">Neue Weiterleitung (Alias)</h3>
-            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
-        </div>
-
-        <form method="POST" action="{{ url_for('mail.create_alias') }}" class="space-y-4">
-            <div>
-                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Eingehende Adresse</label>
-                <div class="flex items-center gap-2">
-                    <input type="text" name="source_user" required placeholder="z.B. support"
-                           class="flex-1 px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
-                    <span class="text-gray-400 font-mono">@</span>
-                    <select name="domain" required class="flex-1 px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
-                        {% for d in domains %}
-                        <option value="{{ d }}">{{ d }}</option>
-                        {% endfor %}
-                    </select>
+                <div class="p-3 bg-dark-950 rounded-xl border border-dark-700 text-xs text-gray-400 font-sans">
+                    SysCore generiert automatisch die NGINX-VHost-Konfiguration für diese Domain, bindet vorhandene SSL-Zertifikate ein und leitet Anfragen an das gewählte Webmail-Paket weiter.
                 </div>
-            </div>
 
-            <div>
-                <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Ziel-Adresse (Weiterleitung an)</label>
-                <input type="email" name="destination_email" required placeholder="z.B. privat@gmail.com oder kontakt@amfearliath.de"
-                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
-            </div>
-
-            <div class="pt-2 flex justify-end gap-2">
-                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
-                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Anlegen</button>
-            </div>
-        </form>
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">VHost anwenden</button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
 
-<!-- Modal: Postfach Passwort Reset -->
-<div id="modal-mail-pass-reset" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
-    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
-        <h3 class="text-base font-bold text-white mb-2">Postfach-Passwort ändern</h3>
-        <p id="reset-account-label" class="text-xs text-gray-400 font-mono mb-4"></p>
-
-        <form id="mail-pass-reset-form" method="POST" class="space-y-4">
-            <input type="password" name="new_password" required minlength="8" placeholder="Neues Passwort"
-                   class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
-            <div class="flex justify-end gap-2">
-                <button type="button" data-modal-close class="px-3 py-1.5 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Abbrechen</button>
-                <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium">Speichern</button>
+    <!-- Modal: Neue Weiterleitung -->
+    <div id="modal-alias-create" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+        <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white tracking-tight">Neue Weiterleitung (Alias)</h3>
+                <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
             </div>
-        </form>
+
+            <form method="POST" action="{{ url_for('mail.create_alias') }}" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Eingehende Adresse (oder * für alle)</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" name="source_user" required placeholder="z.B. support oder *"
+                            class="flex-1 px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                        <span class="text-gray-400 font-mono">@</span>
+                        <select name="domain" required class="flex-1 px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                            {% for d in domains %}
+                            <option value="{{ d }}">{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Ziel-Adresse (Weiterleitung an)</label>
+                    <input type="email" name="destination_email" required placeholder="z.B. privat@gmail.com oder team@domain.de"
+                        class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Anlegen</button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
+
+    <!-- Modal: Postfach Passwort Reset -->
+    <div id="modal-mail-pass-reset" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+        <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+            <h3 class="text-base font-bold text-white mb-2">Postfach-Passwort ändern</h3>
+            <p id="reset-account-label" class="text-xs text-gray-400 font-mono mb-4"></p>
+
+            <form id="mail-pass-reset-form" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="password" name="new_password" required minlength="8" placeholder="Neues Passwort"
+                    class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                <div class="flex justify-end gap-2">
+                    <button type="button" data-modal-close class="px-3 py-1.5 bg-dark-800 text-gray-300 rounded-lg text-xs font-mono">Abbrechen</button>
+                    <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -576,6 +959,33 @@ function openMailPassModal(accId, email) {
     document.getElementById("reset-account-label").textContent = email;
     document.getElementById("mail-pass-reset-form").action = `/mail/accounts/reset-pass/${accId}`;
     const modal = document.getElementById("modal-mail-pass-reset");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function openAccountSettingsModal(accId, email, quota, isCatchAll, forwardTo, autoresponderEnabled, autoSub, autoMsg) {
+    document.getElementById("opt-account-label").textContent = email;
+    document.getElementById("opt-quota").value = quota;
+    document.getElementById("opt-catch-all").checked = (isCatchAll === '1' || isCatchAll === 'True');
+    document.getElementById("opt-forward-to").value = forwardTo;
+    document.getElementById("opt-autoresponder-enabled").checked = (autoresponderEnabled === '1' || autoresponderEnabled === 'True');
+    document.getElementById("opt-autoresponder-sub").value = autoSub;
+    document.getElementById("opt-autoresponder-msg").value = autoMsg;
+
+    document.getElementById("account-settings-form").action = `/mail/accounts/settings/${accId}`;
+    const modal = document.getElementById("modal-account-settings");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function openClientSetupModal(accId, email, domain) {
+    document.getElementById("setup-account-email").textContent = email;
+    document.getElementById("setup-username").textContent = email;
+    document.getElementById("setup-imap-host").textContent = "mail." + domain;
+    document.getElementById("setup-smtp-host").textContent = "mail." + domain;
+    document.getElementById("setup-mobileconfig-btn").href = `/mail/accounts/mobileconfig/${accId}`;
+
+    const modal = document.getElementById("modal-client-setup");
     modal.classList.remove("hidden");
     modal.classList.add("flex");
 }
