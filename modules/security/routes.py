@@ -28,7 +28,10 @@ from modules.security.core.audit import generate_markdown_audit_report
 from modules.security.inventory.discovery import SoftwareDiscovery
 from modules.security.inventory.software_registry import SoftwareRegistry
 from modules.security.profiles.manager import ProfileManager
-from modules.security.protection.firewall import get_ufw_status, add_ufw_deny, remove_ufw_deny, set_ufw_enabled
+from modules.security.protection.firewall import (
+    get_ufw_status, add_ufw_deny, remove_ufw_deny, set_ufw_enabled,
+    detect_candidate_firewall_rules, activate_firewall_with_rules
+)
 from modules.security.protection.ssh import get_ssh_audit
 from modules.security.protection.fail2ban import get_fail2ban_status, fail2ban_unban
 from modules.security.protection.clamav import get_clamav_status, run_clamscan
@@ -108,6 +111,9 @@ def index():
         except Exception:
             pass
 
+    # 10. Kandidaten-Ports für Firewall-Aktivierungs-Assistent
+    candidate_ports = detect_candidate_firewall_rules()
+
     return render_template(
         "security.html",
         score=score,
@@ -129,7 +135,8 @@ def index():
         incidents=incidents,
         snapshots=snapshot_list,
         banned_db=banned_db,
-        webspaces=webspaces
+        webspaces=webspaces,
+        candidate_ports=candidate_ports
     )
 
 # ==================== IP BANNING & FIREWALL ====================
@@ -187,13 +194,43 @@ def unban_ip():
 @login_required
 @role_required(["root_admin"])
 def toggle_firewall():
-    """Aktiviert oder deaktiviert UFW."""
+    """Aktiviert oder deaktiviert UFW direkt (z.B. Deaktivieren)."""
     enable = request.form.get("enable") in ("1", "true", "True")
     ok = set_ufw_enabled(enable)
     if ok:
         flash(f"UFW Firewall {'aktiviert' if enable else 'deaktiviert'}.", "success")
     else:
         flash("UFW konnte nicht geschaltet werden.", "error")
+    return redirect(url_for("security.index"))
+
+@security_bp.route("/firewall/preflight", methods=["GET"])
+@login_required
+@role_required(["root_admin"])
+def firewall_preflight():
+    """Liefert JSON aller erkannten aktiven Kandidaten-Ports (Pterodactyl, Docker, Web, SSH)."""
+    candidates = detect_candidate_firewall_rules()
+    return jsonify({"success": True, "candidates": candidates})
+
+@security_bp.route("/firewall/activate", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def activate_firewall_wizard():
+    """Aktiviert UFW sicher mit den vom Admin bestätigten Port-Freigaben."""
+    selected_ports = request.form.getlist("ports")
+    custom_ranges = request.form.get("custom_ranges", "").strip()
+
+    ok, msg, count = activate_firewall_with_rules(
+        selected_rules=selected_ports,
+        custom_ranges=custom_ranges,
+        username=session.get("username", "admin")
+    )
+
+    if ok:
+        log_audit(session.get("username"), "FIREWALL_ACTIVATED_WIZARD", f"UFW aktiviert mit {count} freigegebenen Ports", request.remote_addr)
+        flash(msg, "success")
+    else:
+        flash(msg, "error")
+
     return redirect(url_for("security.index"))
 
 # ==================== CLAMAV SCANS ====================
