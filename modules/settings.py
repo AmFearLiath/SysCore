@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import time
 from datetime import datetime
@@ -468,7 +469,7 @@ def run_system_update():
         try:
             import db
             db.init_db()
-            yield "data: SQLite Datenbanktabellen erfolgreich verifiziert & migriert.\n\n"
+            yield "data: Datenbanktabellen erfolgreich verifiziert & migriert.\n\n"
         except Exception as e:
             yield f"data: [WARNUNG] DB Init: {e}\n\n"
 
