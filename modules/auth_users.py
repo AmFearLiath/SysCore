@@ -4,7 +4,8 @@ import base64
 import secrets
 import functools
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
+from urllib.parse import urlsplit
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, make_response
 from werkzeug.security import check_password_hash, generate_password_hash
 from db import query_db, execute_db, log_audit
 
@@ -20,9 +21,26 @@ try:
 except ImportError:
     qrcode = None
 
-__all__ = ["auth_bp", "current_user", "login_required", "role_required", "log_audit"]
+__all__ = ["auth_bp", "current_user", "login_required", "role_required", "log_audit", "is_safe_redirect_url"]
 
 auth_bp = Blueprint("auth", __name__)
+
+def is_safe_redirect_url(target):
+    """
+    Schutz vor Open Redirects (SEC-010):
+    Erlaubt ausschließlich relative Pfade innerhalb derselben Instanz (beginnend mit '/'),
+    verbietet externe URLs ('http://', 'https://') und protokoll-relative URLs ('//evil.com', '/\\evil.com').
+    """
+    if not target or not isinstance(target, str):
+        return False
+    target = target.strip()
+    if not target.startswith("/") or target.startswith("//") or target.startswith("/\\"):
+        return False
+    try:
+        parsed = urlsplit(target)
+        return not parsed.scheme and not parsed.netloc
+    except Exception:
+        return False
 
 def current_user():
     user_id = session.get("user_id")
@@ -39,8 +57,19 @@ def current_user():
 def login_required(view):
     @functools.wraps(view)
     def wrapped_view(*args, **kwargs):
-        if not session.get("user_id") or not session.get("authenticated"):
+        user_id = session.get("user_id")
+        if not user_id or not session.get("authenticated"):
             return redirect(url_for("auth.login", next=request.path))
+        
+        # Live DB-Validierung: Konto aktiv? (SEC-009)
+        u = query_db("SELECT id, username, role, is_active FROM users WHERE id = ?", (user_id,), one=True)
+        if not u or not u["is_active"]:
+            session.clear()
+            flash("Deine Sitzung ist ungültig oder das Benutzerkonto wurde deaktiviert.", "error")
+            return redirect(url_for("auth.login"))
+
+        session["role"] = u["role"]
+        session["username"] = u["username"]
         return view(*args, **kwargs)
     return wrapped_view
 
@@ -48,10 +77,21 @@ def role_required(allowed_roles):
     def decorator(view):
         @functools.wraps(view)
         def wrapped_view(*args, **kwargs):
-            if not session.get("user_id") or not session.get("authenticated"):
+            user_id = session.get("user_id")
+            if not user_id or not session.get("authenticated"):
                 return redirect(url_for("auth.login", next=request.path))
             
-            user_role = session.get("role", "monitor")
+            # Live DB-Validierung: Rolle und Sperrstatus direkt abfragen (SEC-009)
+            u = query_db("SELECT id, username, role, is_active FROM users WHERE id = ?", (user_id,), one=True)
+            if not u or not u["is_active"]:
+                session.clear()
+                flash("Deine Sitzung ist ungültig oder das Benutzerkonto wurde deaktiviert.", "error")
+                return redirect(url_for("auth.login"))
+
+            session["role"] = u["role"]
+            session["username"] = u["username"]
+            user_role = u["role"]
+
             if user_role not in allowed_roles:
                 log_audit(
                     username=session.get("username", "unknown"),
@@ -78,10 +118,16 @@ def login():
         user = query_db("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,), one=True)
 
         if user and check_password_hash(user["password_hash"], password):
+            # Validiere next_url gegen Open Redirect (SEC-010)
+            raw_next = request.args.get("next") or request.form.get("next")
+            safe_next = raw_next if is_safe_redirect_url(raw_next) else None
+
             # Prüfen ob 2FA aktiv ist
             if user["totp_enabled"] and user["totp_secret"]:
                 session["pending_2fa_user_id"] = user["id"]
                 session["pending_2fa_username"] = user["username"]
+                if safe_next:
+                    session["pending_next_url"] = safe_next
                 return redirect(url_for("auth.verify_2fa"))
 
             # Vollständiger Login
@@ -95,8 +141,7 @@ def login():
             log_audit(username, "USER_LOGIN", "Erfolgreich angemeldet", request.remote_addr, "success")
             flash(f"Willkommen zurück, {user['username']}!", "success")
 
-            next_url = request.args.get("next")
-            return redirect(next_url or url_for("system.index"))
+            return redirect(safe_next or url_for("system.index"))
 
         log_audit(username, "USER_LOGIN_FAILED", "Fehlgeschlagener Login-Versuch", request.remote_addr, "warning")
         flash("Ungültige Zugangsdaten.", "error")
@@ -124,6 +169,7 @@ def verify_2fa():
         totp = pyotp.TOTP(user["totp_secret"])
 
         if totp.verify(code, valid_window=2):
+            safe_next = session.get("pending_next_url")
             session.clear()
             session["user_id"] = user["id"]
             session["username"] = user["username"]
@@ -134,16 +180,17 @@ def verify_2fa():
             execute_db("DELETE FROM qr_login_tokens WHERE user_id = ?", (user["id"],))
             log_audit(user["username"], "2FA_VERIFY_SUCCESS", "Zwei-Faktor-Authentifizierung via Code erfolgreich", request.remote_addr, "success")
             flash(f"Willkommen zurück, {user['username']}!", "success")
-            return redirect(url_for("system.index"))
+            return redirect(safe_next or url_for("system.index"))
 
         log_audit(user["username"], "2FA_VERIFY_FAILED", "Ungültiger 2FA Token eingegeben", request.remote_addr, "warning")
         flash("Ungültiger 2FA Code. Bitte erneut versuchen.", "error")
         return redirect(url_for("auth.verify_2fa"))
 
     # --- GET: Vorbereitung des Login-QR-Codes (1-Klick Freigabe) ---
+    # Gültigkeit gehärtet auf max. 3 Minuten (SEC-011)
     now = datetime.utcnow()
     now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-    expires_at = (now + timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+    expires_at = (now + timedelta(minutes=3)).strftime("%Y-%m-%d %H:%M:%S")
 
     # Veraltete Tokens aufräumen
     execute_db("DELETE FROM qr_login_tokens WHERE expires_at < ?", (now_str,))
@@ -182,13 +229,18 @@ def verify_2fa():
         except Exception as e:
             print(f"[SysCore 2FA QR Error] {e}")
 
-    return render_template(
+    resp = make_response(render_template(
         "verify_2fa.html",
         username=user["username"],
         qr_base64=qr_base64,
         qr_token=qr_token,
         qr_url=qr_approval_url
-    )
+    ))
+    # Anti-Caching & No-Referrer Header (SEC-011)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
 
 @auth_bp.route("/login/2fa/qr-status")
 def qr_status():
@@ -208,6 +260,7 @@ def qr_status():
     if row["approved"] == 1:
         user = query_db("SELECT * FROM users WHERE id = ? AND is_active = 1", (row["user_id"],), one=True)
         if user:
+            safe_next = session.get("pending_next_url")
             session.clear()
             session["user_id"] = user["id"]
             session["username"] = user["username"]
@@ -215,10 +268,11 @@ def qr_status():
             session["authenticated"] = True
 
             execute_db("UPDATE users SET last_login = ? WHERE id = ?", (now_str, user["id"]))
+            # Einmalige Nutzung: Token sofort nach erfolgreichem Login zerstören (SEC-011)
             execute_db("DELETE FROM qr_login_tokens WHERE token = ?", (qr_token,))
             log_audit(user["username"], "2FA_QR_LOGIN_SUCCESS", f"Zwei-Faktor-Login via QR-Scan freigegeben (Desktop-IP: {row['ip_address']})", request.remote_addr, "success")
             flash(f"Willkommen zurück, {user['username']}! (Erfolgreich via QR-Code autorisiert)", "success")
-            return jsonify({"approved": True, "redirect": url_for("system.index")})
+            return jsonify({"approved": True, "redirect": safe_next or url_for("system.index")})
 
     return jsonify({"approved": False})
 
@@ -229,36 +283,51 @@ def approve_qr(token):
     row = query_db("SELECT * FROM qr_login_tokens WHERE token = ? AND expires_at > ?", (token, now_str), one=True)
 
     if not row:
-        return render_template(
+        resp = make_response(render_template(
             "approve_qr.html",
             error="Diese Anmeldeanforderung ist ungültig oder abgelaufen. Bitte lade die Login-Seite am Desktop neu."
-        )
+        ))
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Referrer-Policy"] = "no-referrer"
+        return resp
 
     user = query_db("SELECT * FROM users WHERE id = ? AND is_active = 1", (row["user_id"],), one=True)
     if not user:
-        return render_template("approve_qr.html", error="Benutzerkonto nicht aktiv oder nicht gefunden.")
+        resp = make_response(render_template("approve_qr.html", error="Benutzerkonto nicht aktiv oder nicht gefunden."))
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Referrer-Policy"] = "no-referrer"
+        return resp
 
     if row["approved"] == 1:
-        return render_template("approve_qr.html", success=True, already_approved=True, username=row["username"])
+        resp = make_response(render_template("approve_qr.html", success=True, already_approved=True, username=row["username"]))
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Referrer-Policy"] = "no-referrer"
+        return resp
 
     if request.method == "POST":
-        # Bestätigung speichern
+        # Bestätigung speichern (Single-Use Token Markierung)
         execute_db("UPDATE qr_login_tokens SET approved = 1 WHERE token = ?", (token,))
         log_audit(user["username"], "2FA_QR_APPROVED", f"QR-Login freigegeben für Rechner-IP {row['ip_address']}", request.remote_addr, "success")
-        return render_template(
+        resp = make_response(render_template(
             "approve_qr.html",
             success=True,
             username=row["username"],
             requester_ip=row["ip_address"]
-        )
+        ))
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Referrer-Policy"] = "no-referrer"
+        return resp
 
-    return render_template(
+    resp = make_response(render_template(
         "approve_qr.html",
         row=row,
         username=row["username"],
         requester_ip=row["ip_address"],
         token=token
-    )
+    ))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
 
 @auth_bp.route("/logout")
 def logout():

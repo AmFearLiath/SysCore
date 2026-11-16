@@ -36,6 +36,7 @@
         }
     </script>
     <!-- Custom SysCore Styling & Fonts -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/syscore.css') }}">
 </head>
@@ -965,6 +966,70 @@
             </div>
         </div>
     </div>
+
+    <!-- Global CSRF Token Auto-Injector (SEC-008) -->
+    <script>
+        (function() {
+            function getCsrfToken() {
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                return meta ? meta.getAttribute('content') : '';
+            }
+
+            function injectCsrfToForm(form) {
+                const method = (form.getAttribute('method') || 'GET').toUpperCase();
+                if (method !== 'GET' && !form.querySelector('input[name="csrf_token"]')) {
+                    const token = getCsrfToken();
+                    if (token) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'csrf_token';
+                        input.value = token;
+                        form.appendChild(input);
+                    }
+                }
+            }
+
+            // 1. Initial alle existierenden Formulare impfen
+            document.addEventListener('DOMContentLoaded', function() {
+                document.querySelectorAll('form').forEach(injectCsrfToForm);
+            });
+
+            // 2. Dynamisch hinzugefügte Formulare beim Absenden absichern
+            document.addEventListener('submit', function(e) {
+                if (e.target && e.target.tagName === 'FORM') {
+                    injectCsrfToForm(e.target);
+                }
+            }, true);
+
+            // 3. Globales window.fetch intercepten und X-CSRF-Token anfügen
+            const originalFetch = window.fetch;
+            window.fetch = function(resource, init = {}) {
+                const method = (init.method || 'GET').toUpperCase();
+                if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+                    const token = getCsrfToken();
+                    if (token) {
+                        if (!init.headers) {
+                            init.headers = {};
+                        }
+                        if (init.headers instanceof Headers) {
+                            if (!init.headers.has('X-CSRF-Token')) {
+                                init.headers.append('X-CSRF-Token', token);
+                            }
+                        } else if (Array.isArray(init.headers)) {
+                            if (!init.headers.some(([k]) => k.toLowerCase() === 'x-csrf-token')) {
+                                init.headers.push(['X-CSRF-Token', token]);
+                            }
+                        } else {
+                            if (!init.headers['X-CSRF-Token'] && !init.headers['x-csrf-token']) {
+                                init.headers['X-CSRF-Token'] = token;
+                            }
+                        }
+                    }
+                }
+                return originalFetch.call(this, resource, init);
+            };
+        })();
+    </script>
 
     <!-- Core SysCore JS Controller -->
     <script src="{{ url_for('static', filename='js/syscore.js') }}"></script>

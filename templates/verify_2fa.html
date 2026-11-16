@@ -66,6 +66,7 @@
             </p>
 
             <form method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div>
                     <input type="text" name="code" required autofocus maxlength="7" pattern="[0-9 ]*"
                         placeholder="000 000"

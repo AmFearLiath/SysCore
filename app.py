@@ -1,7 +1,9 @@
 import os
+from datetime import timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import config
 import db
+from modules.csrf import init_csrf
 
 # Module Importieren
 from modules.auth_users import auth_bp, current_user
@@ -24,6 +26,16 @@ db.init_db()
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = 512 * 1024 * 1024  # 512 MB Max Upload
+
+# Sitzungs- & Cookie-Härtung (SEC-017)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=24)
+)
+
+# Zentraler CSRF-Schutz initialisieren (SEC-008)
+init_csrf(app)
 
 # Blueprints Registrieren
 app.register_blueprint(auth_bp)
@@ -76,8 +88,21 @@ def require_authentication():
         return None
 
     # Falls nicht angemeldet -> Redirect zum Login
-    if not session.get("user_id") or not session.get("authenticated"):
+    user_id = session.get("user_id")
+    if not user_id or not session.get("authenticated"):
         return redirect(url_for("auth.login", next=request.path))
+
+    # Live-Überprüfung des Benutzerkontos in der Datenbank (SEC-009)
+    # Verhindert, dass gesperrte oder gelöschte Konten aktive Sitzungen weiternutzen können
+    user = db.query_db("SELECT id, username, role, is_active FROM users WHERE id = ?", (user_id,), one=True)
+    if not user or not user["is_active"]:
+        session.clear()
+        flash("Deine Sitzung ist ungültig oder das Benutzerkonto wurde deaktiviert.", "error")
+        return redirect(url_for("auth.login"))
+
+    # Rolle & Benutzername live synchronisieren
+    session["role"] = user["role"]
+    session["username"] = user["username"]
 
 # Fehlerseiten
 @app.errorhandler(404)
