@@ -114,112 +114,532 @@
         </a>
     </div>
 
-    <!-- ==================== TAB 1: DOMAINS & VHOSTS ==================== -->
+    <!-- ==================== TAB 1: DOMAINS & VHOSTS (PLESK OBSIDIAN SUITE) ==================== -->
     {% if active_tab == 'domains' %}
     <div class="space-y-4">
         <!-- Filter & Info Bar -->
-        <div class="flex items-center justify-between gap-4">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <div class="relative w-full max-w-sm">
-                <input type="text" id="domainSearchInput" onkeyup="filterDomainCards()" placeholder="Domains filtern..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3.5 py-2 pl-9 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 font-mono">
+                <input type="text" id="domainSearchInput" onkeyup="filterDomainCards()" placeholder="Domains filtern (Name, PHP, Port)..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3.5 py-2 pl-9 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 font-mono">
                 <svg class="w-4 h-4 text-gray-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </div>
-            <div class="text-xs font-mono text-gray-400 hidden sm:block">
-                {{ domains|length }} VHosts aktiv &bull; Isolation: <code>.panel.conf</code>
+            <div class="flex items-center gap-2 self-end sm:self-auto">
+                <button type="button" onclick="expandAllDomains()" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 rounded-xl text-[11px] font-mono text-gray-400 hover:text-white transition">
+                    Alle ausklappen
+                </button>
+                <button type="button" onclick="collapseAllDomains()" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 rounded-xl text-[11px] font-mono text-gray-400 hover:text-white transition">
+                    Alle einklappen
+                </button>
+                <div class="text-xs font-mono text-gray-400 hidden lg:block ml-2">
+                    {{ domains|length }} VHosts &bull; Isolation: <code>.panel.conf</code>
+                </div>
             </div>
         </div>
 
         {% if domains %}
-        <div class="grid grid-cols-1 gap-4" id="domainCardsContainer">
+        <div class="space-y-4" id="domainCardsContainer">
             {% for d in domains %}
-            <div class="sys-card p-5 hover:border-dark-600 transition domain-card">
-                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <!-- Domain Details -->
-                    <div class="space-y-2">
-                        <div class="flex flex-wrap items-center gap-2.5">
-                            <a href="http{{ 's' if d.ssl else '' }}://{{ d.name }}" target="_blank" class="text-base md:text-lg font-bold text-white hover:text-emerald-400 transition flex items-center gap-1.5 domain-name">
+            <div class="sys-card overflow-hidden domain-card border border-dark-700/60 hover:border-dark-600 transition" id="domain-card-{{ loop.index }}">
+                <!-- Accordion Header Bar (Plesk Style) -->
+                <div class="p-4 bg-dark-900/60 flex flex-col lg:flex-row lg:items-center justify-between gap-3 cursor-pointer select-none transition hover:bg-dark-900/90" onclick="toggleDomainAccordion('{{ loop.index }}')">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <!-- Chevron Toggle Button -->
+                        <button type="button" class="p-1 rounded-lg hover:bg-dark-800 text-gray-400 hover:text-white transition" id="accordion-chevron-btn-{{ loop.index }}">
+                            <svg class="w-4 h-4 transition-transform duration-200 {{ 'rotate-180' if loop.first else '' }}" id="accordion-chevron-{{ loop.index }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+
+                        <!-- Domain Icon Circle -->
+                        <div class="w-8 h-8 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 shrink-0 font-bold text-xs uppercase font-mono">
+                            {{ d.name[:2] }}
+                        </div>
+
+                        <!-- Domain Title & Badges -->
+                        <div class="flex flex-wrap items-center gap-2 min-w-0">
+                            <a href="http{{ 's' if d.ssl else '' }}://{{ d.name }}" target="_blank" onclick="event.stopPropagation();" class="text-base font-bold text-white hover:text-emerald-400 transition flex items-center gap-1.5 domain-name">
                                 <span>{{ d.name }}</span>
                                 <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                             </a>
 
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono {{ 'badge-emerald' if d.mode == 'webspace' else 'badge-teal' }}">
+                            <!-- Maintenance / Active Status Badge -->
+                            {% if d.is_maintenance %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                <span>Wartung</span>
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                <span>Aktiv</span>
+                            </span>
+                            {% endif %}
+
+                            <!-- Disk Usage Badge -->
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-dark-800 text-gray-300 border border-dark-700">
+                                💾 {{ d.disk_usage }}
+                            </span>
+
+                            <!-- Mode / Runtime Badge -->
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono {{ 'badge-teal' if d.mode == 'proxy' else 'badge-emerald' }}">
                                 {{ d.mode_label }}
                             </span>
 
                             <!-- SSL Status Pill -->
                             {% if d.ssl %}
                             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono badge-cyan flex items-center gap-1">
-                                <span>🔒 SSL aktiv</span>
+                                <span>🔒 SSL</span>
                                 {% if d.ssl_info.days_left is not none %}
-                                <span class="text-gray-400">({{ d.ssl_info.days_left }} Tage)</span>
+                                <span class="text-cyan-200">({{ d.ssl_info.days_left }}d)</span>
                                 {% endif %}
                             </span>
                             {% elif d.missing_ssl_block %}
-                            <!-- Spezieller Hinweis: Zertifikat existiert, aber VHost hat keinen SSL-Block! -->
-                            <form method="POST" action="{{ url_for('webserver.repair_domain_ssl', domain=d.name) }}" class="inline">
-                                <button type="submit" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition flex items-center gap-1 shadow" title="Zertifikat existiert bereits! Klicke hier um den SSL-VHost sofort nachzurüsten">
-                                    <svg class="w-3 h-3 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                    <span>⚠️ Zertifikat vorhanden &bull; Jetzt aktivieren</span>
-                                </button>
-                            </form>
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+                                <span>⚠️ Cert bereit</span>
+                            </span>
                             {% else %}
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-mono badge-amber">
                                 ⚠️ Kein SSL
                             </span>
                             {% endif %}
-                        </div>
 
-                        <div class="text-xs font-mono text-gray-400 flex flex-wrap items-center gap-3">
-                            <span>Ziel: <strong class="text-gray-200">{{ d.target }}</strong></span>
-                            {% if d.mode == 'webspace' %}
-                            <span>&bull; PHP-FPM: <span class="text-emerald-400">{{ d.php_version }}</span></span>
-                            {% endif %}
-                            {% if d.has_acme_pass %}
-                            <span class="text-gray-500">&bull; ACME Pass-Through: <span class="text-emerald-400">Aktiv</span></span>
+                            {% if d.has_htpasswd %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                🛡️ .htpasswd
+                            </span>
                             {% endif %}
                         </div>
                     </div>
 
-                    <!-- Action Toolbar -->
-                    <div class="flex flex-wrap items-center gap-2">
-                        <!-- 1-Klick SSL anfordern/reparieren -->
-                        {% if not d.ssl %}
-                        <form method="POST" action="{{ url_for('webserver.repair_domain_ssl', domain=d.name) if d.missing_ssl_block else url_for('webserver.enable_ssl', domain=d.name) }}">
-                            <button type="submit" class="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-mono transition flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                                <span>{{ 'SSL reparieren' if d.missing_ssl_block else '1-Klick SSL' }}</span>
-                            </button>
-                        </form>
-                        {% endif %}
-
-                        <!-- VHost Raw Editor -->
-                        <button onclick="openVHostEditor('{{ d.name }}')" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-gray-300 hover:text-white rounded-lg text-xs font-mono transition flex items-center gap-1.5" title="NGINX .panel.conf direkt bearbeiten">
-                            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                            <span>VHost Config</span>
+                    <!-- Quick Icon Actions (Plesk Obsidian Toolbar) -->
+                    <div class="flex items-center gap-1.5 self-end lg:self-auto shrink-0" onclick="event.stopPropagation();">
+                        <a href="/files?path={{ d.root_path }}" title="Dateimanager" class="p-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-700 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        </a>
+                        <a href="/database" title="Datenbanken" class="p-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-700 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                        </a>
+                        <button onclick="openVHostEditor('{{ d.name }}')" title="VHost Config (Raw)" class="p-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-700 transition">
+                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                         </button>
-
-                        <!-- Direktiven -->
-                        <button onclick="openDirectivesModal('{{ d.name }}', this)" class="px-3 py-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-gray-300 hover:text-white rounded-lg text-xs font-mono transition flex items-center gap-1.5">
-                            <textarea class="hidden">{{ d.custom_directives or '' }}</textarea>
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
-                            <span>Direktiven</span>
+                        <button onclick="openEditDomainModal('{{ d.name }}', '{{ d.mode }}', '{{ d.proxy_port }}', '{{ d.php_version }}', '{{ d.root_path }}', '{{ d.aliases_str }}', {{ 'true' if d.has_ssl_redirect else 'false' }}, {{ 'true' if d.has_hsts else 'false' }}, {{ 'true' if d.has_gzip else 'false' }})" title="Domain anpassen / umbenennen" class="p-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-700 transition">
+                            <svg class="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                         </button>
-
-                        <!-- Git Auto-Deploy Hook -->
-                        <button onclick="openWebhookModal('{{ d.name }}', '{{ d.deploy_hook.branch if d.deploy_hook else 'main' }}', '{{ d.deploy_hook.token if d.deploy_hook else '' }}', '{{ d.deploy_hook.post_deploy_cmd if d.deploy_hook else '' }}')" class="p-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-gray-300 hover:text-white rounded-lg transition" title="Git Auto-Deploy Webhook">
-                            <svg class="w-4 h-4 {{ 'text-emerald-400' if d.deploy_hook else 'text-gray-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        </button>
-
-                        <!-- Live Logs -->
-                        <button onclick="openLogsModal('{{ d.name }}')" class="p-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 text-gray-300 hover:text-white rounded-lg transition" title="Live NGINX Logs">
-                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-                        </button>
-
-                        <!-- Löschen -->
                         <form method="POST" action="{{ url_for('webserver.delete_domain', domain=d.name) }}" onsubmit="return confirm('Möchtest du die Domain {{ d.name }} und deren VHost wirklich löschen? Die Dateien im Webspace bleiben erhalten.');" class="inline">
-                            <button type="submit" class="p-1.5 bg-dark-900 hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 border border-dark-700 rounded-lg transition" title="Domain löschen">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="p-1.5 rounded-lg bg-dark-800 hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 border border-dark-700 transition" title="Domain löschen">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             </button>
                         </form>
+                    </div>
+                </div>
+
+                <!-- Accordion Body (Expanded View) -->
+                <div id="accordion-body-{{ loop.index }}" class="p-6 border-t border-dark-700/60 bg-dark-950/40 {{ '' if loop.first else 'hidden' }}">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        <!-- LEFT COLUMN: Website Preview Mockup & Stats (lg:col-span-4) -->
+                        <div class="lg:col-span-4 space-y-4">
+                            <!-- Browser Mockup Window -->
+                            <div class="rounded-2xl border border-dark-700/80 bg-dark-900/90 overflow-hidden shadow-xl">
+                                <div class="px-3.5 py-2.5 bg-dark-800/90 border-b border-dark-700/80 flex items-center justify-between">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+                                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
+                                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+                                    </div>
+                                    <div class="px-2.5 py-0.5 rounded-md bg-dark-950 text-[10px] font-mono text-gray-300 border border-dark-700/60 flex items-center gap-1.5 truncate max-w-[190px]">
+                                        <svg class="w-3 h-3 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                        <span class="truncate">http{{ 's' if d.ssl else '' }}://{{ d.name }}</span>
+                                    </div>
+                                    <a href="http{{ 's' if d.ssl else '' }}://{{ d.name }}" target="_blank" class="text-gray-400 hover:text-white" title="Im neuen Tab öffnen">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                    </a>
+                                </div>
+
+                                <!-- Visual Mockup Display -->
+                                <div class="p-6 text-center space-y-3 bg-gradient-to-b from-dark-900 to-dark-950 min-h-[160px] flex flex-col items-center justify-center">
+                                    {% if d.is_maintenance %}
+                                    <div class="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                                        <svg class="w-7 h-7 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-bold text-amber-300 font-mono">Wartungsmodus aktiv</div>
+                                        <p class="text-[10px] text-gray-500 font-mono mt-0.5">Besucher erhalten HTTP 503 Wartungsseite</p>
+                                    </div>
+                                    {% else %}
+                                    <div class="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-bold text-white font-mono">{{ d.name }}</div>
+                                        <p class="text-[10px] text-gray-400 font-mono mt-0.5">{{ d.mode_label }}</p>
+                                    </div>
+                                    <a href="http{{ 's' if d.ssl else '' }}://{{ d.name }}" target="_blank" class="px-3.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-[10px] font-mono transition flex items-center gap-1.5">
+                                        <span>Website aufrufen</span>
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                    </a>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Browser Mockup Footer -->
+                                <div class="px-3.5 py-2.5 bg-dark-900 border-t border-dark-800 text-[10px] font-mono text-gray-400 flex items-center justify-between">
+                                    <span>Systemuser: <span class="text-gray-200">www-data</span></span>
+                                    <span>IP: <span class="text-gray-200">{{ request.host.split(':')[0] }}</span></span>
+                                </div>
+                            </div>
+
+                            <!-- Statistiken & Metriken Box -->
+                            <div class="sys-card p-4 space-y-3 text-xs font-mono">
+                                <h4 class="text-[11px] font-bold text-gray-300 uppercase tracking-wider pb-1 border-b border-dark-700/60 flex items-center justify-between">
+                                    <span>Hosting-Metriken</span>
+                                    <span class="text-teal-400 text-[10px]">Plesk Core</span>
+                                </h4>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-400">Speicherplatz:</span>
+                                    <span class="font-bold text-white">{{ d.disk_usage }}</span>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-400">Server-IP:</span>
+                                    <span class="text-gray-200 flex items-center gap-1">
+                                        <span>{{ request.host.split(':')[0] }}</span>
+                                        <button type="button" onclick="SysCore.copyToClipboard('{{ request.host.split(':')[0] }}', 'Server IP')" class="text-gray-500 hover:text-white" title="IP kopieren">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                        </button>
+                                    </span>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-400">PHP-Stack:</span>
+                                    <span class="text-emerald-400 font-bold">PHP {{ d.php_version }}</span>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-400">SSL-Zertifikat:</span>
+                                    {% if d.ssl and d.ssl_info.days_left is not none %}
+                                    <span class="text-cyan-300 font-bold">{{ d.ssl_info.days_left }} Tage Rest</span>
+                                    {% elif d.ssl %}
+                                    <span class="text-cyan-300 font-bold">Aktiv</span>
+                                    {% else %}
+                                    <span class="text-amber-400">Inaktiv</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-400">HSTS / Gzip:</span>
+                                    <span class="text-gray-300">
+                                        {{ 'HSTS ✓' if d.has_hsts else 'Kein HSTS' }} &bull; {{ 'Gzip ✓' if d.has_gzip else 'Kein Gzip' }}
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <span class="text-gray-400 block mb-1">DocumentRoot:</span>
+                                    <div class="flex items-center gap-1.5 bg-dark-950 p-2 rounded-xl border border-dark-800">
+                                        <code class="text-[10px] text-gray-300 truncate flex-1">{{ d.root_path }}</code>
+                                        <button type="button" onclick="SysCore.copyToClipboard('{{ d.root_path }}', 'DocumentRoot')" class="text-gray-500 hover:text-white p-1 rounded" title="Pfad kopieren">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {% if d.aliases %}
+                                <div>
+                                    <span class="text-gray-400 block mb-1">Aliase:</span>
+                                    <div class="flex flex-wrap gap-1">
+                                        {% for al in d.aliases %}
+                                        <span class="px-2 py-0.5 rounded bg-dark-800 text-gray-300 border border-dark-700 text-[10px]">{{ al }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- RIGHT COLUMN: Plesk Obsidian Categorized Action Hubs (lg:col-span-8) -->
+                        <div class="lg:col-span-8 space-y-6">
+
+                            <!-- HUB 1: Dateien und Datenbanken -->
+                            <div class="space-y-3">
+                                <h3 class="text-xs font-mono uppercase font-bold text-gray-300 tracking-wider flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+                                    <span>Dateien und Datenbanken</span>
+                                </h3>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    <!-- 1. Verbindungsdaten -->
+                                    <button type="button" onclick="openConnModal('{{ d.name }}', '{{ d.root_path }}')" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-teal-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 group-hover:bg-teal-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-teal-400 transition truncate">Verbindungsdaten</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">SFTP, SSH & MySQL</div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 2. Dateimanager -->
+                                    <a href="/files?path={{ d.root_path }}" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-cyan-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-cyan-400 transition truncate">Dateimanager</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">Webspace-Dateien</div>
+                                            </div>
+                                        </div>
+                                    </a>
+
+                                    <!-- 3. Datenbanken -->
+                                    <a href="/database" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-purple-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-purple-400 transition truncate">Datenbanken</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">MySQL & Tabellen</div>
+                                            </div>
+                                        </div>
+                                    </a>
+
+                                    <!-- 4. Website kopieren / klonen -->
+                                    <button type="button" onclick="openCloneModal('{{ d.name }}')" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-blue-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:bg-blue-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-blue-400 transition truncate">Website kopieren</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">Klonen & Staging</div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 5. App-Importer (CMS) -->
+                                    <a href="/apps" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-amber-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:bg-amber-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-amber-400 transition truncate">App-Installer</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">WordPress & CMS</div>
+                                            </div>
+                                        </div>
+                                    </a>
+
+                                    <!-- 6. Sicherungen -->
+                                    <a href="/backup" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-indigo-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-indigo-400 transition truncate">Sicherungen</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">Backups verwalten</div>
+                                            </div>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- HUB 2: Entwicklertools & Runtimes -->
+                            <div class="space-y-3">
+                                <h3 class="text-xs font-mono uppercase font-bold text-gray-300 tracking-wider flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                                    <span>Entwicklertools & Runtimes</span>
+                                </h3>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    <!-- 1. PHP Schnellumschalter -->
+                                    <div class="p-3.5 bg-dark-900/80 border border-dark-700/70 rounded-2xl text-left">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white truncate">PHP-Version</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">1-Klick Stack-Wechsel</div>
+                                            </div>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('webserver.switch_php_version_direct', domain=d.name) }}" class="flex items-center gap-1.5">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <select name="php_version" onchange="this.form.submit()" class="w-full bg-dark-950 border border-dark-700 rounded-lg px-2 py-1 text-[11px] font-mono text-emerald-400 focus:outline-none focus:border-emerald-500">
+                                                {% for v in ['8.0', '8.1', '8.2', '8.3', '8.4'] %}
+                                                <option value="{{ v }}" {{ 'selected' if d.php_version == v else '' }}>PHP {{ v }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </form>
+                                    </div>
+
+                                    <!-- 2. Protokolle (Logs) -->
+                                    <button type="button" onclick="openLogsModal('{{ d.name }}')" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-cyan-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-cyan-400 transition truncate">Protokolle</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">Access & Error Logs</div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 3. Git Auto-Deploy -->
+                                    <button type="button" onclick="openWebhookModal('{{ d.name }}', '{{ d.deploy_hook.branch if d.deploy_hook else 'main' }}', '{{ d.deploy_hook.token if d.deploy_hook else '' }}', '{{ d.deploy_hook.post_deploy_cmd if d.deploy_hook else '' }}')" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-emerald-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-emerald-400 transition truncate">Git Auto-Deploy</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">{{ 'Webhook aktiv' if d.deploy_hook else 'Webhook einrichten' }}</div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 4. VHost Raw Editor -->
+                                    <button type="button" onclick="openVHostEditor('{{ d.name }}')" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-indigo-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-indigo-400 transition truncate">VHost Editor</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">NGINX Config Raw</div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 5. Custom Direktiven -->
+                                    <button type="button" onclick="openDirectivesModal('{{ d.name }}', this)" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-teal-500/40 rounded-2xl text-left transition group">
+                                        <textarea class="hidden">{{ d.custom_directives or '' }}</textarea>
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 group-hover:bg-teal-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-teal-400 transition truncate">Direktiven</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">Header & Rewrites</div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 6. Cronjobs -->
+                                    <a href="/cron" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-emerald-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-emerald-400 transition truncate">Geplante Aufgaben</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">Cron & Intervalle</div>
+                                            </div>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- HUB 3: Sicherheit & Web-Tuning -->
+                            <div class="space-y-3">
+                                <h3 class="text-xs font-mono uppercase font-bold text-gray-300 tracking-wider flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                    <span>Sicherheit & Web-Tuning</span>
+                                </h3>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    <!-- 1. SSL/TLS Zertifikat -->
+                                    <div class="p-3.5 bg-dark-900/80 border border-dark-700/70 rounded-2xl text-left">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white truncate">SSL/TLS</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">{{ 'HTTPS aktiv' if d.ssl else 'Kein HTTPS' }}</div>
+                                            </div>
+                                        </div>
+                                        {% if not d.ssl %}
+                                        <form method="POST" action="{{ url_for('webserver.repair_domain_ssl', domain=d.name) if d.missing_ssl_block else url_for('webserver.enable_ssl', domain=d.name) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="w-full px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-mono transition flex items-center justify-center gap-1 font-bold">
+                                                <span>{{ '⚡ SSL verknüpfen' if d.missing_ssl_block else '🔒 1-Klick SSL' }}</span>
+                                            </button>
+                                        </form>
+                                        {% else %}
+                                        <button type="button" onclick="openModal('modal-assign-cert')" class="w-full px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-700 rounded-lg text-[10px] font-mono transition text-center">
+                                            Zertifikat wechseln
+                                        </button>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- 2. Passwortschutz (.htpasswd) -->
+                                    <button type="button" onclick="openHtpasswdModal('{{ d.name }}', {{ 'true' if d.has_htpasswd else 'false' }})" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-purple-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-purple-400 transition truncate">Passwortschutz</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">{{ 'Aktiviert (.htpasswd)' if d.has_htpasswd else 'Nicht eingerichtet' }}</div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 3. Wartungsmodus (1-Klick Toggle) -->
+                                    <div class="p-3.5 bg-dark-900/80 border border-dark-700/70 rounded-2xl text-left">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="w-9 h-9 rounded-xl {{ 'bg-amber-500/20 border-amber-500/40 text-amber-300' if d.is_maintenance else 'bg-dark-800 border-dark-700 text-gray-400' }} flex items-center justify-center shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white truncate">Wartungsmodus</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">{{ '503 Aktiv' if d.is_maintenance else 'Deaktiviert' }}</div>
+                                            </div>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('webserver.toggle_maintenance', domain=d.name) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="w-full px-2.5 py-1 rounded-lg text-[10px] font-mono transition text-center font-bold {{ 'bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-500/40' if d.is_maintenance else 'bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-700' }}">
+                                                {{ 'Wartung beenden' if d.is_maintenance else 'Wartung aktivieren' }}
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <!-- 4. Hosting-Einstellungen (Edit Domain) -->
+                                    <button type="button" onclick="openEditDomainModal('{{ d.name }}', '{{ d.mode }}', '{{ d.proxy_port }}', '{{ d.php_version }}', '{{ d.root_path }}', '{{ d.aliases_str }}', {{ 'true' if d.has_ssl_redirect else 'false' }}, {{ 'true' if d.has_hsts else 'false' }}, {{ 'true' if d.has_gzip else 'false' }})" class="p-3.5 bg-dark-900/80 hover:bg-dark-800 border border-dark-700/70 hover:border-blue-500/40 rounded-2xl text-left transition group">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:bg-blue-500/20 transition shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-white group-hover:text-blue-400 transition truncate">Einstellungen</div>
+                                                <div class="text-[10px] text-gray-400 font-mono truncate">Aliase, HSTS, Rename</div>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 5. Domain löschen -->
+                                    <form method="POST" action="{{ url_for('webserver.delete_domain', domain=d.name) }}" onsubmit="return confirm('Möchtest du die Domain {{ d.name }} und deren VHost wirklich löschen? Die Dateien im Webspace bleiben erhalten.');" class="p-3.5 bg-dark-900/80 hover:bg-rose-950/20 border border-dark-700/70 hover:border-rose-500/40 rounded-2xl text-left transition group">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="w-full text-left">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 group-hover:bg-rose-500/20 transition shrink-0">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="text-xs font-bold text-white group-hover:text-rose-400 transition truncate">Domain entfernen</div>
+                                                    <div class="text-[10px] text-gray-400 font-mono truncate">VHost & Routing löschen</div>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                        </div>
                     </div>
                 </div>
             </div>
@@ -508,6 +928,8 @@
         </div>
 
         <form method="POST" action="{{ url_for('webserver.add_domain') }}" class="space-y-4 text-xs font-mono">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
             <div>
                 <label class="block text-gray-400 mb-1">Domainname oder Subdomain</label>
                 <input type="text" name="domain" required placeholder="z.B. app.meinedomain.de" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
@@ -526,7 +948,7 @@
                 <div>
                     <label class="block text-gray-400 mb-1">PHP-Version</label>
                     <select name="php_version" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
-                        {% for v in health.php_versions %}
+                        {% for v in ['8.0', '8.1', '8.2', '8.3', '8.4'] %}
                         <option value="{{ v }}" {{ 'selected' if v == '8.2' else '' }}>PHP {{ v }}</option>
                         {% endfor %}
                     </select>
@@ -546,6 +968,11 @@
                 </div>
             </div>
 
+            <div>
+                <label class="block text-gray-400 mb-1">Domain-Aliase (Optional, z.B. www-Subdomain)</label>
+                <input type="text" name="aliases" placeholder="z.B. www.meinedomain.de" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+            </div>
+
             <div class="flex items-center gap-2 pt-2">
                 <input type="checkbox" name="auto_ssl" value="1" id="new_auto_ssl" checked class="w-4 h-4 rounded bg-dark-950 border-dark-700 text-emerald-500 focus:ring-0">
                 <label for="new_auto_ssl" class="text-gray-300">Let's Encrypt SSL-Zertifikat sofort anfordern</label>
@@ -554,6 +981,236 @@
             <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
                 <button type="button" onclick="closeModal('modal-domain-add')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
                 <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">Domain erstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: Domain bearbeiten & Hosting-Einstellungen (Plesk Obsidian Style) -->
+<div id="modal-domain-edit" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-xl p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                <span>Hosting-Einstellungen: <span id="edit-domain-title" class="text-emerald-400 font-mono"></span></span>
+            </h3>
+            <button onclick="closeModal('modal-domain-edit')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <form id="editDomainForm" method="POST" class="space-y-4 text-xs font-mono">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div>
+                <label class="block text-gray-400 mb-1">Domainname (kann hier umbenannt werden)</label>
+                <input type="text" name="new_domain" id="edit_domain_name" required class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                <p class="text-[10px] text-gray-500 mt-1">Beim Umbenennen werden VHost, Symlink und Konfigurationen automatisch migriert.</p>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Betriebsmodus</label>
+                <select name="mode" id="editDomainMode" onchange="toggleEditDomainModeFields()" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                    <option value="webspace">PHP-Webspace (HTML / PHP / WordPress / CMS)</option>
+                    <option value="proxy">Reverse-Proxy (Node.js / Python / Docker / Port)</option>
+                </select>
+            </div>
+
+            <!-- Webspace Felder -->
+            <div id="editWebspaceFields" class="space-y-4">
+                <div>
+                    <label class="block text-gray-400 mb-1">PHP-Version</label>
+                    <select name="php_version" id="edit_php_version" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                        {% for v in ['8.0', '8.1', '8.2', '8.3', '8.4'] %}
+                        <option value="{{ v }}">PHP {{ v }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-gray-400 mb-1">DocumentRoot (Web-Verzeichnis)</label>
+                    <input type="text" name="root_path" id="edit_root_path" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                </div>
+            </div>
+
+            <!-- Proxy Felder -->
+            <div id="editProxyFields" class="hidden space-y-4">
+                <div>
+                    <label class="block text-gray-400 mb-1">Ziel-Port (127.0.0.1)</label>
+                    <input type="number" name="proxy_port" id="edit_proxy_port" placeholder="z.B. 3000 oder 8080" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Domain-Aliase (z.B. www-Subdomain)</label>
+                <input type="text" name="aliases" id="edit_aliases" placeholder="z.B. www.meinedomain.de api.meinedomain.de" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
+                <p class="text-[10px] text-gray-500 mt-1">Getrennt durch Leerzeichen oder Kommas.</p>
+            </div>
+
+            <div class="p-3 bg-dark-950 rounded-xl border border-dark-800 space-y-2">
+                <div class="text-[11px] font-bold text-gray-300">Webserver-Optionen:</div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="force_https" value="1" id="edit_force_https" class="w-4 h-4 rounded bg-dark-900 border-dark-700 text-emerald-500 focus:ring-0">
+                    <label for="edit_force_https" class="text-gray-300">HTTP automatisch zu HTTPS weiterleiten (301 Permanent Redirect)</label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="hsts" value="1" id="edit_hsts" class="w-4 h-4 rounded bg-dark-900 border-dark-700 text-emerald-500 focus:ring-0">
+                    <label for="edit_hsts" class="text-gray-300">HSTS aktivieren (Strict-Transport-Security für 1 Jahr)</label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="gzip" value="1" id="edit_gzip" class="w-4 h-4 rounded bg-dark-900 border-dark-700 text-emerald-500 focus:ring-0">
+                    <label for="edit_gzip" class="text-gray-300">Gzip-Komprimierung für statische Ressourcen einschalten</label>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-domain-edit')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">Einstellungen speichern & NGINX neuladen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: Verbindungsdaten (SFTP / SSH / DB) -->
+<div id="modal-domain-conn" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                <span>Verbindungsdaten: <span id="conn-domain-title" class="text-emerald-400 font-mono"></span></span>
+            </h3>
+            <button onclick="closeModal('modal-domain-conn')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <div class="space-y-4 text-xs font-mono">
+            <!-- SFTP / SSH Sektion -->
+            <div class="p-4 bg-dark-950 border border-dark-800 rounded-xl space-y-3">
+                <div class="text-[11px] font-bold text-teal-400 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg>
+                    <span>SFTP / SSH Dateizugriff</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-gray-400">
+                    <div>Server / Host:</div>
+                    <div class="text-white font-bold flex items-center justify-between">
+                        <span id="conn-host"></span>
+                        <button type="button" onclick="SysCore.copyToClipboard(document.getElementById('conn-host').textContent, 'Host')" class="text-gray-500 hover:text-white">Kopieren</button>
+                    </div>
+
+                    <div>Protokoll / Port:</div>
+                    <div class="text-white font-bold">SFTP / Port 22</div>
+
+                    <div>Benutzer:</div>
+                    <div class="text-white font-bold">www-data</div>
+
+                    <div>Webroot Pfad:</div>
+                    <div class="text-gray-300 truncate flex items-center justify-between">
+                        <span id="conn-path" class="truncate"></span>
+                        <button type="button" onclick="SysCore.copyToClipboard(document.getElementById('conn-path').textContent, 'Webroot')" class="text-gray-500 hover:text-white shrink-0 ml-1">Kopieren</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Datenbank Sektion -->
+            <div class="p-4 bg-dark-950 border border-dark-800 rounded-xl space-y-3">
+                <div class="text-[11px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                    <span>MySQL / MariaDB Datenbankzugriff</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-gray-400">
+                    <div>DB-Host / Server:</div>
+                    <div class="text-white font-bold">127.0.0.1 (localhost)</div>
+
+                    <div>DB-Port:</div>
+                    <div class="text-white font-bold">3306</div>
+
+                    <div>Datenbanken:</div>
+                    <div>
+                        <a href="/database" class="text-purple-400 hover:underline">Zu den Datenbanken &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end pt-2 border-t border-dark-700">
+            <button type="button" onclick="closeModal('modal-domain-conn')" class="px-5 py-2 bg-dark-800 hover:bg-dark-700 text-white rounded-xl">Schließen</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Website Klonen / Duplizieren (Plesk Style) -->
+<div id="modal-domain-clone" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+                <span>Website kopieren / klonen</span>
+            </h3>
+            <button onclick="closeModal('modal-domain-clone')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <form id="cloneDomainForm" method="POST" class="space-y-4 text-xs font-mono">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div>
+                <p class="text-gray-300">
+                    Kopiert alle Webspace-Dateien von <strong id="clone-source-domain" class="text-emerald-400"></strong> in eine neue Ziel-Domain und richtet einen vorkonfigurierten NGINX VHost ein.
+                </p>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1">Neue Zieldomain (z.B. für Staging)</label>
+                <input type="text" name="target_domain" required placeholder="z.B. staging.meinedomain.de" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-blue-500 rounded-xl text-white outline-none">
+            </div>
+
+            <div class="p-3 bg-dark-950 rounded-xl border border-dark-800 text-gray-400 text-[11px] space-y-1">
+                <div>&bull; Berechtigungen werden automatisch auf <code>www-data:www-data</code> gesetzt.</div>
+                <div>&bull; NGINX Konfiguration wird automatisch validiert.</div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-domain-clone')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold">Website jetzt klonen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: Verzeichnisschutz (.htpasswd) -->
+<div id="modal-domain-htpasswd" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="sys-card w-full max-w-lg p-6 space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-dark-700 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                <span>Passwortschutz (.htpasswd): <span id="htpasswd-domain-title" class="text-emerald-400 font-mono"></span></span>
+            </h3>
+            <button onclick="closeModal('modal-domain-htpasswd')" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+
+        <form id="htpasswdForm" method="POST" class="space-y-4 text-xs font-mono">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="p-3 bg-dark-950 rounded-xl border border-dark-800 flex items-center gap-2">
+                <input type="checkbox" name="enabled" value="1" id="htpasswd_enabled_cb" class="w-4 h-4 rounded bg-dark-900 border-dark-700 text-emerald-500 focus:ring-0">
+                <label for="htpasswd_enabled_cb" class="text-white font-bold">Passwortschutz für diese Domain aktivieren</label>
+            </div>
+
+            <div id="htpasswdCredentials" class="space-y-4">
+                <div>
+                    <label class="block text-gray-400 mb-1">Benutzername</label>
+                    <input type="text" name="htpasswd_user" id="htpasswd_user_input" placeholder="z.B. admin oder staging" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-purple-500 rounded-xl text-white outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-gray-400 mb-1">Passwort</label>
+                    <input type="password" name="htpasswd_pass" id="htpasswd_pass_input" placeholder="Sicheres Passwort" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-purple-500 rounded-xl text-white outline-none">
+                </div>
+            </div>
+
+            <p class="text-[10px] text-gray-500">
+                Schützt alle Aufrufe der Website durch einen HTTP-Basic-Auth Dialog direkt über NGINX.
+            </p>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-dark-700">
+                <button type="button" onclick="closeModal('modal-domain-htpasswd')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold">Speichern & NGINX neuladen</button>
             </div>
         </form>
     </div>
@@ -571,6 +1228,7 @@
         </div>
 
         <form id="vhostRawForm" method="POST" class="space-y-4 text-xs font-mono">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <textarea name="vhost_content" id="vhost_raw_content" rows="18" class="w-full p-4 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-gray-200 font-mono text-xs leading-relaxed outline-none"></textarea>
             </div>
@@ -597,6 +1255,7 @@
         </div>
 
         <form id="directivesForm" method="POST" class="space-y-4 text-xs font-mono">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <textarea name="custom_directives" id="custom_directives_input" rows="8" placeholder="z.B. client_max_body_size 64M;" class="w-full p-3.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none"></textarea>
             </div>
@@ -620,6 +1279,7 @@
         </div>
 
         <form id="webhookForm" method="POST" class="space-y-4 text-xs font-mono">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label class="block text-gray-400 mb-1">Git Branch</label>
                 <input type="text" name="branch" id="webhook_branch" required class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 rounded-xl text-white outline-none">
@@ -677,6 +1337,7 @@
         </div>
 
         <form method="POST" action="{{ url_for('webserver.assign_custom_or_existing_cert') }}" class="space-y-4 text-xs font-mono">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label class="block text-gray-400 mb-1">Ziel-Domain auswählen</label>
                 <select name="domain" required class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white outline-none">
@@ -744,6 +1405,29 @@
         if (m) m.classList.remove('hidden');
     }
 
+    function toggleDomainAccordion(id) {
+        const body = document.getElementById('accordion-body-' + id);
+        const chevron = document.getElementById('accordion-chevron-' + id);
+        if (!body) return;
+        if (body.classList.contains('hidden')) {
+            body.classList.remove('hidden');
+            if (chevron) chevron.classList.add('rotate-180');
+        } else {
+            body.classList.add('hidden');
+            if (chevron) chevron.classList.remove('rotate-180');
+        }
+    }
+
+    function expandAllDomains() {
+        document.querySelectorAll('[id^="accordion-body-"]').forEach(el => el.classList.remove('hidden'));
+        document.querySelectorAll('[id^="accordion-chevron-"]').forEach(el => el.classList.add('rotate-180'));
+    }
+
+    function collapseAllDomains() {
+        document.querySelectorAll('[id^="accordion-body-"]').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('[id^="accordion-chevron-"]').forEach(el => el.classList.remove('rotate-180'));
+    }
+
     function toggleDomainModeFields() {
         const mode = document.getElementById('newDomainMode').value;
         const webFields = document.getElementById('webspaceFields');
@@ -755,6 +1439,55 @@
             webFields.classList.remove('hidden');
             proxyFields.classList.add('hidden');
         }
+    }
+
+    function openEditDomainModal(domain, mode, proxyPort, phpVer, rootPath, aliases, forceHttps, hsts, gzip) {
+        document.getElementById('edit-domain-title').textContent = domain;
+        document.getElementById('editDomainForm').action = "/web/domain/edit/" + domain;
+        document.getElementById('edit_domain_name').value = domain;
+        document.getElementById('editDomainMode').value = mode || 'webspace';
+        document.getElementById('edit_proxy_port').value = proxyPort || '';
+        document.getElementById('edit_php_version').value = phpVer || '8.2';
+        document.getElementById('edit_root_path').value = rootPath || '';
+        document.getElementById('edit_aliases').value = aliases || '';
+        document.getElementById('edit_force_https').checked = !!forceHttps;
+        document.getElementById('edit_hsts').checked = !!hsts;
+        document.getElementById('edit_gzip').checked = !!gzip;
+        toggleEditDomainModeFields();
+        openModal('modal-domain-edit');
+    }
+
+    function toggleEditDomainModeFields() {
+        const mode = document.getElementById('editDomainMode').value;
+        const webFields = document.getElementById('editWebspaceFields');
+        const proxyFields = document.getElementById('editProxyFields');
+        if (mode === 'proxy') {
+            webFields.classList.add('hidden');
+            proxyFields.classList.remove('hidden');
+        } else {
+            webFields.classList.remove('hidden');
+            proxyFields.classList.add('hidden');
+        }
+    }
+
+    function openConnModal(domain, rootPath) {
+        document.getElementById('conn-domain-title').textContent = domain;
+        document.getElementById('conn-host').textContent = window.location.hostname;
+        document.getElementById('conn-path').textContent = rootPath;
+        openModal('modal-domain-conn');
+    }
+
+    function openCloneModal(domain) {
+        document.getElementById('clone-source-domain').textContent = domain;
+        document.getElementById('cloneDomainForm').action = "/web/domain/clone/" + domain;
+        openModal('modal-domain-clone');
+    }
+
+    function openHtpasswdModal(domain, hasHtpasswd) {
+        document.getElementById('htpasswd-domain-title').textContent = domain;
+        document.getElementById('htpasswdForm').action = "/web/domain/htpasswd/" + domain;
+        document.getElementById('htpasswd_enabled_cb').checked = hasHtpasswd;
+        openModal('modal-domain-htpasswd');
     }
 
     function openVHostEditor(domain) {

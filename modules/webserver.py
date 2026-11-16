@@ -7,6 +7,7 @@ import secrets
 import shlex
 import hmac
 import hashlib
+import base64
 import subprocess
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_file, Response
@@ -393,27 +394,132 @@ def get_ssl_cert_info(domain, vhost_content="", system_certs=None):
 # 3. VHOST-GENERATOR (DUAL-SERVER: HTTP & HTTPS MIT ACME-PASS-THROUGH)
 # ==============================================================================
 
-def build_nginx_config(domain, mode, target_path, proxy_port, php_version, custom_directives="", ssl_enabled=False, cert_path=None, key_path=None):
+def get_directory_size_formatted(path):
+    """Ermittelt schnell die belegte Speicherplatzgröße eines Domain-Verzeichnisses (Plesk-Metrik)"""
+    if not path or not os.path.exists(path):
+        return "0 B"
+    total_size = 0
+    try:
+        count = 0
+        for root, dirs, files in os.walk(path):
+            for f in files:
+                fp = os.path.join(root, f)
+                if not os.path.islink(fp):
+                    try:
+                        total_size += os.path.getsize(fp)
+                    except Exception:
+                        pass
+                    count += 1
+                if count > 2500:
+                    break
+            if count > 2500:
+                break
+    except Exception:
+        pass
+
+    if total_size < 1024:
+        return f"{total_size} B"
+    elif total_size < 1024 * 1024:
+        return f"{total_size / 1024:.1f} KB"
+    elif total_size < 1024 * 1024 * 1024:
+        return f"{total_size / (1024 * 1024):.1f} MB"
+    else:
+        return f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+
+def build_nginx_config(
+    domain,
+    mode,
+    target_path,
+    proxy_port,
+    php_version,
+    custom_directives="",
+    ssl_enabled=False,
+    cert_path=None,
+    key_path=None,
+    aliases=None,
+    maintenance=False,
+    htpasswd_enabled=False,
+    hsts=False,
+    gzip=True,
+    force_https=True
+):
     """
-    Erzeugt eine robuste, produktionsreife NGINX VHost Konfiguration.
-    - Wenn ssl_enabled=False: Port 80 Server mit ACME-Pass-Through
-    - Wenn ssl_enabled=True: Port 80 Redirect auf HTTPS + Port 443 SSL-Server mit HTTP/2
+    Erzeugt eine robuste, produktionsreife NGINX VHost Konfiguration im Plesk-Standard.
+    Unterstützt Aliase, SSL Dual-Server, Wartungsmodus, .htpasswd, HSTS und Gzip.
     """
+    server_names = [domain]
+    if aliases:
+        if isinstance(aliases, str):
+            aliases = [a.strip() for a in aliases.split() if a.strip()]
+        for a in aliases:
+            if a != domain and a not in server_names:
+                server_names.append(a)
+    server_name_str = " ".join(server_names)
+
     directives_block = f"""    {DIRECTIVES_START}
 {custom_directives.strip() if custom_directives.strip() else '    # Keine benutzerdefinierten Direktiven aktiv'}
     {DIRECTIVES_END}"""
 
     log_dir = "/var/log/nginx"
 
-    # WICHTIG: ACME-Challenge für Let's Encrypt Erneuerungen immer freihalten!
     acme_block = """    # ACME-Challenge für Let's Encrypt Zertifikate freihalten (verhindert Proxy-Kollision)
     location /.well-known/acme-challenge/ {
         root /var/www/html;
         allow all;
     }"""
 
-    if mode == "proxy":
-        location_content = f"""    location / {{
+    # Sicherheits- & Performance-Header
+    extra_headers = ""
+    if hsts and ssl_enabled:
+        extra_headers += '    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;\n'
+    if gzip:
+        extra_headers += '    gzip on;\n    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;\n'
+
+    # Passwortschutz (.htpasswd)
+    htpasswd_block = ""
+    if htpasswd_enabled:
+        htpasswd_block = f"""    # SYSCORE_HTPASSWD_ACTIVE
+    auth_basic "Geschützter Bereich // SysCore";
+    auth_basic_user_file /etc/nginx/.htpasswd_{domain};
+"""
+
+    # Wartungsmodus Block (HTTP 503)
+    if maintenance:
+        maintenance_html = f"""<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Wartungsarbeiten // {domain}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {{ background: #090d16; color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; text-align: center; }}
+        .card {{ background: #111827; border: 1px solid #374151; border-radius: 18px; padding: 40px 32px; max-width: 480px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }}
+        .icon {{ width: 56px; height: 56px; border-radius: 16px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); display: inline-flex; align-items: center; justify-content: center; color: #fbbf24; font-size: 26px; margin-bottom: 20px; }}
+        h1 {{ font-size: 20px; font-weight: 800; margin: 0 0 10px 0; color: #fff; }}
+        p {{ font-size: 13px; color: #9ca3af; line-height: 1.6; margin: 0 0 24px 0; }}
+        .footer {{ font-size: 11px; font-family: monospace; color: #6b7280; border-top: 1px solid #1f2937; padding-top: 16px; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">🚧</div>
+        <h1>Wartungsarbeiten</h1>
+        <p>Die Website <strong>{domain}</strong> befindet sich derzeit in planm&auml;&szlig;igen Wartungsarbeiten.<br>Wir sind in K&uuml;rze wieder f&uuml;r Sie erreichbar.</p>
+        <div class="footer">Status: HTTP 503 Service Unavailable &bull; SysCore Host</div>
+    </div>
+</body>
+</html>"""
+        escaped_html = maintenance_html.replace("'", "'\\''")
+        location_content = f"""    # SYSCORE_MAINTENANCE_MODE_ACTIVE
+    error_page 503 @maintenance;
+    location @maintenance {{
+        default_type text/html;
+        return 503 '{escaped_html}';
+    }}
+    return 503;
+"""
+    elif mode == "proxy":
+        location_content = f"""{htpasswd_block}    location / {{
         proxy_pass http://127.0.0.1:{proxy_port};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -424,7 +530,7 @@ def build_nginx_config(domain, mode, target_path, proxy_port, php_version, custo
         proxy_set_header X-Forwarded-Proto $scheme;
     }}"""
     else:
-        location_content = f"""    root {target_path};
+        location_content = f"""{htpasswd_block}    root {target_path};
     index index.php index.html index.htm;
 
     location / {{
@@ -444,12 +550,12 @@ def build_nginx_config(domain, mode, target_path, proxy_port, php_version, custo
     if not ssl_enabled or not cert_path or not key_path:
         return f"""server {{
     listen 80;
-    server_name {domain};
+    server_name {server_name_str};
 
     access_log {log_dir}/{domain}.access.log;
     error_log {log_dir}/{domain}.error.log;
 
-{directives_block}
+{extra_headers}{directives_block}
 
 {acme_block}
 
@@ -457,29 +563,31 @@ def build_nginx_config(domain, mode, target_path, proxy_port, php_version, custo
 }}
 """
 
-    # Fall 2: HTTPS aktiviert (Port 80 Redirect + Port 443 SSL Server)
+    # Fall 2: HTTPS aktiviert (Port 80 + Port 443 SSL Server)
     extra_ssl = ""
     if os.path.exists("/etc/letsencrypt/options-ssl-nginx.conf"):
         extra_ssl += "    include /etc/letsencrypt/options-ssl-nginx.conf;\n"
     if os.path.exists("/etc/letsencrypt/ssl-dhparams.pem"):
         extra_ssl += "    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;\n"
 
-    return f"""# 1. HTTP Server (Port 80): Automatische Weiterleitung auf HTTPS
+    port_80_action = """    location / {
+        return 301 https://$host$request_uri;
+    }""" if force_https else location_content
+
+    return f"""# 1. HTTP Server (Port 80)
 server {{
     listen 80;
-    server_name {domain};
+    server_name {server_name_str};
 
 {acme_block}
 
-    location / {{
-        return 301 https://$host$request_uri;
-    }}
+{port_80_action}
 }}
 
-# 2. HTTPS Server (Port 443 SSL): Verschlüsselte Bereitstellung
+# 2. HTTPS Server (Port 443 SSL)
 server {{
     listen 443 ssl http2;
-    server_name {domain};
+    server_name {server_name_str};
 
     ssl_certificate {cert_path};
     ssl_certificate_key {key_path};
@@ -487,7 +595,7 @@ server {{
     access_log {log_dir}/{domain}.access.log;
     error_log {log_dir}/{domain}.error.log;
 
-{directives_block}
+{extra_headers}{directives_block}
 
 {acme_block}
 
@@ -496,7 +604,7 @@ server {{
 """
 
 def parse_domain_config(domain_name, content, system_certs=None):
-    """Parst eine .panel.conf Datei und extrahiert Modus, Ports, PHP und SSL Status"""
+    """Parst eine .panel.conf Datei und extrahiert Modus, Ports, PHP, SSL Status und Plesk-Metriken"""
     ssl_active_in_conf = ("listen 443 ssl" in content) or ("ssl_certificate" in content)
     is_proxy = "proxy_pass" in content
     mode = "proxy" if is_proxy else "webspace"
@@ -505,9 +613,26 @@ def parse_domain_config(domain_name, content, system_certs=None):
     root_match = re.search(r"^\s*root\s+([^;]+);", content, re.MULTILINE)
     php_match = re.search(r"php(\d+\.\d+)-fpm\.sock", content)
 
+    # Server Name & Aliases extrahieren
+    server_name_match = re.search(r"server_name\s+([^;]+);", content)
+    raw_server_names = server_name_match.group(1).split() if server_name_match else [domain_name]
+    aliases = [s.strip() for s in raw_server_names if s.strip() != domain_name]
+
     proxy_port = proxy_match.group(1) if proxy_match else ""
     root_path = root_match.group(1).strip() if root_match else os.path.join(WEB_ROOT_BASE, domain_name, "public")
     php_version = php_match.group(1) if php_match else "8.2"
+
+    # Status-Flags
+    is_maintenance = "SYSCORE_MAINTENANCE_MODE_ACTIVE" in content
+    has_htpasswd = "SYSCORE_HTPASSWD_ACTIVE" in content or "auth_basic_user_file" in content
+    has_hsts = "Strict-Transport-Security" in content
+    has_gzip = "gzip on;" in content
+    has_ssl_redirect = "return 301 https://" in content
+
+    # Disk Usage für diese Domain ermitteln
+    domain_dir = os.path.join(WEB_ROOT_BASE, domain_name)
+    disk_usage = get_directory_size_formatted(domain_dir)
+    has_git = os.path.exists(os.path.join(domain_dir, ".git"))
 
     # Custom Direktiven extrahieren
     directives = ""
@@ -519,16 +644,22 @@ def parse_domain_config(domain_name, content, system_certs=None):
         except Exception:
             pass
 
-    # SSL Info ermitteln (effizient mit übergebenen oder gecachten Zertifikaten)
+    # SSL Info ermitteln
     ssl_info = get_ssl_cert_info(domain_name, content, system_certs=system_certs)
     
-    # Existiert ein Zertifikat auf Disk, das im VHost noch nicht verknüpft ist?
     if ssl_info.get("active") and not ssl_active_in_conf:
         cert_on_disk = ssl_info
     else:
         cert_on_disk = find_ssl_cert_for_domain(domain_name, system_certs=system_certs)
     has_cert_on_disk = cert_on_disk is not None and cert_on_disk.get("active", False)
     missing_ssl_block = has_cert_on_disk and not ssl_active_in_conf
+
+    # Deploy Hook auslesen falls vorhanden
+    deploy_hook = None
+    try:
+        deploy_hook = query_db("SELECT * FROM web_deploy_hooks WHERE domain = ?", (domain_name,), one=True)
+    except Exception:
+        pass
 
     return {
         "name": domain_name,
@@ -542,6 +673,16 @@ def parse_domain_config(domain_name, content, system_certs=None):
         "root_path": root_path,
         "proxy_port": proxy_port,
         "php_version": php_version,
+        "aliases": aliases,
+        "aliases_str": " ".join(aliases),
+        "is_maintenance": is_maintenance,
+        "has_htpasswd": has_htpasswd,
+        "has_hsts": has_hsts,
+        "has_gzip": has_gzip,
+        "has_ssl_redirect": has_ssl_redirect,
+        "disk_usage": disk_usage,
+        "has_git": has_git,
+        "deploy_hook": deploy_hook,
         "custom_directives": directives,
         "has_acme_pass": "location /.well-known/acme-challenge/" in content
     }
@@ -1757,3 +1898,394 @@ def trigger_deploy_webhook(token):
         "deployed_at": now_str,
         "log": "\n".join(deploy_logs)
     })
+
+def make_htpasswd_line(username, password):
+    """Erzeugt eine NGINX-kompatible {SHA} htpasswd-Zeile ohne externe Abhängigkeiten"""
+    sha1_hash = base64.b64encode(hashlib.sha1(password.encode("utf-8")).digest()).decode("ascii")
+    return f"{username}:{{SHA}}{sha1_hash}\n"
+
+@webserver_bp.route("/domain/edit/<domain>", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def edit_domain(domain):
+    """Umfangreiche Anpassung und optionales Umbenennen einer Domain (Plesk-Standard)"""
+    new_domain = request.form.get("new_domain", domain).strip().lower()
+    mode = request.form.get("mode", "webspace")
+    proxy_port = request.form.get("proxy_port", "").strip()
+    php_version = request.form.get("php_version", "8.2").strip()
+    custom_root = request.form.get("root_path", "").strip()
+    aliases_raw = request.form.get("aliases", "").strip()
+    force_https = request.form.get("force_https") == "1"
+    hsts = request.form.get("hsts") == "1"
+    gzip = request.form.get("gzip") == "1"
+
+    if not re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", new_domain):
+        flash("Ungültiges Domain-Format für die Ziel-Domain.", "error")
+        return redirect(url_for("webserver.index"))
+
+    old_conf_name = f"{domain}.panel.conf"
+    old_avail_path = os.path.join(NGINX_AVAILABLE, old_conf_name)
+    if not os.path.exists(old_avail_path):
+        flash(f"Domain '{domain}' nicht gefunden.", "error")
+        return redirect(url_for("webserver.index"))
+
+    with open(old_avail_path, "r", encoding="utf-8") as f:
+        old_content = f.read()
+    old_parsed = parse_domain_config(domain, old_content)
+
+    # 1. Fall Umbenennen: Prüfen ob Ziel-Domain bereits existiert
+    if new_domain != domain:
+        new_avail_path = os.path.join(NGINX_AVAILABLE, f"{new_domain}.panel.conf")
+        if os.path.exists(new_avail_path):
+            flash(f"Die Ziel-Domain '{new_domain}' existiert bereits.", "error")
+            return redirect(url_for("webserver.index"))
+
+    # 2. Zielpfad ermitteln
+    if mode == "proxy":
+        if not proxy_port.isdigit() or not (1 <= int(proxy_port) <= 65535):
+            flash("Bitte einen gültigen Ziel-Port (1-65535) angeben.", "error")
+            return redirect(url_for("webserver.index"))
+        target_path = ""
+    else:
+        target_path = validate_web_path(custom_root, new_domain)
+        if not target_path:
+            flash(f"Ungültiger DocumentRoot. Muss innerhalb von {WEB_ROOT_BASE}/ liegen.", "error")
+            return redirect(url_for("webserver.index"))
+        try:
+            os.makedirs(target_path, exist_ok=True)
+            if shutil.which("chown"):
+                run_privileged(["chown", "-R", "www-data:www-data", target_path])
+        except Exception:
+            pass
+
+    # Aliase parsen
+    aliases_list = [a.strip().lower() for a in re.split(r"[\s,;]+", aliases_raw) if a.strip()]
+
+    # SSL Info vom bestehenden VHost übernehmen
+    cert_path = old_parsed["ssl_info"].get("cert_path")
+    key_path = old_parsed["ssl_info"].get("key_path")
+    ssl_enabled = old_parsed["ssl"]
+
+    # Neuen VHost generieren
+    new_vhost = build_nginx_config(
+        domain=new_domain,
+        mode=mode,
+        target_path=target_path,
+        proxy_port=proxy_port,
+        php_version=php_version,
+        custom_directives=old_parsed["custom_directives"],
+        ssl_enabled=ssl_enabled,
+        cert_path=cert_path,
+        key_path=key_path,
+        aliases=aliases_list,
+        maintenance=old_parsed["is_maintenance"],
+        htpasswd_enabled=old_parsed["has_htpasswd"],
+        hsts=hsts,
+        gzip=gzip,
+        force_https=force_https
+    )
+
+    # Bei Umbenennung: Neue Konfigurationspfade vorbereiten
+    target_avail_path = os.path.join(NGINX_AVAILABLE, f"{new_domain}.panel.conf")
+    target_enabled_path = os.path.join(NGINX_ENABLED, f"{new_domain}.panel.conf")
+
+    with open(target_avail_path, "w", encoding="utf-8") as f:
+        f.write(new_vhost)
+
+    try:
+        if os.path.exists(target_enabled_path):
+            os.remove(target_enabled_path)
+        os.symlink(target_avail_path, target_enabled_path)
+    except OSError:
+        pass
+
+    ok, msg = reload_nginx()
+    if not ok:
+        # Rollback
+        if os.path.exists(target_enabled_path) and new_domain != domain:
+            os.remove(target_enabled_path)
+        if os.path.exists(target_avail_path) and new_domain != domain:
+            os.remove(target_avail_path)
+        if new_domain == domain:
+            with open(old_avail_path, "w", encoding="utf-8") as f:
+                f.write(old_content)
+            reload_nginx()
+        flash(f"Änderung abgelehnt (NGINX Syntaxfehler): {msg}", "error")
+        return redirect(url_for("webserver.index"))
+
+    # Falls erfolgreich umbenannt: Alte VHost-Dateien aufräumen und DB-Einträge migrieren
+    if new_domain != domain:
+        old_enabled_path = os.path.join(NGINX_ENABLED, old_conf_name)
+        if os.path.exists(old_enabled_path):
+            try: os.remove(old_enabled_path)
+            except Exception: pass
+        if os.path.exists(old_avail_path):
+            try: os.remove(old_avail_path)
+            except Exception: pass
+
+        # Webhook migrieren
+        execute_db("UPDATE web_deploy_hooks SET domain = ? WHERE domain = ?", (new_domain, domain))
+        # .htpasswd umbenennen falls vorhanden
+        old_ht = f"/etc/nginx/.htpasswd_{domain}"
+        new_ht = f"/etc/nginx/.htpasswd_{new_domain}"
+        if os.path.exists(old_ht):
+            try: os.rename(old_ht, new_ht)
+            except Exception: pass
+
+        log_audit(session.get("username"), "DOMAIN_RENAME", f"Domain '{domain}' erfolgreich umbenannt in '{new_domain}'", request.remote_addr, "success")
+        flash(f"Domain '{domain}' wurde erfolgreich in '{new_domain}' umbenannt und alle Einstellungen übernommen!", "success")
+    else:
+        log_audit(session.get("username"), "DOMAIN_UPDATE", f"Einstellungen für '{domain}' aktualisiert", request.remote_addr, "success")
+        flash(f"Einstellungen für '{domain}' erfolgreich gespeichert und NGINX neu geladen.", "success")
+
+    return redirect(url_for("webserver.index"))
+
+@webserver_bp.route("/domain/maintenance/<domain>", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def toggle_maintenance(domain):
+    """1-Klick Wartungsmodus für eine Domain ein- oder ausschalten (Plesk-Feature)"""
+    avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
+    if not os.path.exists(avail_path):
+        flash("VHost nicht gefunden.", "error")
+        return redirect(url_for("webserver.index"))
+
+    with open(avail_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    parsed = parse_domain_config(domain, content)
+
+    new_maint_state = not parsed["is_maintenance"]
+
+    new_vhost = build_nginx_config(
+        domain=domain,
+        mode=parsed["mode"],
+        target_path=parsed["root_path"],
+        proxy_port=parsed["proxy_port"],
+        php_version=parsed["php_version"],
+        custom_directives=parsed["custom_directives"],
+        ssl_enabled=parsed["ssl"],
+        cert_path=parsed["ssl_info"].get("cert_path"),
+        key_path=parsed["ssl_info"].get("key_path"),
+        aliases=parsed["aliases"],
+        maintenance=new_maint_state,
+        htpasswd_enabled=parsed["has_htpasswd"],
+        hsts=parsed["has_hsts"],
+        gzip=parsed["has_gzip"],
+        force_https=parsed["has_ssl_redirect"]
+    )
+
+    with open(avail_path, "w", encoding="utf-8") as f:
+        f.write(new_vhost)
+
+    ok, msg = reload_nginx()
+    if not ok:
+        with open(avail_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        reload_nginx()
+        flash(f"Wartungsmodus konnte nicht umgeschaltet werden: {msg}", "error")
+    else:
+        status_txt = "aktiviert" if new_maint_state else "deaktiviert"
+        log_audit(session.get("username"), "MAINTENANCE_TOGGLE", f"Wartungsmodus für '{domain}' {status_txt}", request.remote_addr, "warning" if new_maint_state else "success")
+        flash(f"Wartungsmodus für '{domain}' wurde erfolgreich {status_txt}!", "success")
+
+    return redirect(url_for("webserver.index"))
+
+@webserver_bp.route("/domain/htpasswd/<domain>", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def toggle_htpasswd(domain):
+    """1-Klick Verzeichnisschutz (.htpasswd) aktivieren oder deaktivieren"""
+    avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
+    if not os.path.exists(avail_path):
+        flash("VHost nicht gefunden.", "error")
+        return redirect(url_for("webserver.index"))
+
+    enabled = request.form.get("enabled") == "1"
+    username = request.form.get("htpasswd_user", "").strip()
+    password = request.form.get("htpasswd_pass", "").strip()
+
+    htpasswd_file = f"/etc/nginx/.htpasswd_{domain}"
+
+    if enabled:
+        if not username or not password:
+            flash("Benutzername und Passwort für den Verzeichnisschutz dürfen nicht leer sein.", "error")
+            return redirect(url_for("webserver.index"))
+        try:
+            line = make_htpasswd_line(username, password)
+            with open(htpasswd_file, "w", encoding="utf-8") as f:
+                f.write(line)
+            try:
+                os.chmod(htpasswd_file, 0o640)
+                if shutil.which("chown"):
+                    run_privileged(["chown", "root:www-data", htpasswd_file])
+            except Exception:
+                pass
+        except Exception as e:
+            flash(f"Fehler beim Erstellen der .htpasswd: {e}", "error")
+            return redirect(url_for("webserver.index"))
+
+    with open(avail_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    parsed = parse_domain_config(domain, content)
+
+    new_vhost = build_nginx_config(
+        domain=domain,
+        mode=parsed["mode"],
+        target_path=parsed["root_path"],
+        proxy_port=parsed["proxy_port"],
+        php_version=parsed["php_version"],
+        custom_directives=parsed["custom_directives"],
+        ssl_enabled=parsed["ssl"],
+        cert_path=parsed["ssl_info"].get("cert_path"),
+        key_path=parsed["ssl_info"].get("key_path"),
+        aliases=parsed["aliases"],
+        maintenance=parsed["is_maintenance"],
+        htpasswd_enabled=enabled,
+        hsts=parsed["has_hsts"],
+        gzip=parsed["has_gzip"],
+        force_https=parsed["has_ssl_redirect"]
+    )
+
+    with open(avail_path, "w", encoding="utf-8") as f:
+        f.write(new_vhost)
+
+    ok, msg = reload_nginx()
+    if not ok:
+        with open(avail_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        reload_nginx()
+        flash(f"Verzeichnisschutz konnte nicht angewendet werden: {msg}", "error")
+    else:
+        status_txt = f"aktiviert (Benutzer: '{username}')" if enabled else "deaktiviert"
+        log_audit(session.get("username"), "HTPASSWD_TOGGLE", f"Passwortschutz für '{domain}' {status_txt}", request.remote_addr, "success")
+        flash(f"Passwortschutz für '{domain}' wurde erfolgreich {status_txt}!", "success")
+
+    return redirect(url_for("webserver.index"))
+
+@webserver_bp.route("/domain/php-version/<domain>", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def switch_php_version_direct(domain):
+    """1-Klick Schnellumschalter für PHP-Version (8.0 - 8.4) direkt aus der Kachel"""
+    avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
+    if not os.path.exists(avail_path):
+        flash("VHost nicht gefunden.", "error")
+        return redirect(url_for("webserver.index"))
+
+    target_php = request.form.get("php_version", "").strip()
+    if target_php not in ["8.0", "8.1", "8.2", "8.3", "8.4"]:
+        flash("Ungültige PHP-Version.", "error")
+        return redirect(url_for("webserver.index"))
+
+    with open(avail_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    parsed = parse_domain_config(domain, content)
+
+    new_vhost = build_nginx_config(
+        domain=domain,
+        mode=parsed["mode"],
+        target_path=parsed["root_path"],
+        proxy_port=parsed["proxy_port"],
+        php_version=target_php,
+        custom_directives=parsed["custom_directives"],
+        ssl_enabled=parsed["ssl"],
+        cert_path=parsed["ssl_info"].get("cert_path"),
+        key_path=parsed["ssl_info"].get("key_path"),
+        aliases=parsed["aliases"],
+        maintenance=parsed["is_maintenance"],
+        htpasswd_enabled=parsed["has_htpasswd"],
+        hsts=parsed["has_hsts"],
+        gzip=parsed["has_gzip"],
+        force_https=parsed["has_ssl_redirect"]
+    )
+
+    with open(avail_path, "w", encoding="utf-8") as f:
+        f.write(new_vhost)
+
+    ok, msg = reload_nginx()
+    if not ok:
+        with open(avail_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        reload_nginx()
+        flash(f"PHP-Umschaltung fehlgeschlagen: {msg}", "error")
+    else:
+        log_audit(session.get("username"), "PHP_SWITCH_DIRECT", f"Domain '{domain}' auf PHP {target_php} umgestellt", request.remote_addr, "success")
+        flash(f"Domain '{domain}' läuft ab sofort mit PHP {target_php}!", "success")
+
+    return redirect(url_for("webserver.index"))
+
+@webserver_bp.route("/domain/clone/<domain>", methods=["POST"])
+@login_required
+@role_required(["root_admin", "web_admin"])
+def clone_domain(domain):
+    """Plesk-Style Website Klonen: Kopiert Dateien und legt neuen VHost an"""
+    target_domain = request.form.get("target_domain", "").strip().lower()
+
+    if not re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", target_domain):
+        flash("Bitte einen gültigen Zieldomain-Namen angeben.", "error")
+        return redirect(url_for("webserver.index"))
+
+    avail_path = os.path.join(NGINX_AVAILABLE, f"{domain}.panel.conf")
+    new_avail_path = os.path.join(NGINX_AVAILABLE, f"{target_domain}.panel.conf")
+    new_enabled_path = os.path.join(NGINX_ENABLED, f"{target_domain}.panel.conf")
+
+    if not os.path.exists(avail_path):
+        flash("Quelldomain nicht gefunden.", "error")
+        return redirect(url_for("webserver.index"))
+
+    if os.path.exists(new_avail_path):
+        flash(f"Zieldomain '{target_domain}' existiert bereits.", "error")
+        return redirect(url_for("webserver.index"))
+
+    with open(avail_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    parsed = parse_domain_config(domain, content)
+
+    # Webroot kopieren
+    src_root = os.path.join(WEB_ROOT_BASE, domain)
+    dst_root = os.path.join(WEB_ROOT_BASE, target_domain)
+
+    if os.path.exists(src_root):
+        try:
+            shutil.copytree(src_root, dst_root, ignore=shutil.ignore_patterns(".git", "*.bak", "tmp", "logs"))
+            if shutil.which("chown"):
+                run_privileged(["chown", "-R", "www-data:www-data", dst_root])
+        except Exception as e:
+            flash(f"Fehler beim Kopieren der Webspace-Dateien: {e}", "error")
+            return redirect(url_for("webserver.index"))
+
+    # Neuen VHost erstellen
+    new_target_path = parsed["root_path"].replace(f"/{domain}/", f"/{target_domain}/")
+    new_vhost = build_nginx_config(
+        domain=target_domain,
+        mode=parsed["mode"],
+        target_path=new_target_path,
+        proxy_port=parsed["proxy_port"],
+        php_version=parsed["php_version"],
+        custom_directives=parsed["custom_directives"],
+        ssl_enabled=False,
+        aliases=None,
+        maintenance=False,
+        htpasswd_enabled=False,
+        hsts=False,
+        gzip=parsed["has_gzip"]
+    )
+
+    with open(new_avail_path, "w", encoding="utf-8") as f:
+        f.write(new_vhost)
+
+    try:
+        os.symlink(new_avail_path, new_enabled_path)
+    except OSError:
+        pass
+
+    ok, msg = reload_nginx()
+    if not ok:
+        if os.path.exists(new_enabled_path): os.remove(new_enabled_path)
+        if os.path.exists(new_avail_path): os.remove(new_avail_path)
+        flash(f"Klonen abgebrochen (NGINX Syntaxfehler): {msg}", "error")
+    else:
+        log_audit(session.get("username"), "DOMAIN_CLONE", f"Website '{domain}' nach '{target_domain}' geklont", request.remote_addr, "success")
+        flash(f"Website '{domain}' wurde erfolgreich nach '{target_domain}' dupliziert!", "success")
+
+    return redirect(url_for("webserver.index"))
