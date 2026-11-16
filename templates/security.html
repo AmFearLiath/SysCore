@@ -1,37 +1,48 @@
 {% extends "base.html" %}
 
-{% block title %}Sicherheitszentrale & Angriffs-Radar — SysCore{% endblock %}
+{% block title %}Security Center 2.0 (Sentinel) — SysCore{% endblock %}
 
 {% block content %}
-<div class="space-y-8 animate-fade-in">
+<div class="space-y-8 animate-fade-in pb-12">
 
     <!-- Header & Action-Bar -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-dark-800">
         <div>
             <div class="flex items-center gap-2">
-                <span class="p-1.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg text-sm">🛡️</span>
-                <h1 class="text-2xl font-bold tracking-tight text-white font-mono">Sicherheitszentrale & Angriffs-Radar</h1>
+                <span class="p-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-sm">🛡️</span>
+                <h1 class="text-2xl font-bold tracking-tight text-white font-mono">Security Center 2.0 <span class="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded border border-emerald-500/30">SENTINEL</span></h1>
             </div>
-            <p class="text-xs text-gray-400 font-mono mt-1">Umfassende Systemhärtung, Echtzeit-Erkennung von Web-Scannern, ClamAV Malware-Scans und KI-Audits.</p>
+            <p class="text-xs text-gray-400 font-mono mt-1">Multi-Profile Härtung, Software-Inventarschutz, NGINX WAF, Angriffs-Radar und Safe-Apply Rollbacks.</p>
         </div>
 
-        <div class="flex items-center gap-3">
-            <button onclick="copyAuditToClipboard()" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-200 border border-dark-600 rounded-xl text-xs font-mono transition flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Mode Switch: Easy vs Advanced -->
+            <div class="flex items-center bg-dark-900 border border-dark-700 rounded-xl p-1 font-mono text-xs">
+                <button type="button" id="btn-mode-easy" onclick="toggleSecurityMode('easy')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium transition">
+                    Einfach
+                </button>
+                <button type="button" id="btn-mode-adv" onclick="toggleSecurityMode('advanced')" class="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+                    Experte
+                </button>
+            </div>
+
+            <button onclick="copyAuditToClipboard()" class="px-3.5 py-2 bg-dark-800 hover:bg-dark-700 text-gray-200 border border-dark-600 rounded-xl text-xs font-mono transition flex items-center gap-2">
                 <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                KI-Audit kopieren
+                KI-Audit
             </button>
-            <a href="{{ url_for('security.export_audit_report') }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
+            <a href="{{ url_for('security.export_audit_report') }}" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 Audit-Bericht (.md)
             </a>
         </div>
     </div>
 
-    <!-- Sicherheits-Score Banner -->
-    <div class="sys-card p-6 relative overflow-hidden bg-gradient-to-r from-dark-900 via-dark-900 to-dark-800 border-dark-700">
-        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div class="flex items-center gap-5">
-                <div class="relative w-24 h-24 flex items-center justify-center">
+    <!-- Sicherheits-Score & Sentinel Profil-Banner -->
+    <div class="sys-card p-6 relative overflow-hidden bg-gradient-to-r from-dark-900 via-dark-900 to-dark-850 border-dark-700 shadow-xl">
+        <div class="flex flex-col lg:flex-row items-center justify-between gap-6">
+            <!-- Score Gauge -->
+            <div class="flex flex-col sm:flex-row items-center gap-6">
+                <div class="relative w-28 h-28 flex items-center justify-center shrink-0">
                     <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                         <path class="text-dark-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                         <path class="{% if score >= 80 %}text-emerald-500{% elif score >= 50 %}text-amber-500{% else %}text-rose-500{% endif %} transition-all duration-1000"
@@ -39,293 +50,222 @@
                               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                     </svg>
                     <div class="absolute inset-0 flex flex-col items-center justify-center">
-                        <span class="text-2xl font-bold font-mono text-white">{{ score }}%</span>
+                        <span class="text-3xl font-bold font-mono text-white">{{ score }}%</span>
                         <span class="text-[9px] uppercase tracking-wider text-gray-400 font-mono">Score</span>
                     </div>
                 </div>
 
-                <div class="space-y-1">
-                    <div class="flex items-center gap-2">
-                        <h2 class="text-lg font-bold text-white font-mono">System-Sicherheitsbewertung</h2>
-                        {% if score >= 80 %}
-                        <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[11px] font-mono">Gut gesichert</span>
-                        {% elif score >= 50 %}
-                        <span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded text-[11px] font-mono">Optimierungsbedarf</span>
+                <div class="space-y-2 text-center sm:text-left">
+                    <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                        <h2 class="text-lg font-bold text-white font-mono">Sicherheitsstatus</h2>
+                        {% if score >= 85 %}
+                        <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-mono font-medium">Optimal Gesichert</span>
+                        {% elif score >= 60 %}
+                        <span class="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg text-xs font-mono font-medium">Empfohlene Härtung ausstehend</span>
                         {% else %}
-                        <span class="px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded text-[11px] font-mono">Kritisch ungeschützt</span>
+                        <span class="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-mono font-medium">Kritisch Ungeschützt</span>
                         {% endif %}
+
+                        <span class="px-2.5 py-0.5 bg-dark-800 text-teal-300 border border-teal-500/30 rounded-lg text-xs font-mono">
+                            Profil: <strong>{{ active_profile.display_name }}</strong>
+                        </span>
                     </div>
-                    <p class="text-xs text-gray-400 font-mono">
-                        {% if deductions %}
-                        {{ deductions|length }} Sicherheitsempfehlungen identifiziert.
+
+                    <p class="text-xs text-gray-400 font-mono max-w-xl">
+                        {% if raw_deductions %}
+                        {{ raw_deductions|length }} Sicherheitsempfehlungen identifiziert. Aktiviere das Profil 'Hardened' für automatische Härtung.
                         {% else %}
-                        Hervorragend! Alle Kern-Schutzmechanismen (Firewall, SSH, offene Ports) sind optimal konfiguriert.
+                        Exzellent! Alle Kern-Schutzmechanismen (Firewall, SSH, offene Ports, NGINX WAF) sind aktiv und konform.
                         {% endif %}
                     </p>
-                    {% if deductions %}
-                    <div class="flex flex-wrap gap-2 pt-2">
-                        {% for d in deductions %}
-                        <span class="px-2 py-1 bg-dark-950/80 border border-rose-500/30 text-rose-300 text-[11px] font-mono rounded-lg">⚠️ {{ d }}</span>
+
+                    {% if raw_deductions %}
+                    <div class="flex flex-wrap gap-2 pt-1">
+                        {% for d in raw_deductions[:3] %}
+                        <span class="px-2 py-0.5 bg-dark-950/80 border border-rose-500/30 text-rose-300 text-[11px] font-mono rounded-lg">
+                            ⚠️ {{ d.title if d is mapping else d }}
+                        </span>
                         {% endfor %}
+                        {% if raw_deductions|length > 3 %}
+                        <span class="px-2 py-0.5 bg-dark-950 text-gray-400 text-[11px] font-mono rounded-lg">+{{ raw_deductions|length - 3 }} weitere</span>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
             </div>
 
-            <div class="flex gap-4">
-                <button data-modal-open="modal-ban-ip" class="px-4 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-mono transition">
-                    + IP manuell sperren
+            <!-- Quick Action Buttons -->
+            <div class="flex flex-wrap items-center gap-3">
+                <button onclick="switchSecTab('assistant')" class="px-4 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-mono font-bold transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
+                    <span>💬 Sentinel Assistent</span>
+                </button>
+                <button data-modal-open="modal-ban-ip" class="px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-mono transition">
+                    + IP sperren
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Tabs Navigation -->
-    <div class="flex border-b border-dark-800 gap-2">
-        <button onclick="switchSecTab('radar')" id="tab-btn-radar" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-emerald-500 text-emerald-400 transition flex items-center gap-2">
+    <!-- Navigation Tabs -->
+    <div class="flex border-b border-dark-800 gap-2 overflow-x-auto select-none no-scrollbar">
+        <button onclick="switchSecTab('overview')" id="tab-btn-overview" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-emerald-500 text-emerald-400 transition flex items-center gap-2 whitespace-nowrap">
+            <span>📊 Übersicht</span>
+        </button>
+        <button onclick="switchSecTab('protection')" id="tab-btn-protection" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2 whitespace-nowrap">
+            <span>🛡️ Schutz & Firewall</span>
+        </button>
+        <button onclick="switchSecTab('radar')" id="tab-btn-radar" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2 whitespace-nowrap">
             <span>📡 Angriffs-Radar</span>
             {% if exploit_scan.recent_probes %}
             <span class="px-1.5 py-0.5 bg-rose-500/20 text-rose-400 rounded-full text-[10px]">{{ exploit_scan.recent_probes|length }}</span>
             {% endif %}
         </button>
-        <button onclick="switchSecTab('hardening')" id="tab-btn-hardening" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2">
-            <span>🛡️ Härtung & Firewall</span>
+        <button onclick="switchSecTab('inventory')" id="tab-btn-inventory" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2 whitespace-nowrap">
+            <span>📦 Software-Inventar</span>
+            <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full text-[10px]">{{ inventory|length }}</span>
         </button>
-        <button onclick="switchSecTab('clamav')" id="tab-btn-clamav" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2">
-            <span>🦠 ClamAV Malware-Scanner</span>
+        <button onclick="switchSecTab('profiles')" id="tab-btn-profiles" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2 whitespace-nowrap">
+            <span>⚡ Profile (Safe-Apply)</span>
         </button>
-        <button onclick="switchSecTab('ai-audit')" id="tab-btn-ai-audit" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2">
-            <span>🤖 KI-Audit & Optimierung</span>
+        <button onclick="switchSecTab('assistant')" id="tab-btn-assistant" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2 whitespace-nowrap">
+            <span>🤖 Sentinel KI-Chat</span>
+        </button>
+        <button onclick="switchSecTab('automation')" id="tab-btn-automation" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2 whitespace-nowrap">
+            <span>⚙️ Automatisierung</span>
+        </button>
+        <button onclick="switchSecTab('audit')" id="tab-btn-audit" class="px-4 py-2.5 text-xs font-mono font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition flex items-center gap-2 whitespace-nowrap">
+            <span>📋 Audit & Snapshots</span>
         </button>
     </div>
 
-    <!-- TAB 1: ANANGRIFFS-RADAR -->
-    <div id="sec-tab-radar" class="space-y-6">
-        <!-- 1. Aktive Firewall- & IP-Sperren (Ganz oben als erster Block) -->
-        <div class="sys-card p-5 space-y-4">
-            <div class="flex items-center justify-between">
+    <!-- ==================== TAB 1: ÜBERSICHT ==================== -->
+    <div id="sec-tab-overview" class="space-y-6">
+        <!-- 4 Kennzahlen-Kacheln -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Firewall Status -->
+            <div class="sys-card p-4 border-dark-700 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-mono text-gray-400 uppercase">UFW Firewall</span>
+                    <span class="text-lg">🧱</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full {% if ufw.active %}bg-emerald-500 animate-pulse{% else %}bg-rose-500{% endif %}"></span>
+                    <span class="text-sm font-bold font-mono text-white">{% if ufw.active %}Aktiv (Geschützt){% else %}Inaktiv{% endif %}</span>
+                </div>
+                <p class="text-[11px] text-gray-500 font-mono">{{ ufw.rules|length }} aktive Firewall-Regeln</p>
+            </div>
+
+            <!-- SSH Hardening -->
+            <div class="sys-card p-4 border-dark-700 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-mono text-gray-400 uppercase">SSH Status</span>
+                    <span class="text-lg">🔑</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full {% if ssh.is_hardened %}bg-emerald-500{% else %}bg-amber-500{% endif %}"></span>
+                    <span class="text-sm font-bold font-mono text-white">Port {{ ssh.port }} ({% if ssh.is_hardened %}Gehärtet{% else %}Standard{% endif %})</span>
+                </div>
+                <p class="text-[11px] text-gray-500 font-mono">Root: {{ ssh.permit_root_login }} | Pass: {{ ssh.password_auth }}</p>
+            </div>
+
+            <!-- Fail2ban Intrusion Prevention -->
+            <div class="sys-card p-4 border-dark-700 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-mono text-gray-400 uppercase">Intrusion Prevention</span>
+                    <span class="text-lg">🚨</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full {% if f2b.running %}bg-emerald-500{% else %}bg-gray-500{% endif %}"></span>
+                    <span class="text-sm font-bold font-mono text-white">{% if f2b.running %}Fail2Ban Aktiv{% else %}Nicht gestartet{% endif %}</span>
+                </div>
+                <p class="text-[11px] text-gray-500 font-mono">{{ f2b.banned_ips|length }} aktuell gesperrte Angreifer</p>
+            </div>
+
+            <!-- WAF & Exploit-Filter -->
+            <div class="sys-card p-4 border-dark-700 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-mono text-gray-400 uppercase">Web Application Firewall</span>
+                    <span class="text-lg">🌐</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full {% if waf.active %}bg-emerald-500{% else %}bg-amber-500{% endif %}"></span>
+                    <span class="text-sm font-bold font-mono text-white">{% if waf.active %}WAF Drop-In Aktiv{% else %}Standard Headers{% endif %}</span>
+                </div>
+                <p class="text-[11px] text-gray-500 font-mono">HSTS, Nosniff, XSS & Clickjacking Schutz</p>
+            </div>
+        </div>
+
+        <!-- Compliance & Policy Übersicht -->
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
-                        <span class="text-rose-400">🛡️</span>
-                        Aktive Firewall- & IP-Sperren
+                        <span>📋 System-Sicherheitsrichtlinien (Policies)</span>
+                        <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-xs rounded border border-emerald-500/20">
+                            {{ compliance_stats.compliant }}/{{ compliance_stats.total }} Konform
+                        </span>
                     </h3>
-                    <p class="text-xs text-gray-400 font-mono mt-0.5">IP-Adressen, die durch UFW oder manuell im SysCore Angriffs-Radar geblockt sind.</p>
+                    <p class="text-xs text-gray-400 font-mono mt-1">Automatische Soll-/Ist-Prüfung gegen das aktive Sicherheitsprofil.</p>
                 </div>
-                <span class="text-xs font-mono text-emerald-400">{{ banned_db|length }} Gesperrte IP(s)</span>
+                <div class="w-full sm:w-48 bg-dark-950 rounded-full h-2.5 border border-dark-700 overflow-hidden">
+                    <div class="bg-emerald-500 h-2.5 rounded-full" style="width: {{ (compliance_stats.compliant / compliance_stats.total * 100) if compliance_stats.total > 0 else 0 }}%"></div>
+                </div>
             </div>
 
-            {% if banned_db %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                {% for p in policies %}
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl flex items-center justify-between font-mono text-xs">
+                    <div class="space-y-0.5">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full {% if p.status == 'compliant' %}bg-emerald-400{% elif p.status == 'warning' %}bg-amber-400{% else %}bg-rose-400{% endif %}"></span>
+                            <span class="text-white font-bold">{{ p.title }}</span>
+                        </div>
+                        <p class="text-[11px] text-gray-400 pl-4">{{ p.description }}</p>
+                    </div>
+                    <div class="text-right shrink-0 pl-2">
+                        {% if p.status == 'compliant' %}
+                        <span class="text-emerald-400 text-[11px]">Konform</span>
+                        {% elif p.status == 'warning' %}
+                        <span class="text-amber-400 text-[11px]">Empfehlung</span>
+                        {% else %}
+                        <span class="text-rose-400 text-[11px]">Nicht konform</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Experten-Bereich: Offene Ports & Erkennungsdetails (wird in Easy Mode ausgeblendet) -->
+        <div class="sys-card p-6 border-dark-700 space-y-4 adv-only">
+            <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                <span>🔌 Offene Netzwerk-Sockets & Prozess-Mapping (Experte)</span>
+            </h3>
             <div class="overflow-x-auto">
                 <table class="w-full text-left font-mono text-xs">
-                    <thead class="bg-dark-950 text-gray-400 border-b border-dark-700">
+                    <thead class="text-gray-400 border-b border-dark-700 pb-2">
                         <tr>
-                            <th class="p-3">IP-Adresse</th>
-                            <th class="p-3">Grund / Angriff</th>
-                            <th class="p-3">Gesperrt durch</th>
-                            <th class="p-3">Datum</th>
-                            <th class="p-3 text-right">Aktion</th>
+                            <th class="py-2">Port</th>
+                            <th class="py-2">Bind-Adresse</th>
+                            <th class="py-2">Prozess</th>
+                            <th class="py-2">Sichtbarkeit</th>
+                            <th class="py-2 text-right">Bewertung</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-dark-800">
-                        {% for b in banned_db %}
-                        <tr class="hover:bg-dark-900/50 transition">
-                            <td class="p-3 font-bold text-rose-400">{{ b.ip_address }}</td>
-                            <td class="p-3 text-gray-300">{{ b.reason }}</td>
-                            <td class="p-3 text-gray-400">{{ b.banned_by }} ({{ b.ban_type }})</td>
-                            <td class="p-3 text-gray-500 text-[11px]">{{ b.created_at }}</td>
-                            <td class="p-3 text-right">
-                                <form method="POST" action="{{ url_for('security.unban_ip') }}">
-                                    <input type="hidden" name="ip_address" value="{{ b.ip_address }}">
-                                    <button type="submit" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 rounded text-[11px] transition">
-                                        Entsperren
-                                    </button>
-                                </form>
+                        {% for l in ports.listeners %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-2 font-bold text-white">{{ l.port }}</td>
+                            <td class="py-2 text-gray-400">{{ l.ip }}</td>
+                            <td class="py-2 text-gray-300">{{ l.process }}</td>
+                            <td class="py-2">
+                                <span class="px-2 py-0.5 rounded text-[10px] {% if l.public %}bg-rose-500/10 text-rose-400 border border-rose-500/20{% else %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% endif %}">
+                                    {{ 'Öffentlich (0.0.0.0)' if l.public else 'Lokal (127.0.0.1)' }}
+                                </span>
                             </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="p-6 text-center text-gray-500 font-mono text-xs">
-                Keine manuellen IP-Sperren in der SysCore Datenbank verzeichnet.
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- 2. Darunter: Top auffällige IPs und Erkannte Exploit-Muster nebeneinander -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Top Angreifer (5 Cols) -->
-            <div class="lg:col-span-5 sys-card p-5 space-y-4">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                        Top auffällige IPs (Scans)
-                    </h3>
-                    <span class="text-[11px] text-gray-500 font-mono">Letzte 1500 Logzeilen</span>
-                </div>
-
-                {% if exploit_scan.top_attackers %}
-                <div class="space-y-2">
-                    {% for a in exploit_scan.top_attackers %}
-                    <div class="p-3 bg-dark-950 border border-dark-700 rounded-xl flex items-center justify-between">
-                        <div>
-                            <span class="text-xs font-mono text-white font-bold">{{ a.ip }}</span>
-                            <span class="block text-[10px] font-mono text-rose-400">{{ a.count }} verdächtige Zugriffe</span>
-                        </div>
-                        <form method="POST" action="{{ url_for('security.ban_ip') }}">
-                            <input type="hidden" name="ip_address" value="{{ a.ip }}">
-                            <input type="hidden" name="reason" value="Automatisch erkannt durch SysCore Angriffs-Radar ({{ a.count }} Probes)">
-                            <button type="submit" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-mono transition">
-                                Sperren
-                            </button>
-                        </form>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="p-6 text-center text-gray-500 font-mono text-xs">
-                    Keine auffälligen Scanner-IPs in den aktuellen NGINX Logs entdeckt.
-                </div>
-                {% endif %}
-            </div>
-
-            <!-- Erkannte Web-Exploit-Versuche (7 Cols) -->
-            <div class="lg:col-span-7 sys-card p-5 space-y-4">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
-                        <span>🎯 Erkannte Exploit- & Scanning-Muster</span>
-                    </h3>
-                    <span class="text-[11px] text-gray-400 font-mono">Echtzeit-Analyse (.env, wp-login, Path Traversal)</span>
-                </div>
-
-                {% if exploit_scan.recent_probes %}
-                <div class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-                    {% for p in exploit_scan.recent_probes %}
-                    <div class="p-3 bg-dark-950 border border-dark-700 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs font-mono">
-                        <div class="space-y-1 overflow-hidden">
-                            <div class="flex items-center gap-2">
-                                <span class="px-1.5 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded text-[10px]">{{ p.category }}</span>
-                                <span class="text-white font-bold">{{ p.ip }}</span>
-                                <span class="text-gray-500 text-[10px]">{{ p.timestamp }}</span>
-                            </div>
-                            <div class="text-gray-400 text-[11px] truncate" title="{{ p.raw_line }}">
-                                Ziel: <code class="text-amber-400">{{ p.matched }}</code> | {{ p.raw_line }}
-                            </div>
-                        </div>
-                        <div class="flex-shrink-0">
-                            <form method="POST" action="{{ url_for('security.ban_ip') }}">
-                                <input type="hidden" name="ip_address" value="{{ p.ip }}">
-                                <input type="hidden" name="reason" value="Exploit-Versuch: {{ p.category }} ({{ p.matched }})">
-                                <button type="submit" class="px-2 py-1 bg-dark-800 hover:bg-rose-900/40 text-gray-300 hover:text-rose-300 border border-dark-600 rounded text-[11px] transition">
-                                    IP Blockieren
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="p-8 text-center text-gray-500 font-mono text-xs">
-                    Keine verdächtigen Angriffe oder Schwachstellen-Scans in den Logs gefunden.
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- TAB 2: HÄRTUNG & FIREWALL -->
-    <div id="sec-tab-hardening" class="space-y-6 hidden">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- UFW Karte -->
-            <div class="sys-card p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-mono uppercase text-gray-400">UFW Firewall</span>
-                    <span class="w-2 h-2 rounded-full {% if ufw.active %}bg-emerald-500{% else %}bg-rose-500{% endif %}"></span>
-                </div>
-                <div class="text-xl font-bold font-mono text-white">
-                    {% if ufw.active %}AKTIV{% else %}INAKTIV{% endif %}
-                </div>
-                <p class="text-xs text-gray-400 font-mono">{{ ufw.rules|length }} aktive Regeln im Regelwerk.</p>
-                <a href="{{ url_for('system.index') }}" class="text-xs font-mono text-emerald-400 hover:underline block pt-1">Firewall-Regeln verwalten →</a>
-            </div>
-
-            <!-- Fail2Ban Karte -->
-            <div class="sys-card p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-mono uppercase text-gray-400">Fail2Ban IDS</span>
-                    <span class="w-2 h-2 rounded-full {% if f2b.running %}bg-emerald-500{% else %}bg-rose-500{% endif %}"></span>
-                </div>
-                <div class="text-xl font-bold font-mono text-white">
-                    {% if f2b.running %}AKTIV{% else %}INAKTIV{% endif %}
-                </div>
-                <p class="text-xs text-gray-400 font-mono">{{ f2b.jails|length }} Jails aktiv ({{ f2b.banned_ips|length }} IPs gebannt).</p>
-                {% if not f2b.installed %}
-                <a href="{{ url_for('packages.index') }}" class="text-xs font-mono text-emerald-400 hover:underline block pt-1">Im Paket-Installer installieren →</a>
-                {% endif %}
-            </div>
-
-            <!-- SSH Härtung -->
-            <div class="sys-card p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-mono uppercase text-gray-400">SSH Konfiguration</span>
-                    <span class="w-2 h-2 rounded-full {% if ssh.is_hardened %}bg-emerald-500{% else %}bg-amber-500{% endif %}"></span>
-                </div>
-                <div class="text-xl font-bold font-mono text-white">
-                    Port {{ ssh.port }}
-                </div>
-                <p class="text-xs text-gray-400 font-mono">Root-Login: <span class="{% if ssh.permit_root_login == 'yes' %}text-rose-400{% else %}text-emerald-400{% endif %}">{{ ssh.permit_root_login }}</span> | Passwords: {{ ssh.password_auth }}</p>
-            </div>
-
-            <!-- Offene Ports -->
-            <div class="sys-card p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-mono uppercase text-gray-400">Port-Scan (0.0.0.0)</span>
-                    <span class="w-2 h-2 rounded-full {% if ports.warnings %}bg-rose-500{% else %}bg-emerald-500{% endif %}"></span>
-                </div>
-                <div class="text-xl font-bold font-mono text-white">
-                    {{ ports.listeners|length }} Ports aktiv
-                </div>
-                <p class="text-xs text-gray-400 font-mono">
-                    {% if ports.warnings %}
-                    <span class="text-rose-400 font-bold">⚠️ {{ ports.warnings|length }} kritische Port(s)</span>
-                    {% else %}
-                    Keine ungeschützten DB-Ports nach außen.
-                    {% endif %}
-                </p>
-            </div>
-        </div>
-
-        <!-- Offene Ports Tabelle -->
-        <div class="sys-card p-5 space-y-4">
-            <h3 class="text-sm font-bold text-white font-mono">Lauschende Dienste & Ports</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left font-mono text-xs">
-                    <thead class="bg-dark-950 text-gray-400 border-b border-dark-700">
-                        <tr>
-                            <th class="p-3">Port</th>
-                            <th class="p-3">Bind-IP</th>
-                            <th class="p-3">Sichtbarkeit</th>
-                            <th class="p-3">Prozess / Dienst</th>
-                            <th class="p-3">Sicherheitsstatus</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-dark-800">
-                        {% for p in ports.listeners %}
-                        <tr class="hover:bg-dark-900/50 transition">
-                            <td class="p-3 font-bold text-white">{{ p.port }}</td>
-                            <td class="p-3 text-gray-300">{{ p.ip }}</td>
-                            <td class="p-3">
-                                {% if p.public %}
-                                <span class="px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded text-[10px]">Öffentlich (0.0.0.0)</span>
-                                {% else %}
-                                <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[10px]">Lokal (127.0.0.1)</span>
-                                {% endif %}
-                            </td>
-                            <td class="p-3 text-gray-400">{{ p.process }}</td>
-                            <td class="p-3">
-                                {% if p.public and p.port in [3306, 5432, 6379, 27017] %}
-                                <span class="text-rose-400 font-bold">⚠️ Kritisch: DB sollte nicht öffentlich sein!</span>
+                            <td class="py-2 text-right">
+                                {% if l.public and l.port in (3306, 5432, 6379, 27017) %}
+                                <span class="text-rose-400 font-bold">⚠️ Kritisch</span>
                                 {% else %}
                                 <span class="text-gray-500">Normal</span>
                                 {% endif %}
@@ -338,90 +278,530 @@
         </div>
     </div>
 
-    <!-- TAB 3: CLAMAV MALWARE-SCANNER -->
-    <div id="sec-tab-clamav" class="space-y-6 hidden">
-        <div class="sys-card p-6 space-y-6">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h3 class="text-lg font-bold text-white font-mono">ClamAV On-Demand Malware- & Webshell-Scanner</h3>
-                    <p class="text-xs text-gray-400 font-mono mt-1">Überprüft Webspaces, Upload-Ordner und PHP-Dateien auf bösartige Hintertüren (Webshells, Phishing, Malware).</p>
+    <!-- ==================== TAB 2: SCHUTZ & FIREWALL ==================== -->
+    <div id="sec-tab-protection" class="space-y-6 hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- UFW Firewall Steuerung -->
+            <div class="sys-card p-6 border-dark-700 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                            <span>🧱 UFW Firewall</span>
+                        </h3>
+                        <p class="text-xs text-gray-400 font-mono mt-1">Eingehende Verbindungen blockieren, Standard-Ports schützen.</p>
+                    </div>
+                    <form method="POST" action="{{ url_for('security.toggle_firewall') }}">
+                        <input type="hidden" name="enable" value="{{ '0' if ufw.active else '1' }}">
+                        <button type="submit" class="px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium transition {% if ufw.active %}bg-rose-600/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600/30{% else %}bg-emerald-600 text-white hover:bg-emerald-500{% endif %}">
+                            {{ 'Firewall Stoppen' if ufw.active else 'Firewall Aktivieren' }}
+                        </button>
+                    </form>
                 </div>
-                <div>
-                    {% if clamav.installed %}
-                    <span class="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-mono">ClamAV Bereit</span>
-                    {% else %}
-                    <a href="{{ url_for('packages.index') }}" class="px-3 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl text-xs font-mono hover:underline">
-                        ClamAV nicht installiert (Paket-Installer öffnen)
-                    </a>
-                    {% endif %}
+
+                <div class="space-y-2 pt-2">
+                    <span class="text-xs font-mono text-gray-400 uppercase">Aktive Regeln (Auszug)</span>
+                    <div class="bg-dark-950 border border-dark-800 rounded-xl p-3 max-h-48 overflow-y-auto space-y-1 font-mono text-xs">
+                        {% for r in ufw.rules %}
+                        <div class="text-gray-300 py-0.5 border-b border-dark-900 last:border-0">{{ r }}</div>
+                        {% else %}
+                        <div class="text-gray-500 text-center py-2">Keine aktiven UFW-Regeln vorhanden.</div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
 
-            <!-- Scan Auslösen -->
-            <form method="POST" action="{{ url_for('security.clamav_scan') }}" class="p-5 bg-dark-950 border border-dark-700 rounded-2xl space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Zielpfad für Virenscan</label>
-                        <select name="target_path" class="w-full px-3.5 py-2.5 bg-dark-900 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
-                            <option value="/var/www">Vollständiger Webroot (/var/www)</option>
-                            {% for w in webspaces %}
-                            <option value="/var/www/{{ w }}">Domain: {{ w }} (/var/www/{{ w }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+            <!-- SSH Härtung -->
+            <div class="sys-card p-6 border-dark-700 space-y-4">
+                <div>
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span>🔑 OpenSSH Konfiguration & Schutz</span>
+                    </h3>
+                    <p class="text-xs text-gray-400 font-mono mt-1">Drop-In basierte Absicherung gegen Brute-Force-Angriffe.</p>
+                </div>
 
-                    <div class="flex items-end">
-                        <button type="submit" class="w-full px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-rose-900/30">
-                            🔍 Jetzt Scan starten
-                        </button>
+                <div class="grid grid-cols-2 gap-3 pt-2 font-mono text-xs">
+                    <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                        <span class="text-gray-400 text-[11px]">SSH PORT</span>
+                        <div class="text-white font-bold text-sm">{{ ssh.port }}</div>
+                    </div>
+                    <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                        <span class="text-gray-400 text-[11px]">ROOT LOGIN</span>
+                        <div class="font-bold text-sm {% if ssh.permit_root_login == 'yes' %}text-rose-400{% else %}text-emerald-400{% endif %}">
+                            {{ ssh.permit_root_login }}
+                        </div>
+                    </div>
+                    <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                        <span class="text-gray-400 text-[11px]">PASSWORT AUTH</span>
+                        <div class="font-bold text-sm {% if ssh.password_auth == 'yes' %}text-amber-400{% else %}text-emerald-400{% endif %}">
+                            {{ ssh.password_auth }}
+                        </div>
+                    </div>
+                    <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                        <span class="text-gray-400 text-[11px]">GESAMTSTATUS</span>
+                        <div class="font-bold text-sm {% if ssh.is_hardened %}text-emerald-400{% else %}text-amber-400{% endif %}">
+                            {{ 'Gehärtet' if ssh.is_hardened else 'Optimierbar' }}
+                        </div>
                     </div>
                 </div>
-                <p class="text-[11px] text-gray-500 font-mono">Tipp: Große Scans können je nach Dateianzahl einige Minuten dauern. Geprüft werden u.a. Dateisignaturen, PHP-Exploits und bekannte Webshell-Muster.</p>
+
+                <div class="p-3 bg-dark-950/60 border border-teal-500/20 rounded-xl text-teal-300 font-mono text-[11px]">
+                    💡 Tipp: Über das Profil <strong>'Hardened Production'</strong> wird der Root-Login automatisch deaktiviert und Key-Authentifizierung erzwungen.
+                </div>
+            </div>
+        </div>
+
+        <!-- ClamAV Viren- & Malwarescanner -->
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span>🦠 ClamAV Malware- & Webshell-Scanner</span>
+                    </h3>
+                    <p class="text-xs text-gray-400 font-mono mt-1">Prüft Webspace-Verzeichnisse auf Trojaner, PHP-Webshells und schadhaften Code.</p>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg text-xs font-mono {% if clamav.installed %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% else %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% endif %}">
+                    {{ 'ClamAV Bereit' if clamav.installed else 'ClamAV nicht installiert' }}
+                </span>
+            </div>
+
+            <form method="POST" action="{{ url_for('security.clamav_scan') }}" class="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs pt-2">
+                <div class="sm:col-span-2">
+                    <select name="target_path" class="w-full px-3 py-2 bg-dark-950 border border-dark-700 rounded-xl text-white outline-none">
+                        <option value="/var/www">Alle Webspaces (/var/www)</option>
+                        {% for ws in webspaces %}
+                        <option value="/var/www/{{ ws }}">Domain: {{ ws }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-900/30">
+                        Scan Jetzt Starten
+                    </button>
+                </div>
             </form>
 
             <!-- Bisherige Scans -->
-            <div class="space-y-4">
-                <h4 class="text-sm font-bold text-white font-mono">Vergangene Scan-Berichte</h4>
-                {% if clamav.recent_scans %}
-                <div class="space-y-3">
-                    {% for s in clamav.recent_scans %}
-                    <div class="p-4 bg-dark-950 border border-dark-700 rounded-xl space-y-2 font-mono text-xs">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <span class="px-2 py-0.5 {% if s.infected_files > 0 %}bg-rose-500/20 text-rose-400 border border-rose-500/30{% else %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% endif %} rounded text-[10px]">
-                                    {% if s.infected_files > 0 %}{{ s.infected_files }} Infektionen gefunden!{% else %}Sauber (Keine Funde){% endif %}
-                                </span>
-                                <span class="text-white font-bold">{{ s.target_path }}</span>
-                            </div>
-                            <span class="text-gray-500 text-[11px]">{{ s.created_at }}</span>
+            {% if clamav.recent_scans %}
+            <div class="space-y-2 pt-2">
+                <span class="text-xs font-mono text-gray-400 uppercase">Letzte Scan-Berichte</span>
+                <div class="space-y-2">
+                    {% for s in clamav.recent_scans[:3] %}
+                    <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl flex items-center justify-between font-mono text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-[10px] {% if s.infected_files > 0 %}bg-rose-500/20 text-rose-400 border border-rose-500/30{% else %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% endif %}">
+                                {{ s.infected_files }} Funde
+                            </span>
+                            <span class="text-white font-bold">{{ s.target_path }}</span>
                         </div>
-                        <div class="text-gray-400 text-[11px]">
-                            Gescannte Dateien: <strong class="text-white">{{ s.scanned_files }}</strong> | Status: {{ s.status }}
-                        </div>
-                        {% if s.scan_log %}
-                        <pre class="p-3 bg-dark-900 border border-dark-800 rounded-lg text-gray-300 text-[11px] max-h-40 overflow-y-auto select-text">{{ s.scan_log }}</pre>
-                        {% endif %}
+                        <span class="text-gray-500 text-[11px]">{{ s.created_at }}</span>
                     </div>
                     {% endfor %}
                 </div>
-                {% else %}
-                <div class="p-8 text-center text-gray-500 font-mono text-xs">
-                    Bisher wurden noch keine ClamAV Scans über SysCore durchgeführt.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ==================== TAB 3: ANCHRIFFS-RADAR ==================== -->
+    <div id="sec-tab-radar" class="space-y-6 hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Letzte Exploit-Probes -->
+            <div class="lg:col-span-2 sys-card p-6 border-dark-700 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                            <span>📡 Erkannte Web-Exploits & Scans (NGINX Logs)</span>
+                        </h3>
+                        <p class="text-xs text-gray-400 font-mono mt-1">Echtzeit-Erkennung von SQL-Injections, Path-Traversals und .env-Probes.</p>
+                    </div>
                 </div>
-                {% endif %}
+
+                <div class="overflow-x-auto max-h-96">
+                    <table class="w-full text-left font-mono text-xs">
+                        <thead class="text-gray-400 border-b border-dark-700 pb-2">
+                            <tr>
+                                <th class="py-2">Zeit</th>
+                                <th class="py-2">Angreifer-IP</th>
+                                <th class="py-2">Kategorie</th>
+                                <th class="py-2">Muster</th>
+                                <th class="py-2 text-right">Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-dark-800">
+                            {% for p in exploit_scan.recent_probes %}
+                            <tr class="hover:bg-dark-900/50">
+                                <td class="py-2 text-gray-500 text-[11px] whitespace-nowrap">{{ p.timestamp }}</td>
+                                <td class="py-2 font-bold text-rose-400">{{ p.ip }}</td>
+                                <td class="py-2 text-gray-300">{{ p.category }}</td>
+                                <td class="py-2 text-amber-300 text-[11px] max-w-xs truncate">{{ p.matched }}</td>
+                                <td class="py-2 text-right">
+                                    <form method="POST" action="{{ url_for('security.ban_ip') }}" class="inline">
+                                        <input type="hidden" name="ip_address" value="{{ p.ip }}">
+                                        <input type="hidden" name="reason" value="Exploit-Probe: {{ p.category }}">
+                                        <button type="submit" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded text-[10px] transition">
+                                            Sperren
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="py-6 text-center text-gray-500">
+                                    Keine verdächtigen Exploit-Versuche in den letzten NGINX-Logs protokolliert.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Top Angreifer & Schnellsperre -->
+            <div class="sys-card p-6 border-dark-700 space-y-4">
+                <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                    <span>🎯 Top Angreifer-IPs</span>
+                </h3>
+                <div class="space-y-2">
+                    {% for top in exploit_scan.top_attackers %}
+                    <div class="p-2.5 bg-dark-950 border border-dark-800 rounded-xl flex items-center justify-between font-mono text-xs">
+                        <div>
+                            <span class="text-white font-bold">{{ top.ip }}</span>
+                            <span class="text-rose-400 text-[11px] ml-2">({{ top.count }} Angriffe)</span>
+                        </div>
+                        <form method="POST" action="{{ url_for('security.ban_ip') }}">
+                            <input type="hidden" name="ip_address" value="{{ top.ip }}">
+                            <input type="hidden" name="reason" value="Top Exploit Scanner ({{ top.count }} Treffer)">
+                            <button type="submit" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] transition">
+                                Sperren
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-gray-500 font-mono text-center py-4">Keine wiederholten Angreifer-IPs verzeichnet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Aktive Sperrliste (security_ip_bans) -->
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                    <span>🚫 Aktive IP-Sperrliste (Firewall & DB)</span>
+                    <span class="px-2 py-0.5 bg-rose-500/10 text-rose-400 text-xs rounded border border-rose-500/20">{{ banned_db|length }}</span>
+                </h3>
+                <button data-modal-open="modal-ban-ip" class="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-mono transition">
+                    + IP manuell sperren
+                </button>
+            </div>
+
+            <div class="overflow-x-auto max-h-64">
+                <table class="w-full text-left font-mono text-xs">
+                    <thead class="text-gray-400 border-b border-dark-700 pb-2">
+                        <tr>
+                            <th class="py-2">Gesperrte IP</th>
+                            <th class="py-2">Grund / Notiz</th>
+                            <th class="py-2">Gesperrt Durch</th>
+                            <th class="py-2">Datum</th>
+                            <th class="py-2 text-right">Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-800">
+                        {% for b in banned_db %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-2 font-bold text-rose-400">{{ b.ip_address }}</td>
+                            <td class="py-2 text-gray-300">{{ b.reason }}</td>
+                            <td class="py-2 text-gray-400">{{ b.banned_by }}</td>
+                            <td class="py-2 text-gray-500 text-[11px]">{{ b.created_at }}</td>
+                            <td class="py-2 text-right">
+                                <form method="POST" action="{{ url_for('security.unban_ip') }}" class="inline">
+                                    <input type="hidden" name="ip_address" value="{{ b.ip_address }}">
+                                    <button type="submit" class="px-2.5 py-1 bg-dark-800 hover:bg-dark-700 text-gray-300 border border-dark-600 rounded text-[10px] transition">
+                                        Entsperren
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="py-4 text-center text-gray-500">Keine manuellen oder automatischen IP-Sperren aktiv.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
-    <!-- TAB 4: KI-AUDIT & OPTIMIERUNGS-REPORT -->
-    <div id="sec-tab-ai-audit" class="space-y-6 hidden">
-        <div class="sys-card p-6 space-y-4">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <!-- ==================== TAB 4: SOFTWARE-INVENTAR ==================== -->
+    <div id="sec-tab-inventory" class="space-y-6 hidden">
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h3 class="text-lg font-bold text-white font-mono flex items-center gap-2">
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span>📦 Software Protection Registry</span>
+                    </h3>
+                    <p class="text-xs text-gray-400 font-mono mt-1">Automatische Erkennung und strikte Schutzstufen (Observe Only, Security Managed, Protected).</p>
+                </div>
+                <form method="POST" action="{{ url_for('security.rescan_inventory') }}">
+                    <button type="submit" class="px-3.5 py-2 bg-dark-800 hover:bg-dark-700 text-gray-200 border border-dark-600 rounded-xl text-xs font-mono transition flex items-center gap-2">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        Erkennungsscan Erneuern
+                    </button>
+                </form>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                {% for sw in inventory %}
+                <div class="p-4 bg-dark-950 border border-dark-800 rounded-2xl space-y-3 font-mono text-xs">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-white text-sm">{{ sw.name }}</span>
+                        {% if sw.protection_mode == 'protected' %}
+                        <span class="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded text-[10px] font-bold">PROTECTED</span>
+                        {% elif sw.protection_mode == 'security_managed' %}
+                        <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-bold">MANAGED</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 bg-gray-500/20 text-gray-300 border border-gray-500/30 rounded text-[10px]">OBSERVE ONLY</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="text-gray-400 text-[11px] space-y-1">
+                        <div>Typ: <strong class="text-gray-200">{{ sw.software_type }}</strong></div>
+                        <div>Status: <span class="{% if sw.status == 'active' %}text-emerald-400{% else %}text-gray-400{% endif %}">{{ sw.status }}</span></div>
+                        {% if sw.ports_json and sw.ports_json != '[]' %}
+                        <div>Ports: <code class="text-teal-400">{{ sw.ports_json }}</code></div>
+                        {% endif %}
+                    </div>
+
+                    <p class="text-[11px] text-gray-500 border-t border-dark-900 pt-2">{{ sw.notes }}</p>
+
+                    <!-- Modus Switch Form -->
+                    <form method="POST" action="{{ url_for('security.update_protection_mode') }}" class="pt-1 flex items-center justify-between gap-2">
+                        <input type="hidden" name="software_id" value="{{ sw.id }}">
+                        <select name="mode" onchange="this.form.submit()" class="w-full px-2 py-1 bg-dark-900 border border-dark-700 rounded-lg text-gray-300 text-[10px] outline-none">
+                            <option value="observe_only" {% if sw.protection_mode == 'observe_only' %}selected{% endif %}>Observe Only</option>
+                            <option value="security_managed" {% if sw.protection_mode == 'security_managed' %}selected{% endif %}>Security Managed</option>
+                            <option value="protected" {% if sw.protection_mode == 'protected' %}selected{% endif %}>Protected (Geschützt)</option>
+                        </select>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB 5: SICHERHEITS-PROFILE ==================== -->
+    <div id="sec-tab-profiles" class="space-y-6 hidden">
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div>
+                <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                    <span>⚡ 5 Sicherheits-Profile mit Safe-Apply</span>
+                </h3>
+                <p class="text-xs text-gray-400 font-mono mt-1">Wähle die passende Härtungsstufe für deinen Server. Profilwechsel erstellen automatische Snapshots und Rollbacks.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                {% for prof in profiles %}
+                <div class="p-5 bg-dark-950 border {% if prof.is_active %}border-emerald-500/50 shadow-lg shadow-emerald-950/40{% else %}border-dark-800{% endif %} rounded-2xl space-y-4 font-mono text-xs flex flex-col justify-between">
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-bold text-white">{{ prof.display_name }}</h4>
+                            {% if prof.is_active %}
+                            <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-bold">AKTIV</span>
+                            {% else %}
+                            <span class="text-gray-500 text-[10px]">Ziel: {{ prof.target_score }}%</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-gray-400 text-[11px] leading-relaxed">{{ prof.description }}</p>
+                    </div>
+
+                    <div class="pt-2 border-t border-dark-900 space-y-2">
+                        {% if prof.is_active %}
+                        <button disabled class="w-full py-2 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-xl font-bold text-xs cursor-default">
+                            ✓ Aktuell Aktiv
+                        </button>
+                        {% else %}
+                        <button onclick="previewProfileDiff('{{ prof.name }}')" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-xs transition shadow-lg shadow-emerald-900/30">
+                            Vorschau & Aktivieren (Safe-Apply)
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB 6: SENTINEL KI-CHAT ==================== -->
+    <div id="sec-tab-assistant" class="space-y-6 hidden">
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span>🤖 Sentinel Sicherheitsassistent</span>
+                        <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-xs rounded border border-emerald-500/20">Offline & Remote AI fähig</span>
+                    </h3>
+                    <p class="text-xs text-gray-400 font-mono mt-1">Sentinel analysiert Schwachstellen, formuliert Change Plans und berät bei Härtungen ohne Root-Privilegien.</p>
+                </div>
+            </div>
+
+            <!-- Chat-Fenster -->
+            <div class="bg-dark-950 border border-dark-800 rounded-2xl p-4 min-h-[350px] max-h-[500px] overflow-y-auto space-y-4 font-mono text-xs" id="sentinel-chat-log">
+                <div class="p-3 bg-dark-900 border border-dark-700 rounded-xl text-teal-300 max-w-xl">
+                    <span class="font-bold text-white block mb-1">🤖 Sentinel Assistent</span>
+                    Hallo! Ich überwache dein System. Aktueller Sicherheits-Score: <strong>{{ score }}%</strong>.<br>
+                    Frag mich gerne:
+                    <ul class="list-disc pl-4 mt-2 space-y-1 text-gray-300 text-[11px]">
+                        <li><a href="javascript:void(0)" onclick="sendSentinelQuick('Wie kann ich meinen Score verbessern?')" class="text-teal-400 underline">Wie kann ich meinen Score verbessern?</a></li>
+                        <li><a href="javascript:void(0)" onclick="sendSentinelQuick('Ist meine Pterodactyl Installation geschützt?')" class="text-teal-400 underline">Ist meine Pterodactyl Installation geschützt?</a></li>
+                        <li><a href="javascript:void(0)" onclick="sendSentinelQuick('Wie ist der SSH Status?')" class="text-teal-400 underline">Wie ist der SSH Status?</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Chat-Eingabezeile -->
+            <form onsubmit="handleSentinelSubmit(event)" class="flex gap-2 font-mono text-xs">
+                <input type="text" id="sentinel-input" placeholder="Frage an Sentinel formulieren (z.B. 'Welche Ports sind gefährlich?')..."
+                       class="flex-1 px-4 py-3 bg-dark-950 border border-dark-700 focus:border-teal-500 rounded-xl text-white outline-none transition">
+                <button type="submit" id="sentinel-send-btn" class="px-5 py-3 bg-teal-600 hover:bg-teal-500 text-white rounded-xl font-bold transition shadow-lg shadow-teal-900/30">
+                    Senden
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== TAB 7: AUTOMATISIERUNG ==================== -->
+    <div id="sec-tab-automation" class="space-y-6 hidden">
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div>
+                <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                    <span>⚙️ Reaktions-Stufen (Levels 0 - 4)</span>
+                </h3>
+                <p class="text-xs text-gray-400 font-mono mt-1">Konfiguriere, wie Sentinel auf erkannte Bedrohungen reagiert (von Log-Only bis Vollautomatisch).</p>
+            </div>
+
+            <div class="space-y-3 pt-2">
+                {% for r in auto_rules %}
+                <div class="p-4 bg-dark-950 border border-dark-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-mono text-xs">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full {% if r.reaction_level == 4 %}bg-rose-500{% elif r.reaction_level >= 2 %}bg-amber-500{% else %}bg-blue-500{% endif %}"></span>
+                            <span class="text-white font-bold text-sm">{{ r.rule_name }}</span>
+                        </div>
+                        <p class="text-gray-400 text-[11px]">Ereignis: <code class="text-teal-300">{{ r.event_type }}</code> | Aktion: <code class="text-emerald-300">{{ r.action_type }}</code></p>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400 text-[11px]">Reaktionsstufe:</span>
+                        <span class="px-3 py-1 bg-dark-900 border border-dark-700 rounded-lg text-white font-bold">
+                            Level {{ r.reaction_level }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Vorfalls-Timeline (security_incidents) -->
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                <span>⏱️ Vorfalls-Timeline & Audit-Ereignisse</span>
+            </h3>
+            <div class="overflow-x-auto max-h-64">
+                <table class="w-full text-left font-mono text-xs">
+                    <thead class="text-gray-400 border-b border-dark-700 pb-2">
+                        <tr>
+                            <th class="py-2">Zeit</th>
+                            <th class="py-2">Typ</th>
+                            <th class="py-2">Quelle</th>
+                            <th class="py-2">Details</th>
+                            <th class="py-2 text-right">Reaktion</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-800">
+                        {% for inc in incidents %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-2 text-gray-500 text-[11px] whitespace-nowrap">{{ inc.created_at }}</td>
+                            <td class="py-2 font-bold text-white">{{ inc.incident_type }}</td>
+                            <td class="py-2 text-rose-400">{{ inc.source_ip or '-' }}</td>
+                            <td class="py-2 text-gray-300 max-w-sm truncate">{{ inc.details }}</td>
+                            <td class="py-2 text-right">
+                                <span class="px-2 py-0.5 rounded text-[10px] bg-dark-800 text-teal-300 border border-dark-700">
+                                    {{ inc.response_action }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="py-4 text-center text-gray-500">Keine Vorfälle in der Timeline verzeichnet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB 8: AUDIT & SNAPSHOTS ==================== -->
+    <div id="sec-tab-audit" class="space-y-6 hidden">
+        <!-- Safe-Apply Snapshots für Rollback -->
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div>
+                <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                    <span>⏪ Safe-Apply Snapshots & Rollback-Punkte</span>
+                </h3>
+                <p class="text-xs text-gray-400 font-mono mt-1">Vor jedem Profilwechsel wird ein Snapshot erstellt. Du kannst jederzeit mit einem Klick zurückrollen.</p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left font-mono text-xs">
+                    <thead class="text-gray-400 border-b border-dark-700 pb-2">
+                        <tr>
+                            <th class="py-2">ID</th>
+                            <th class="py-2">Beschreibung</th>
+                            <th class="py-2">Erstellt Durch</th>
+                            <th class="py-2">Zeitstempel</th>
+                            <th class="py-2 text-right">Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-800">
+                        {% for s in snapshots %}
+                        <tr class="hover:bg-dark-900/50">
+                            <td class="py-2 font-bold text-white">#{{ s.id }}</td>
+                            <td class="py-2 text-gray-300">{{ s.description }}</td>
+                            <td class="py-2 text-gray-400">{{ s.created_by }}</td>
+                            <td class="py-2 text-gray-500 text-[11px]">{{ s.created_at }}</td>
+                            <td class="py-2 text-right">
+                                {% if s.is_rolled_back %}
+                                <span class="text-gray-500 text-[11px]">Bereits zurückgerollt</span>
+                                {% else %}
+                                <form method="POST" action="{{ url_for('security.rollback') }}" onsubmit="return confirm('Möchtest du das System wirklich auf diesen Zustand zurücksetzen?');" class="inline">
+                                    <input type="hidden" name="snapshot_id" value="{{ s.id }}">
+                                    <button type="submit" class="px-2.5 py-1 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 rounded text-[10px] transition">
+                                        Rollback
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="py-4 text-center text-gray-500">Noch keine Snapshots vorhanden.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- KI-Audit Markdown Export -->
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
                         <span>🤖 KI-Systemprüfung & Optimierungs-Report</span>
                     </h3>
-                    <p class="text-xs text-gray-400 font-mono mt-1">Dieser vollständige Bericht fasst alle System-, Performance- und Sicherheitsdaten strukturiert zusammen. Kopiere den Text direkt in Claude, Gemini oder GPT, um einen schrittweisen Optimierungsplan zu erhalten.</p>
+                    <p class="text-xs text-gray-400 font-mono mt-1">Dieser vollständige Bericht fasst alle System- und Sicherheitsdaten strukturiert zusammen.</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <button onclick="copyAuditToClipboard()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
@@ -436,7 +816,7 @@
 
             <!-- Report-Vorschau -->
             <div class="relative">
-                <textarea id="audit-preview-text" readonly rows="18"
+                <textarea id="audit-preview-text" readonly rows="12"
                           class="w-full p-4 bg-dark-950 border border-dark-700 rounded-xl text-emerald-300 font-mono text-xs leading-relaxed outline-none select-text resize-none">Lade vollständigen KI-Prüfbericht...</textarea>
             </div>
         </div>
@@ -463,7 +843,7 @@
 
             <div>
                 <label class="block uppercase text-gray-400 mb-1">Grund / Notiz</label>
-                <input type="text" name="reason" placeholder="z.B. SSH Brute Force, Web Scans"
+                <input type="text" name="reason" placeholder="z.B. Exploit Scans, Brute Force"
                        class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-rose-500 rounded-xl text-white outline-none transition">
             </div>
 
@@ -474,12 +854,51 @@
         </form>
     </div>
 </div>
+
+<!-- Modal: Safe-Apply Profile Diff Preview -->
+<div id="modal-profile-diff" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl animate-fade-in space-y-4" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center pb-2 border-b border-dark-800">
+            <div>
+                <h3 class="text-base font-bold text-white font-mono flex items-center gap-2">
+                    <span>⚡ Safe-Apply Profilwechsel Vorschau</span>
+                </h3>
+                <p class="text-xs text-gray-400 font-mono mt-0.5" id="diff-target-title">Lade Change Plan...</p>
+            </div>
+            <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="space-y-3 font-mono text-xs">
+            <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-2">
+                <span class="text-gray-400 uppercase text-[10px] tracking-wider block">Geplante Konfigurationsänderungen (Diffs):</span>
+                <div id="diff-list" class="space-y-1.5 max-h-48 overflow-y-auto">
+                    <!-- Wird per JS befüllt -->
+                </div>
+            </div>
+
+            <div class="p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl text-teal-300 text-[11px] leading-relaxed">
+                🛡️ <strong>Safe-Apply Schutz:</strong> Vor der Aktivierung wird ein Wiederherstellungspunkt gespeichert. Bei Syntax- oder Verbindungsfehlern rollt SysCore automatisch auf den vorherigen Zustand zurück.
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('security.apply_profile') }}" class="pt-2 flex justify-end gap-2 font-mono text-xs">
+            <input type="hidden" name="profile_name" id="diff-profile-name" value="">
+            <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl transition">Abbrechen</button>
+            <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium transition shadow-lg shadow-emerald-900/30">
+                Profil Jetzt Sicher Aktivieren
+            </button>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// Tab Switching
 function switchSecTab(tab) {
-    const tabs = ['radar', 'hardening', 'clamav', 'ai-audit'];
+    const tabs = ['overview', 'protection', 'radar', 'inventory', 'profiles', 'assistant', 'automation', 'audit'];
     tabs.forEach(t => {
         const el = document.getElementById(`sec-tab-${t}`);
         const btn = document.getElementById(`tab-btn-${t}`);
@@ -492,11 +911,130 @@ function switchSecTab(tab) {
         }
     });
 
-    if (tab === 'ai-audit') {
+    if (tab === 'audit') {
         loadAuditPreview();
     }
 }
 
+// Mode Toggle: Easy vs Advanced
+function toggleSecurityMode(mode) {
+    const isAdv = (mode === 'advanced');
+    document.querySelectorAll('.adv-only').forEach(el => {
+        el.classList.toggle('hidden', !isAdv);
+    });
+
+    const btnEasy = document.getElementById('btn-mode-easy');
+    const btnAdv = document.getElementById('btn-mode-adv');
+    if (btnEasy && btnAdv) {
+        if (isAdv) {
+            btnAdv.className = 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium transition';
+            btnEasy.className = 'px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition';
+        } else {
+            btnEasy.className = 'px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium transition';
+            btnAdv.className = 'px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition';
+        }
+    }
+}
+
+// Profile Diff Preview Modal
+async function previewProfileDiff(profileName) {
+    const modal = document.getElementById('modal-profile-diff');
+    const titleEl = document.getElementById('diff-target-title');
+    const listEl = document.getElementById('diff-list');
+    const nameInput = document.getElementById('diff-profile-name');
+
+    titleEl.textContent = 'Analysiere Differenzen...';
+    listEl.innerHTML = '<div class="text-gray-500 py-2">Berechne Safe-Apply Diffs...</div>';
+    nameInput.value = profileName;
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    try {
+        const res = await fetch("{{ url_for('security.preview_profile') }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({target_profile: profileName})
+        });
+        const data = await res.json();
+        if (data.success && data.plan) {
+            titleEl.textContent = `Ziel-Profil: ${data.plan.target_display_name} (Ziel-Score: ${data.plan.target_score}%)`;
+            if (data.plan.diffs && data.plan.diffs.length > 0) {
+                listEl.innerHTML = data.plan.diffs.map(d => `
+                    <div class="p-2 bg-dark-900 border border-dark-800 rounded-lg text-gray-300">
+                        <strong class="text-teal-400">${d.setting}:</strong>
+                        <span class="text-rose-400">${d.old_value}</span> ➜ <span class="text-emerald-400 font-bold">${d.new_value}</span>
+                    </div>
+                `).join('');
+            } else {
+                listEl.innerHTML = '<div class="text-emerald-400 py-2">Keine abweichenden Einstellungen zum aktuellen Systemzustand.</div>';
+            }
+        } else {
+            listEl.innerHTML = `<div class="text-rose-400 py-2">Fehler: ${data.error || 'Diff konnte nicht berechnet werden.'}</div>`;
+        }
+    } catch (e) {
+        listEl.innerHTML = `<div class="text-rose-400 py-2">Netzwerkfehler: ${e}</div>`;
+    }
+}
+
+// Sentinel Chat Submissions
+async function handleSentinelSubmit(e) {
+    e.preventDefault();
+    const input = document.getElementById('sentinel-input');
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    input.value = '';
+    appendChatMessage('user', msg);
+
+    const log = document.getElementById('sentinel-chat-log');
+    const loadingId = 'loading-' + Date.now();
+    log.innerHTML += `<div id="${loadingId}" class="p-3 bg-dark-900 border border-dark-800 rounded-xl text-gray-400 max-w-xl animate-pulse">Sentinel analysiert...</div>`;
+    log.scrollTop = log.scrollHeight;
+
+    try {
+        const res = await fetch("{{ url_for('security.assistant_chat') }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({message: msg})
+        });
+        const data = await res.json();
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+
+        if (data.success && data.response) {
+            appendChatMessage('assistant', data.response.text);
+        } else {
+            appendChatMessage('assistant', 'Entschuldigung, es trat ein Fehler auf: ' + (data.error || 'Unbekannt'));
+        }
+    } catch (err) {
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+        appendChatMessage('assistant', 'Verbindungsfehler zum Sentinel Assistenten: ' + err);
+    }
+}
+
+function sendSentinelQuick(text) {
+    document.getElementById('sentinel-input').value = text;
+    handleSentinelSubmit(new Event('submit'));
+}
+
+function appendChatMessage(role, text) {
+    const log = document.getElementById('sentinel-chat-log');
+    const isUser = (role === 'user');
+    const msgHtml = `
+        <div class="flex flex-col ${isUser ? 'items-end' : 'items-start'}">
+            <div class="p-3 ${isUser ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30' : 'bg-dark-900 text-gray-200 border border-dark-700'} rounded-xl max-w-xl whitespace-pre-wrap leading-relaxed">
+                <span class="font-bold text-white text-[11px] block mb-1">${isUser ? 'Du' : '🤖 Sentinel'}</span>
+                ${text}
+            </div>
+        </div>
+    `;
+    log.innerHTML += msgHtml;
+    log.scrollTop = log.scrollHeight;
+}
+
+// Audit Preview & Clipboard
 async function loadAuditPreview() {
     const preview = document.getElementById("audit-preview-text");
     try {
@@ -513,10 +1051,17 @@ async function copyAuditToClipboard() {
     if (!preview.value || preview.value.startsWith("Lade")) {
         await loadAuditPreview();
     }
-    SysCore.copyToClipboard(preview.value, "KI-Audit-Report");
+    if (window.SysCore && window.SysCore.copyToClipboard) {
+        SysCore.copyToClipboard(preview.value, "KI-Audit-Report");
+    } else {
+        navigator.clipboard.writeText(preview.value);
+        alert("KI-Audit in die Zwischenablage kopiert!");
+    }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    // Standardmäßig Easy Mode aktiv
+    toggleSecurityMode('easy');
     loadAuditPreview();
 });
 </script>

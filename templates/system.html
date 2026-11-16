@@ -9,7 +9,8 @@
         <div>
             <div class="flex items-center gap-3">
                 <h1 class="text-2xl font-extrabold text-white tracking-tight">System Cockpit</h1>
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium badge-emerald">
+                <span
+                    class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium badge-emerald">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                     Echtzeit aktiv
                 </span>
@@ -23,12 +24,19 @@
 
         <!-- Quick Actions Bar -->
         <div class="flex items-center gap-2">
-            <button onclick="window.openCommandPalette()" class="px-3 py-1.5 bg-dark-850 hover:bg-dark-800 border border-dark-700 rounded-lg text-xs font-mono text-gray-300 hover:text-white transition flex items-center gap-2">
-                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            <button onclick="window.openCommandPalette()"
+                class="px-3 py-1.5 bg-dark-850 hover:bg-dark-800 border border-dark-700 rounded-lg text-xs font-mono text-gray-300 hover:text-white transition flex items-center gap-2">
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
                 <span>Quick Actions</span>
             </button>
-            <button data-modal-open="modal-firewall-add" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/20">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <button data-modal-open="modal-firewall-add"
+                class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-medium transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/20">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
                 <span>Port freigeben</span>
             </button>
         </div>
@@ -49,8 +57,8 @@
                     <svg id="sparkline-cpu" class="w-full h-full sparkline-svg" viewBox="0 0 120 32">
                         <defs>
                             <linearGradient id="emerald-gradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stop-color="#10b981" stop-opacity="0.5"/>
-                                <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
+                                <stop offset="0%" stop-color="#10b981" stop-opacity="0.5" />
+                                <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
                             </linearGradient>
                         </defs>
                         <path class="sparkline-path" d="M 0,30 L 120,30"></path>
@@ -59,7 +67,9 @@
             </div>
             <!-- Progress Bar -->
             <div class="w-full bg-dark-950 h-1.5 rounded-full mt-4 overflow-hidden border border-dark-700">
-                <div id="metric-cpu-bar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-300" style="width: {{ stats.cpu }}%"></div>
+                <div id="metric-cpu-bar"
+                    class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-300"
+                    style="width: {{ stats.cpu }}%"></div>
             </div>
         </div>
 
@@ -67,9 +77,11 @@
         <div class="sys-card p-5 relative overflow-hidden">
             <div class="flex justify-between items-start">
                 <div>
-                    <span class="text-[11px] font-mono uppercase text-gray-400 tracking-wider">Arbeitsspeicher (RAM)</span>
+                    <span class="text-[11px] font-mono uppercase text-gray-400 tracking-wider">Arbeitsspeicher
+                        (RAM)</span>
                     <div class="text-2xl font-black text-white mt-1" id="metric-ram-val">{{ stats.ram_percent }}%</div>
-                    <div class="text-[11px] text-gray-500 font-mono mt-0.5" id="metric-ram-detail">{{ stats.ram_used }} GB / {{ stats.ram_total }} GB</div>
+                    <div class="text-[11px] text-gray-500 font-mono mt-0.5" id="metric-ram-detail">{{ stats.ram_used }}
+                        GB / {{ stats.ram_total }} GB</div>
                 </div>
                 <!-- Mini Sparkline SVG -->
                 <div class="w-28 h-10">
@@ -79,7 +91,9 @@
                 </div>
             </div>
             <div class="w-full bg-dark-950 h-1.5 rounded-full mt-4 overflow-hidden border border-dark-700">
-                <div id="metric-ram-bar" class="bg-gradient-to-r from-teal-400 to-cyan-400 h-full rounded-full transition-all duration-300" style="width: {{ stats.ram_percent }}%"></div>
+                <div id="metric-ram-bar"
+                    class="bg-gradient-to-r from-teal-400 to-cyan-400 h-full rounded-full transition-all duration-300"
+                    style="width: {{ stats.ram_percent }}%"></div>
             </div>
         </div>
 
@@ -88,15 +102,23 @@
             <div class="flex justify-between items-start">
                 <div>
                     <span class="text-[11px] font-mono uppercase text-gray-400 tracking-wider">NVMe Speicher (/)</span>
-                    <div class="text-2xl font-black text-white mt-1" id="metric-disk-val">{{ stats.disk_percent }}%</div>
-                    <div class="text-[11px] text-gray-500 font-mono mt-0.5" id="metric-disk-detail">{{ stats.disk_used }} GB / {{ stats.disk_total }} GB</div>
+                    <div class="text-2xl font-black text-white mt-1" id="metric-disk-val">{{ stats.disk_percent }}%
+                    </div>
+                    <div class="text-[11px] text-gray-500 font-mono mt-0.5" id="metric-disk-detail">{{ stats.disk_used
+                        }} GB / {{ stats.disk_total }} GB</div>
                 </div>
                 <div class="p-2.5 bg-dark-900 border border-dark-700 rounded-xl text-cyan-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4">
+                        </path>
+                    </svg>
                 </div>
             </div>
             <div class="w-full bg-dark-950 h-1.5 rounded-full mt-4 overflow-hidden border border-dark-700">
-                <div id="metric-disk-bar" class="bg-gradient-to-r from-cyan-400 to-blue-500 h-full rounded-full transition-all duration-300" style="width: {{ stats.disk_percent }}%"></div>
+                <div id="metric-disk-bar"
+                    class="bg-gradient-to-r from-cyan-400 to-blue-500 h-full rounded-full transition-all duration-300"
+                    style="width: {{ stats.disk_percent }}%"></div>
             </div>
         </div>
 
@@ -114,11 +136,15 @@
                         </span>
                     </div>
                     <div class="text-[11px] text-gray-500 font-mono mt-1">
-                        Load: <span id="metric-load-avg" class="text-gray-300">{{ stats.load_avg[0] }} · {{ stats.load_avg[1] }} · {{ stats.load_avg[2] }}</span>
+                        Load: <span id="metric-load-avg" class="text-gray-300">{{ stats.load_avg[0] }} · {{
+                            stats.load_avg[1] }} · {{ stats.load_avg[2] }}</span>
                     </div>
                 </div>
                 <div class="p-2.5 bg-dark-900 border border-dark-700 rounded-xl text-emerald-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
                 </div>
             </div>
             <div class="mt-4 flex items-center justify-between text-[11px] text-gray-500 font-mono">
@@ -146,24 +172,32 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {% for svc, active in services.items() %}
-                    <div class="flex items-center justify-between p-3 bg-dark-900/90 rounded-xl border border-dark-700/80 hover:border-dark-600 transition">
+                    <div
+                        class="flex items-center justify-between p-3 bg-dark-900/90 rounded-xl border border-dark-700/80 hover:border-dark-600 transition">
                         <div class="flex items-center gap-3">
-                            <span class="w-2.5 h-2.5 rounded-full {{ 'bg-emerald-400 shadow-[0_0_8px_#10b981]' if active else 'bg-rose-500' }}"></span>
+                            <span
+                                class="w-2.5 h-2.5 rounded-full {{ 'bg-emerald-400 shadow-[0_0_8px_#10b981]' if active else 'bg-rose-500' }}"></span>
                             <div>
                                 <span class="font-mono text-xs font-semibold text-white block">{{ svc }}</span>
-                                <span class="text-[10px] font-mono text-gray-500">{{ 'Läuft stabil' if active else 'Inaktiv / Gestoppt' }}</span>
+                                <span class="text-[10px] font-mono text-gray-500">{{ 'Läuft stabil' if active else
+                                    'Inaktiv / Gestoppt' }}</span>
                             </div>
                         </div>
 
                         <div class="flex items-center gap-1.5">
-                            <form method="POST" action="{{ url_for('system.control_service', name=svc, action='restart') }}">
-                                <button type="submit" class="px-2 py-1 bg-dark-800 hover:bg-dark-750 text-gray-300 hover:text-white rounded-md text-[11px] font-mono border border-dark-600/60 transition" title="Dienst neu starten">
+                            <form method="POST"
+                                action="{{ url_for('system.control_service', name=svc, action='restart') }}">
+                                <button type="submit"
+                                    class="px-2 py-1 bg-dark-800 hover:bg-dark-750 text-gray-300 hover:text-white rounded-md text-[11px] font-mono border border-dark-600/60 transition"
+                                    title="Dienst neu starten">
                                     Neustart
                                 </button>
                             </form>
 
-                            <form method="POST" action="{{ url_for('system.control_service', name=svc, action='stop' if active else 'start') }}">
-                                <button type="submit" class="px-2 py-1 rounded-md text-[11px] font-mono border transition {{ 'bg-rose-950/30 border-rose-800/60 text-rose-400 hover:bg-rose-900/40' if active else 'bg-emerald-950/30 border-emerald-800/60 text-emerald-400 hover:bg-emerald-900/40' }}">
+                            <form method="POST"
+                                action="{{ url_for('system.control_service', name=svc, action='stop' if active else 'start') }}">
+                                <button type="submit"
+                                    class="px-2 py-1 rounded-md text-[11px] font-mono border transition {{ 'bg-rose-950/30 border-rose-800/60 text-rose-400 hover:bg-rose-900/40' if active else 'bg-emerald-950/30 border-emerald-800/60 text-emerald-400 hover:bg-emerald-900/40' }}">
                                     {{ 'Stop' if active else 'Start' }}
                                 </button>
                             </form>
@@ -178,10 +212,16 @@
                 <div class="flex items-center justify-between mb-4">
                     <div>
                         <h2 class="text-base font-bold text-white tracking-tight">Firewall (UFW)</h2>
-                        <p class="text-xs text-gray-500 font-mono mt-0.5">Status: <span class="{{ 'text-emerald-400' if ufw_active else 'text-amber-400' }}">{{ 'Aktiv & Filternd' if ufw_active else 'Inaktiv / Nicht konfiguriert' }}</span></p>
+                        <p class="text-xs text-gray-500 font-mono mt-0.5">Status: <span
+                                class="{{ 'text-emerald-400' if ufw_active else 'text-amber-400' }}">{{ 'Aktiv &
+                                Filternd' if ufw_active else 'Inaktiv / Nicht konfiguriert' }}</span></p>
                     </div>
-                    <button data-modal-open="modal-firewall-add" class="px-2.5 py-1.5 bg-dark-850 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-gray-200 hover:text-white rounded-lg transition flex items-center gap-1.5">
-                        <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    <button data-modal-open="modal-firewall-add"
+                        class="px-2.5 py-1.5 bg-dark-850 hover:bg-dark-800 border border-dark-700 text-xs font-mono text-gray-200 hover:text-white rounded-lg transition flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4">
+                            </path>
+                        </svg>
                         <span>Regel hinzufügen</span>
                     </button>
                 </div>
@@ -202,9 +242,15 @@
                                 <td class="py-2 px-3 text-gray-500">{{ r.id }}</td>
                                 <td class="py-2 px-3 font-semibold text-emerald-400">{{ r.rule }}</td>
                                 <td class="py-2 px-3 text-right">
-                                    <form method="POST" action="{{ url_for('system.firewall_delete', rule_id=r.id) }}" onsubmit="return confirm('Firewall-Regel #{{ r.id }} wirklich löschen?');">
-                                        <button type="submit" class="text-gray-500 hover:text-rose-400 transition" title="Regel löschen">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    <form method="POST" action="{{ url_for('system.firewall_delete', rule_id=r.id) }}"
+                                        onsubmit="return confirm('Firewall-Regel #{{ r.id }} wirklich löschen?');">
+                                        <button type="submit" class="text-gray-500 hover:text-rose-400 transition"
+                                            title="Regel löschen">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                                </path>
+                                            </svg>
                                         </button>
                                     </form>
                                 </td>
@@ -249,8 +295,11 @@
                             {% for p in processes %}
                             <tr class="hover:bg-dark-900/50">
                                 <td class="py-2 px-2.5 text-gray-500">{{ p.pid }}</td>
-                                <td class="py-2 px-2.5 font-semibold text-white truncate max-w-[140px]" title="{{ p.name }}">{{ p.name }}</td>
-                                <td class="py-2 px-2.5 {{ 'text-amber-400 font-bold' if p.cpu > 20 else 'text-emerald-400' }}">{{ p.cpu }}%</td>
+                                <td class="py-2 px-2.5 font-semibold text-white truncate max-w-[140px]"
+                                    title="{{ p.name }}">{{ p.name }}</td>
+                                <td
+                                    class="py-2 px-2.5 {{ 'text-amber-400 font-bold' if p.cpu > 20 else 'text-emerald-400' }}">
+                                    {{ p.cpu }}%</td>
                                 <td class="py-2 px-2.5 text-right text-gray-400">{{ p.mem }}%</td>
                             </tr>
                             {% endfor %}
@@ -282,7 +331,7 @@
                     </div>
                     <div class="flex justify-between py-1.5">
                         <span class="text-gray-400">Panel Modus:</span>
-                        <span class="text-teal-400">Plesk-Klasse Daemon</span>
+                        <span class="text-teal-400">SysCore v2.5 Daemon</span>
                     </div>
                 </div>
             </div>
@@ -294,12 +343,17 @@
 </div>
 
 <!-- Modal: Port Freigeben -->
-<div id="modal-firewall-add" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
-    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in" onclick="event.stopPropagation()">
+<div id="modal-firewall-add"
+    class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fade-in"
+        onclick="event.stopPropagation()">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold text-white tracking-tight">Firewall-Port freigeben</h3>
             <button data-modal-close class="text-gray-400 hover:text-white p-1 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                    </path>
+                </svg>
             </button>
         </div>
 
@@ -307,12 +361,13 @@
             <div>
                 <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Port-Nummer (1-65535)</label>
                 <input type="number" name="port" required min="1" max="65535" placeholder="z.B. 8080"
-                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                    class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
             </div>
 
             <div>
                 <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Protokoll</label>
-                <select name="proto" class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                <select name="proto"
+                    class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
                     <option value="tcp">TCP (Standard für Web & API)</option>
                     <option value="udp">UDP (Gameserver / DNS / VPN)</option>
                 </select>
@@ -321,12 +376,14 @@
             <div>
                 <label class="block text-xs font-mono uppercase text-gray-400 mb-1">Kommentar (Optional)</label>
                 <input type="text" name="comment" placeholder="z.B. SysCore-API"
-                       class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
+                    class="w-full px-3.5 py-2.5 bg-dark-950 border border-dark-700 focus:border-emerald-500 rounded-xl text-white font-mono text-sm outline-none transition">
             </div>
 
             <div class="pt-2 flex justify-end gap-2">
-                <button type="button" data-modal-close class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
-                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Freigeben</button>
+                <button type="button" data-modal-close
+                    class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">Abbrechen</button>
+                <button type="submit"
+                    class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-medium transition shadow-lg shadow-emerald-900/30">Freigeben</button>
             </div>
         </form>
     </div>

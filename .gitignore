@@ -8,6 +8,7 @@
 *.pem
 *.crt
 *.pfx
+Anweisungen.md
 
 # SQLite Databases & Storage
 *.db
@@ -20,6 +21,7 @@ syscore.db
 
 # User Data, Backups & Uploads
 backups/
+docs/
 uploads/
 temp/
 tmp/

@@ -75,7 +75,15 @@ ALL_TABLES = [
     "security_ip_bans",
     "web_deploy_hooks",
     "package_configs",
-    "qr_login_tokens"
+    "qr_login_tokens",
+    "security_profiles",
+    "security_policies",
+    "software_inventory",
+    "security_snapshots",
+    "security_findings",
+    "security_incidents",
+    "security_automation_rules",
+    "sentinel_conversations"
 ]
 
 SCHEMA_STATEMENTS = [
@@ -262,6 +270,121 @@ SCHEMA_STATEMENTS = [
         approved INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         expires_at TIMESTAMP
+    );
+    """,
+    # 16. Security Profiles (Sentinel Core)
+    """
+    CREATE TABLE IF NOT EXISTS security_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR(64) UNIQUE NOT NULL,
+        display_name VARCHAR(100) NOT NULL,
+        description TEXT,
+        is_active INTEGER NOT NULL DEFAULT 0,
+        target_score INTEGER DEFAULT 0,
+        config_json TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    # 17. Security Policies & Desired State
+    """
+    CREATE TABLE IF NOT EXISTS security_policies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category VARCHAR(64) NOT NULL,
+        policy_key VARCHAR(100) UNIQUE NOT NULL,
+        title VARCHAR(191) NOT NULL,
+        description TEXT,
+        severity VARCHAR(32) DEFAULT 'medium',
+        desired_value TEXT,
+        current_value TEXT,
+        status VARCHAR(32) DEFAULT 'compliant',
+        is_enforced INTEGER DEFAULT 0,
+        remediation_plan TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    # 18. Software Inventory & Protection Registry
+    """
+    CREATE TABLE IF NOT EXISTS software_inventory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR(191) NOT NULL,
+        software_type VARCHAR(64) NOT NULL,
+        protection_mode VARCHAR(32) NOT NULL DEFAULT 'observe_only',
+        version VARCHAR(64),
+        ports_json TEXT,
+        config_paths_json TEXT,
+        service_name VARCHAR(100),
+        status VARCHAR(32) DEFAULT 'active',
+        notes TEXT,
+        detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    # 19. Security Snapshots & Rollback Point
+    """
+    CREATE TABLE IF NOT EXISTS security_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_type VARCHAR(64) NOT NULL,
+        description TEXT,
+        state_json TEXT NOT NULL,
+        created_by VARCHAR(100) DEFAULT 'system',
+        is_rolled_back INTEGER DEFAULT 0,
+        rolled_back_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    # 20. Security Findings & Risk Deductions
+    """
+    CREATE TABLE IF NOT EXISTS security_findings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        finding_type VARCHAR(64) NOT NULL,
+        severity VARCHAR(32) NOT NULL DEFAULT 'medium',
+        title VARCHAR(191) NOT NULL,
+        description TEXT NOT NULL,
+        affected_resource VARCHAR(191),
+        recommended_action TEXT,
+        status VARCHAR(32) DEFAULT 'open',
+        score_impact INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP
+    );
+    """,
+    # 21. Security Incidents & Threat Events
+    """
+    CREATE TABLE IF NOT EXISTS security_incidents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        incident_type VARCHAR(64) NOT NULL,
+        source_ip VARCHAR(64),
+        target_service VARCHAR(100),
+        severity VARCHAR(32) DEFAULT 'high',
+        details TEXT,
+        response_action VARCHAR(64) DEFAULT 'logged',
+        status VARCHAR(32) DEFAULT 'open',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    # 22. Security Automation Rules (Levels 0-4)
+    """
+    CREATE TABLE IF NOT EXISTS security_automation_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rule_name VARCHAR(100) UNIQUE NOT NULL,
+        event_type VARCHAR(64) NOT NULL,
+        reaction_level INTEGER DEFAULT 1,
+        action_type VARCHAR(64) NOT NULL,
+        condition_json TEXT,
+        is_enabled INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    # 23. Sentinel Assistant Conversation History
+    """
+    CREATE TABLE IF NOT EXISTS sentinel_conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id VARCHAR(100) NOT NULL,
+        role VARCHAR(32) NOT NULL,
+        content TEXT NOT NULL,
+        change_plan_json TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
 ]
@@ -625,6 +748,71 @@ def init_db():
                     conn.commit()
         except Exception as e:
             print(f"[SysCore DB Note] System Owner check notice: {e}")
+
+        # Seed Security Center 2.0 Profiles falls leer
+        try:
+            cursor.execute("SELECT COUNT(*) FROM `security_profiles`;")
+            p_res = cursor.fetchone()
+            if not p_res or p_res[0] == 0:
+                default_profiles = [
+                    ('basic', 'Basic Protection', 'Grundlegender Basisschutz für Test- und Entwicklungsumgebungen. Minimale Einschränkungen, Firewall aktiv.', 0, 60, json.dumps({
+                        "firewall": True, "ssh_root": True, "ssh_password": True, "fail2ban": False, "waf_strict": False, "clamav_scheduled": False, "fim_enabled": False
+                    })),
+                    ('standard', 'Standard Server (Empfohlen)', 'Ausgewogene Sicherheit für Produktions-Webserver. UFW aktiv, Fail2Ban für SSH & NGINX, Passwort-SSH erlaubt, sensible Ports geschlossen.', 1, 80, json.dumps({
+                        "firewall": True, "ssh_root": False, "ssh_password": True, "fail2ban": True, "waf_strict": False, "clamav_scheduled": True, "fim_enabled": False
+                    })),
+                    ('hardened', 'Hardened Production', 'Erhöhte Sicherheit für exponierte Server. SSH nur via Key (kein Passwort, kein direkter Root), strikte Firewall, NGINX WAF-Header, ClamAV aktiv.', 0, 90, json.dumps({
+                        "firewall": True, "ssh_root": False, "ssh_password": False, "fail2ban": True, "waf_strict": True, "clamav_scheduled": True, "fim_enabled": True
+                    })),
+                    ('maximum', 'Maximum Lockdown', 'Maximaler Härtungsgrad für hochkritische Systeme. SSH Port gewechselt, Strict Rate-Limiting, aggressiver Fail2Ban, FIM Dateiüberwachung.', 0, 98, json.dumps({
+                        "firewall": True, "ssh_root": False, "ssh_password": False, "fail2ban": True, "waf_strict": True, "clamav_scheduled": True, "fim_enabled": True, "strict_ratelimit": True
+                    })),
+                    ('custom', 'Benutzerdefiniert', 'Individuell angepasste Sicherheitsrichtlinien ohne feste Profilvorgabe.', 0, 0, json.dumps({}))
+                ]
+                ins_prof_sql = "INSERT INTO `security_profiles` (name, display_name, description, is_active, target_score, config_json) VALUES (%s, %s, %s, %s, %s, %s);" if is_mysql else "INSERT INTO security_profiles (name, display_name, description, is_active, target_score, config_json) VALUES (?, ?, ?, ?, ?, ?);"
+                cursor.executemany(ins_prof_sql, default_profiles)
+                if not is_mysql:
+                    conn.commit()
+        except Exception as e:
+            print(f"[SysCore DB Note] Security Profiles seed notice: {e}")
+
+        # Seed Standard Policies falls leer
+        try:
+            cursor.execute("SELECT COUNT(*) FROM `security_policies`;")
+            pol_res = cursor.fetchone()
+            if not pol_res or pol_res[0] == 0:
+                default_policies = [
+                    ('network', 'firewall.ufw_enabled', 'UFW Firewall aktiviert', 'Blockiert unautorisierte eingehende Verbindungen automatisch.', 'critical', 'active', 'inactive', 'non_compliant', 1, 'UFW Firewall über die Sicherheitszentrale aktivieren.'),
+                    ('ssh', 'ssh.disable_root_login', 'Direkter SSH Root-Login verboten', 'Verhindert automatische Brute-Force-Angriffe auf das root-Konto.', 'high', 'no', 'yes', 'non_compliant', 0, 'PermitRootLogin in /etc/ssh/sshd_config.d/99-syscore.conf auf no setzen.'),
+                    ('ssh', 'ssh.enforce_key_auth', 'SSH Nur-Schlüssel-Authentifizierung', 'Deaktiviert unsichere Passwortanmeldungen über SSH zugunsten von Public-Keys.', 'medium', 'no', 'yes', 'non_compliant', 0, 'PasswordAuthentication auf no setzen.'),
+                    ('access', 'fail2ban.service_active', 'Fail2Ban Intrusion Prevention aktiv', 'Sperrt Angreifer-IPs automatisch nach wiederholten Fehlversuchen.', 'high', 'running', 'stopped', 'non_compliant', 1, 'Fail2Ban Service starten und Jails aktivieren.'),
+                    ('network', 'ports.database_not_public', 'Datenbank-Ports (3306, 5432) isoliert', 'Verhindert direkten externen Zugriff auf sensible relationale Datenbanken.', 'critical', '127.0.0.1', '0.0.0.0', 'compliant', 1, 'MariaDB/MySQL Bind-Address auf 127.0.0.1 beschränken.'),
+                    ('waf', 'waf.security_headers', 'NGINX Sicherheits-Header & WAF Drop-In', 'Schützt vor Clickjacking, MIME-Sniffing und bekannten Web-Exploits.', 'medium', 'enabled', 'disabled', 'compliant', 0, 'Sicherheits-Header in /etc/nginx/conf.d/99-syscore.conf aktivieren.'),
+                    ('file_integrity', 'files.integrity_baseline', 'Webspace File Integrity Baseline', 'Erkennt unautorisierte Änderungen oder Webshell-Injektionen in /var/www.', 'medium', 'valid', 'uninitialized', 'compliant', 0, 'Dateisystem-Baseline initialisieren.')
+                ]
+                ins_pol_sql = "INSERT INTO `security_policies` (category, policy_key, title, description, severity, desired_value, current_value, status, is_enforced, remediation_plan) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);" if is_mysql else "INSERT INTO security_policies (category, policy_key, title, description, severity, desired_value, current_value, status, is_enforced, remediation_plan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
+                cursor.executemany(ins_pol_sql, default_policies)
+                if not is_mysql:
+                    conn.commit()
+        except Exception as e:
+            print(f"[SysCore DB Note] Security Policies seed notice: {e}")
+
+        # Seed Security Automation Rules falls leer
+        try:
+            cursor.execute("SELECT COUNT(*) FROM `security_automation_rules`;")
+            ar_res = cursor.fetchone()
+            if not ar_res or ar_res[0] == 0:
+                default_auto_rules = [
+                    ('auto_ban_exploit_scanners', 'exploit_probe_detected', 4, 'ban_ip', json.dumps({"threshold": 5, "window_minutes": 15}), 1),
+                    ('notify_ssh_bruteforce', 'failed_ssh_burst', 1, 'notify_admin', json.dumps({"attempts": 3}), 1),
+                    ('recommend_patch_vulnerabilities', 'outdated_package', 2, 'recommend_patch', json.dumps({"severity": "critical"}), 1)
+                ]
+                ins_ar_sql = "INSERT INTO `security_automation_rules` (rule_name, event_type, reaction_level, action_type, condition_json, is_enabled) VALUES (%s, %s, %s, %s, %s, %s);" if is_mysql else "INSERT INTO security_automation_rules (rule_name, event_type, reaction_level, action_type, condition_json, is_enabled) VALUES (?, ?, ?, ?, ?, ?);"
+                cursor.executemany(ins_ar_sql, default_auto_rules)
+                if not is_mysql:
+                    conn.commit()
+        except Exception as e:
+            print(f"[SysCore DB Note] Security Automation Rules seed notice: {e}")
 
         conn.close()
     except Exception as e:

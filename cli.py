@@ -3,11 +3,16 @@
 SysCore CLI Tool
 Verwaltungswerkzeug für Administrator-Konten, Datenbank-Initialisierung und System-Audits.
 """
+import os
 import sys
+import shutil
+import socket
+import subprocess
 import getpass
 import argparse
 from werkzeug.security import generate_password_hash
 import db
+import config
 
 def create_or_reset_admin(username, password, email=None, role="root_admin"):
     db.init_db()
@@ -54,10 +59,6 @@ def list_users():
     print("-------------------------------------\n")
 
 def run_cli_update():
-    import subprocess
-    import shutil
-    import config
-
     base_dir = str(config.BASE_DIR)
     print("\n=======================================================")
     print("   SYSCORE CLI UPDATE & AUTOMATISCHER RESTART         ")
@@ -91,12 +92,6 @@ def run_cli_update():
 
 def run_system_doctor():
     """Führt eine umfassende Integritäts- und Vorbereitungsprüfung durch (Pre-Flight Check)"""
-    import sys
-    import os
-    import shutil
-    import socket
-    import config
-
     print("\n=======================================================")
     print("   SYSCORE PRE-FLIGHT SYSTEM- & SICHERHEITSPRÜFUNG     ")
     print("=======================================================\n")
