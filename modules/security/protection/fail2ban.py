@@ -1,12 +1,18 @@
 """
 SysCore Sentinel - Fail2Ban Protection Module
-Interagiert mit fail2ban-client zur Verwaltung von Schutz-Jails und IP-Sperren.
+Interagiert mit fail2ban-client zur Verwaltung von Schutz-Jails,
+Konfiguration von Sperrzeiten & Schwellenwerten und IP-Sperren.
 """
 
+import os
+import re
 import shutil
 import subprocess
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 from modules.system_agent import run_privileged
+from modules.security.core.safe_apply import SafeApply
+
+FAIL2BAN_DROPIN_PATH = "/etc/fail2ban/jail.d/99-syscore.conf"
 
 def get_fail2ban_status() -> Dict[str, Any]:
     """Liest Fail2Ban-Status, aktive Jails und gebannte IPs aus."""
@@ -40,12 +46,137 @@ def get_fail2ban_status() -> Dict[str, Any]:
     except Exception as e:
         return {"installed": True, "running": False, "jails": [], "banned_ips": [], "error": str(e)}
 
-def fail2ban_unban(ip_address: str) -> bool:
-    """Entfernt eine IP-Adresse aus allen Fail2Ban Jails."""
+def get_fail2ban_config() -> Dict[str, Any]:
+    """Liest die Fail2Ban Konfiguration aus dem SysCore Drop-in oder liefert Standards."""
+    defaults = {
+        "bantime": "3600",       # 1 Stunde Sperre
+        "findtime": "600",       # 10 Minuten Zeitfenster
+        "maxretry": "5",         # 5 Fehlversuche
+        "ignoreip": "127.0.0.1/8 ::1",
+        "sshd_enabled": True,
+        "nginx_enabled": False,
+        "configured": os.path.exists(FAIL2BAN_DROPIN_PATH)
+    }
+
+    if os.path.exists(FAIL2BAN_DROPIN_PATH):
+        try:
+            with open(FAIL2BAN_DROPIN_PATH, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+                
+            m_ban = re.search(r"^\s*bantime\s*=\s*([^\n#]+)", content, re.MULTILINE)
+            if m_ban:
+                defaults["bantime"] = m_ban.group(1).strip()
+
+            m_find = re.search(r"^\s*findtime\s*=\s*([^\n#]+)", content, re.MULTILINE)
+            if m_find:
+                defaults["findtime"] = m_find.group(1).strip()
+
+            m_retry = re.search(r"^\s*maxretry\s*=\s*([^\n#]+)", content, re.MULTILINE)
+            if m_retry:
+                defaults["maxretry"] = m_retry.group(1).strip()
+
+            m_ignore = re.search(r"^\s*ignoreip\s*=\s*([^\n#]+)", content, re.MULTILINE)
+            if m_ignore:
+                defaults["ignoreip"] = m_ignore.group(1).strip()
+
+            defaults["sshd_enabled"] = bool(re.search(r"\[sshd\][\s\S]*?enabled\s*=\s*true", content, re.IGNORECASE))
+            defaults["nginx_enabled"] = bool(re.search(r"\[nginx-http-auth\][\s\S]*?enabled\s*=\s*true", content, re.IGNORECASE))
+        except Exception:
+            pass
+
+    return defaults
+
+def save_fail2ban_config(
+    bantime: str = "3600",
+    findtime: str = "600",
+    maxretry: str = "5",
+    ignoreip: str = "127.0.0.1/8 ::1",
+    sshd_enabled: bool = True,
+    nginx_enabled: bool = False,
+    username: str = "admin"
+) -> Tuple[bool, str]:
+    """
+    Erstellt oder aktualisiert das Fail2Ban Drop-In /etc/fail2ban/jail.d/99-syscore.conf
+    ohne bestehende Systemdateien zu überschreiben (SEC-005).
+    """
+    # Validierung
+    bantime_clean = bantime.strip()
+    findtime_clean = findtime.strip()
+    maxretry_clean = str(maxretry).strip()
+    ignoreip_clean = ignoreip.strip()
+
+    if not re.match(r"^\d+[smhd]?$", bantime_clean):
+        return False, "Ungültige Sperrdauer (z.B. '3600', '1h', '24h')."
+    if not re.match(r"^\d+[smhd]?$", findtime_clean):
+        return False, "Ungültiges Zeitfenster (z.B. '600', '10m')."
+    if not maxretry_clean.isdigit() or int(maxretry_clean) < 1:
+        return False, "Fehlversuche müssen eine positive Zahl sein."
+
+    content = f"""# SysCore Sentinel Fail2ban Configuration Drop-In
+# Automatisch verwaltet durch das SysCore Sicherheitscenter
+
+[DEFAULT]
+bantime = {bantime_clean}
+findtime = {findtime_clean}
+maxretry = {maxretry_clean}
+ignoreip = {ignoreip_clean}
+
+[sshd]
+enabled = {'true' if sshd_enabled else 'false'}
+port = ssh
+
+[nginx-http-auth]
+enabled = {'true' if nginx_enabled else 'false'}
+"""
+
+    # Vorher-Snapshot anlegen
+    SafeApply.create_snapshot(
+        snapshot_type="fail2ban_config",
+        description=f"Fail2Ban Konfigurationsänderung (Bantime: {bantime_clean}, Maxretry: {maxretry_clean})",
+        current_state=get_fail2ban_config(),
+        created_by=username
+    )
+
+    # Zielverzeichnis anlegen
+    os.makedirs(os.path.dirname(FAIL2BAN_DROPIN_PATH), exist_ok=True)
+
+    try:
+        with open(FAIL2BAN_DROPIN_PATH, "w", encoding="utf-8") as f:
+            f.write(content)
+    except Exception as e:
+        return False, f"Fehler beim Schreiben von {FAIL2BAN_DROPIN_PATH}: {e}"
+
+    # Fail2Ban neu laden
+    if shutil.which("fail2ban-client"):
+        try:
+            res = run_privileged(["fail2ban-client", "reload"], timeout=10)
+            if res.returncode != 0:
+                # Versuch über systemctl
+                run_privileged(["systemctl", "restart", "fail2ban"], timeout=10)
+        except Exception:
+            pass
+
+    return True, "Fail2Ban Konfiguration erfolgreich angewendet und neu geladen."
+
+def fail2ban_service_action(action: str) -> Tuple[bool, str]:
+    """Startet, stoppt oder startet Fail2ban neu."""
+    if action not in ("start", "stop", "restart", "enable"):
+        return False, "Ungültige Aktion."
+    try:
+        res = run_privileged(["systemctl", action, "fail2ban"], timeout=15)
+        return (res.returncode == 0), (res.stdout or res.stderr).strip()
+    except Exception as e:
+        return False, str(e)
+
+def fail2ban_unban(ip_address: str, jail: Optional[str] = None) -> bool:
+    """Entfernt eine IP-Adresse aus einem oder allen Fail2Ban Jails."""
     if not shutil.which("fail2ban-client"):
         return False
     try:
-        run_privileged(["fail2ban-client", "unban", ip_address], timeout=10)
+        if jail:
+            run_privileged(["fail2ban-client", "set", jail, "unbanip", ip_address], timeout=10)
+        else:
+            run_privileged(["fail2ban-client", "unban", ip_address], timeout=10)
         return True
     except Exception:
         return False

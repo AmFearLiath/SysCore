@@ -32,8 +32,11 @@ from modules.security.protection.firewall import (
     get_ufw_status, add_ufw_deny, remove_ufw_deny, set_ufw_enabled,
     detect_candidate_firewall_rules, activate_firewall_with_rules
 )
-from modules.security.protection.ssh import get_ssh_audit
-from modules.security.protection.fail2ban import get_fail2ban_status, fail2ban_unban
+from modules.security.protection.ssh import get_ssh_audit, harden_ssh_safe
+from modules.security.protection.fail2ban import (
+    get_fail2ban_status, get_fail2ban_config, save_fail2ban_config,
+    fail2ban_service_action, fail2ban_unban
+)
 from modules.security.protection.clamav import get_clamav_status, run_clamscan
 from modules.security.protection.waf import get_waf_status, apply_waf_profile
 from modules.security.protection.file_integrity import FileIntegrityMonitor
@@ -70,7 +73,11 @@ def index():
     banned_db = db.query_db("SELECT * FROM security_ip_bans ORDER BY id DESC LIMIT 50")
     banned_ip_set = {b["ip_address"] for b in banned_db} if banned_db else set()
     if f2b.get("banned_ips"):
-        banned_ip_set.update(f2b["banned_ips"])
+        for item in f2b["banned_ips"]:
+            if isinstance(item, dict):
+                banned_ip_set.add(item.get("ip"))
+            elif isinstance(item, str):
+                banned_ip_set.add(item)
 
     exploit_scan = scan_nginx_exploit_probes(banned_ips=banned_ip_set)
     recent_probes = exploit_scan.get("recent_probes", [])
@@ -130,6 +137,9 @@ def index():
     # 10. Kandidaten-Ports für Firewall-Aktivierungs-Assistent
     candidate_ports = detect_candidate_firewall_rules()
 
+    # 11. Fail2Ban Konfiguration
+    fail2ban_cfg = get_fail2ban_config()
+
     return render_template(
         "security.html",
         score=score,
@@ -137,6 +147,7 @@ def index():
         raw_deductions=raw_deductions,
         ufw=ufw,
         f2b=f2b,
+        fail2ban_cfg=fail2ban_cfg,
         ssh=ssh,
         ports=ports,
         clamav=clamav,
@@ -368,6 +379,140 @@ def activate_firewall_wizard():
         flash(msg, "error")
 
     return redirect(url_for("security.index"))
+
+# ==================== REMEDIATION WIZARD & QUICK FIXES ====================
+
+@security_bp.route("/remediation/apply", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def apply_remediation():
+    """Führt eine gezielte Sicherheits-Behebung transaktional und sicher aus."""
+    action = request.form.get("action", "").strip()
+    username = session.get("username", "admin")
+
+    if action == "fix_ssh_root":
+        # Root Login deaktivieren (Drop-In mit SafeApply)
+        ok, msg = harden_ssh_safe(permit_root_login="no", username=username)
+        if ok:
+            log_audit(username, "REMEDIATION_SSH_ROOT", "Root-SSH-Login sicher deaktiviert", request.remote_addr, "success")
+            flash(msg, "success")
+        else:
+            flash(msg, "error")
+
+    elif action == "fix_ssh_port":
+        # SSH Port sicher ändern (mit automatischer UFW Freigabe)
+        try:
+            new_port = int(request.form.get("new_port", 22))
+            ok, msg = harden_ssh_safe(new_port=new_port, username=username)
+            if ok:
+                log_audit(username, "REMEDIATION_SSH_PORT", f"SSH Port sicher auf {new_port} gewechselt (in UFW erlaubt)", request.remote_addr, "success")
+                flash(msg, "success")
+            else:
+                flash(msg, "error")
+        except ValueError:
+            flash("Bitte eine gültige Port-Nummer angeben.", "error")
+
+    elif action == "fix_fail2ban_start":
+        # Fail2ban starten & aktivieren
+        ok, msg = fail2ban_service_action("start")
+        fail2ban_service_action("enable")
+        if ok:
+            log_audit(username, "REMEDIATION_FAIL2BAN_START", "Fail2Ban Dienst gestartet und aktiviert", request.remote_addr, "success")
+            flash("Fail2Ban wurde erfolgreich gestartet und aktiviert!", "success")
+        else:
+            flash(f"Fehler beim Starten von Fail2Ban: {msg}", "error")
+
+    elif action == "fix_waf":
+        # NGINX Sicherheits-Header aktivieren
+        ok, msg = apply_waf_profile("standard")
+        if ok:
+            log_audit(username, "REMEDIATION_WAF", "NGINX Sicherheits-Header Drop-in aktiviert", request.remote_addr, "success")
+            flash("NGINX Sicherheits-Header erfolgreich angewendet!", "success")
+        else:
+            flash(f"Fehler bei WAF-Aktivierung: {msg}", "error")
+
+    elif action == "fix_db_ports":
+        # Datenbank-Ports isolieren (Bind-Address 127.0.0.1)
+        my_cnf_dropin = "/etc/mysql/mariadb.conf.d/99-syscore-bind.cnf"
+        dropin_content = "# SysCore Sentinel DB Isolation Drop-In\n[mysqld]\nbind-address = 127.0.0.1\n"
+        os.makedirs(os.path.dirname(my_cnf_dropin), exist_ok=True)
+        try:
+            with open(my_cnf_dropin, "w", encoding="utf-8") as f:
+                f.write(dropin_content)
+            run_privileged(["systemctl", "restart", "mariadb"], timeout=15)
+            log_audit(username, "REMEDIATION_DB_ISOLATE", "MariaDB bind-address auf 127.0.0.1 isoliert", request.remote_addr, "success")
+            flash("MariaDB/MySQL erfolgreich auf 127.0.0.1 beschränkt!", "success")
+        except Exception as e:
+            flash(f"Fehler bei DB-Isolierung: {e}", "error")
+
+    else:
+        flash("Unbekannte Behebungs-Aktion.", "error")
+
+    return redirect(url_for("security.index"))
+
+# ==================== FAIL2BAN KONFIGURATION & UNBAN ====================
+
+@security_bp.route("/fail2ban/config", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def configure_fail2ban():
+    """Speichert die Fail2Ban Konfiguration (Bantime, Findtime, Maxretry, Jails)."""
+    bantime = request.form.get("bantime", "3600").strip()
+    findtime = request.form.get("findtime", "600").strip()
+    maxretry = request.form.get("maxretry", "5").strip()
+    ignoreip = request.form.get("ignoreip", "127.0.0.1/8 ::1").strip()
+    sshd_enabled = (request.form.get("sshd_enabled") == "1")
+    nginx_enabled = (request.form.get("nginx_enabled") == "1")
+
+    ok, msg = save_fail2ban_config(
+        bantime=bantime,
+        findtime=findtime,
+        maxretry=maxretry,
+        ignoreip=ignoreip,
+        sshd_enabled=sshd_enabled,
+        nginx_enabled=nginx_enabled,
+        username=session.get("username", "admin")
+    )
+
+    if ok:
+        log_audit(session.get("username"), "FAIL2BAN_CONFIG", f"Fail2Ban konfiguriert (Bantime: {bantime}, Maxretry: {maxretry})", request.remote_addr, "success")
+        flash(msg, "success")
+    else:
+        flash(msg, "error")
+
+    return redirect(url_for("security.index", tab="protection"))
+
+@security_bp.route("/fail2ban/action/<action>", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def fail2ban_action(action: str):
+    """Führt eine Service-Aktion auf Fail2ban aus (start, stop, restart, enable)."""
+    ok, msg = fail2ban_service_action(action)
+    if ok:
+        log_audit(session.get("username"), f"FAIL2BAN_{action.upper()}", f"Fail2Ban Service {action}", request.remote_addr, "success")
+        flash(f"Fail2Ban Service-Aktion '{action}' erfolgreich ausgeführt.", "success")
+    else:
+        flash(f"Fehler: {msg}", "error")
+    return redirect(url_for("security.index", tab="protection"))
+
+@security_bp.route("/fail2ban/unban", methods=["POST"])
+@login_required
+@role_required(["root_admin"])
+def fail2ban_unban_route():
+    """Entfernt eine IP-Adresse aus den Fail2ban Sperren."""
+    ip = request.form.get("ip_address", "").strip()
+    jail = request.form.get("jail", "").strip() or None
+    if not ip:
+        flash("Keine IP-Adresse angegeben.", "error")
+        return redirect(url_for("security.index", tab="protection"))
+
+    ok = fail2ban_unban(ip, jail)
+    if ok:
+        log_audit(session.get("username"), "FAIL2BAN_UNBAN", f"IP {ip} aus Fail2Ban ({jail or 'alle Jails'}) entsperrt", request.remote_addr, "success")
+        flash(f"IP {ip} wurde erfolgreich aus Fail2Ban entsperrt.", "success")
+    else:
+        flash(f"Fehler beim Entsperren von {ip} in Fail2Ban.", "error")
+    return redirect(url_for("security.index", tab="protection"))
 
 # ==================== CLAMAV SCANS ====================
 

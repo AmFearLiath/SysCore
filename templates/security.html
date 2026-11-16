@@ -96,11 +96,20 @@
 
             <!-- Quick Action Buttons -->
             <div class="flex flex-wrap items-center gap-3">
-                <button onclick="switchSecTab('assistant')" class="px-4 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-mono font-bold transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
-                    <span>💬 Sentinel Assistent</span>
+                {% if raw_deductions %}
+                <button onclick="openRemediationModal()" class="px-4 py-2.5 bg-gradient-to-r from-amber-600 via-rose-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white rounded-xl text-xs font-mono font-bold transition shadow-lg shadow-rose-900/40 flex items-center gap-2 animate-pulse">
+                    <span>🛡️ Beheben ({{ raw_deductions|length }})</span>
                 </button>
-                <button data-modal-open="modal-ban-ip" class="px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-mono transition">
+                {% else %}
+                <button onclick="openRemediationModal()" class="px-4 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-mono font-bold transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
+                    <span>🛡️ Beheben / Prüfen</span>
+                </button>
+                {% endif %}
+                <button data-modal-open="modal-ban-ip" class="px-3.5 py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-mono transition">
                     + IP sperren
+                </button>
+                <button onclick="switchSecTab('assistant')" class="p-2.5 bg-dark-850 hover:bg-dark-800 text-gray-400 hover:text-white border border-dark-700 rounded-xl text-xs transition" title="Sentinel KI-Assistent öffnen">
+                    💬
                 </button>
             </div>
         </div>
@@ -359,6 +368,91 @@
                     💡 Tipp: Über das Profil <strong>'Hardened Production'</strong> wird der Root-Login automatisch deaktiviert und Key-Authentifizierung erzwungen.
                 </div>
             </div>
+        </div>
+
+        <!-- Fail2ban Intrusion Prevention Management Card -->
+        <div class="sys-card p-6 border-dark-700 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+                        <span>🚨 Fail2Ban Brute-Force Schutz (L4/L7 System-Jails)</span>
+                        <span class="px-2 py-0.5 rounded text-xs font-mono {{ 'badge-emerald' if f2b.running else 'badge-amber' }}">
+                            {{ 'Dienst Aktiv' if f2b.running else ('Nicht gestartet' if f2b.installed else 'Nicht installiert') }}
+                        </span>
+                    </h3>
+                    <p class="text-xs text-gray-400 font-mono mt-1">Überwacht System-Logs (SSH, Mail) und blockiert Brute-Force-Angreifer automatisch.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if f2b.installed %}
+                    <button type="button" onclick="openFail2banModal()" class="px-3.5 py-1.5 bg-dark-850 hover:bg-dark-800 text-teal-400 border border-teal-500/30 rounded-xl text-xs font-mono font-medium transition flex items-center gap-1.5">
+                        <span>⚙️ Konfigurieren</span>
+                    </button>
+                    {% if f2b.running %}
+                    <form method="POST" action="{{ url_for('security.fail2ban_action', action='restart') }}">
+                        <button type="submit" class="px-3 py-1.5 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">
+                            Neustart
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('security.fail2ban_action', action='start') }}">
+                        <button type="submit" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-bold transition">
+                            Starten
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% else %}
+                    <a href="{{ url_for('packages.index', tab='discover') }}" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-bold transition">
+                        Im Paketmanager installieren →
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 font-mono text-xs">
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-400 text-[11px]">SPERRDAUER (BANTIME)</span>
+                    <div class="text-white font-bold text-sm">{{ fail2ban_cfg.bantime }}s</div>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-400 text-[11px]">ZEITFENSTER (FINDTIME)</span>
+                    <div class="text-white font-bold text-sm">{{ fail2ban_cfg.findtime }}s</div>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-400 text-[11px]">FEHLVERSUCHE (MAXRETRY)</span>
+                    <div class="text-white font-bold text-sm">{{ fail2ban_cfg.maxretry }} Versuche</div>
+                </div>
+                <div class="p-3 bg-dark-950 border border-dark-800 rounded-xl space-y-1">
+                    <span class="text-gray-400 text-[11px]">AKTIVE JAILS</span>
+                    <div class="text-emerald-400 font-bold text-sm">{{ f2b.jails|join(', ') if f2b.jails else 'Keine' }}</div>
+                </div>
+            </div>
+
+            {% if f2b.banned_ips %}
+            <div class="space-y-2 pt-2">
+                <span class="text-xs font-mono text-gray-400 uppercase">Aktuell von Fail2Ban gesperrte IPs ({{ f2b.banned_ips|length }})</span>
+                <div class="bg-dark-950 border border-dark-800 rounded-xl p-3 max-h-40 overflow-y-auto divide-y divide-dark-900 font-mono text-xs">
+                    {% for item in f2b.banned_ips %}
+                    <div class="flex items-center justify-between py-1.5">
+                        <div class="flex items-center gap-2">
+                            <span class="text-rose-400 font-bold">{{ item.ip if item is mapping else item }}</span>
+                            {% if item is mapping and item.jail %}
+                            <span class="text-[10px] text-gray-500 font-mono">[{{ item.jail }}]</span>
+                            {% endif %}
+                        </div>
+                        <form method="POST" action="{{ url_for('security.fail2ban_unban_route') }}">
+                            <input type="hidden" name="ip_address" value="{{ item.ip if item is mapping else item }}">
+                            {% if item is mapping and item.jail %}
+                            <input type="hidden" name="jail" value="{{ item.jail }}">
+                            {% endif %}
+                            <button type="submit" class="text-[10px] px-2 py-0.5 rounded bg-dark-800 hover:bg-dark-700 text-teal-300">
+                                Entsperren
+                            </button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- ClamAV Viren- & Malwarescanner -->
@@ -1267,6 +1361,250 @@
         </form>
     </div>
 </div>
+
+<!-- Modal: Sicherheits-Behebungs-Assistent (Quick Remediation Wizard) -->
+<div id="modal-remediation-wizard" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-fade-in space-y-4 max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="flex justify-between items-center pb-3 border-b border-dark-800 shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-rose-500/20 border border-amber-500/30 flex items-center justify-center text-xl">
+                    🛡️
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white font-mono">Sicherheits-Behebungs-Assistent</h3>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">Automatisierte und sichere Behebung aller erkannten Schwachstellen (ohne Aussperr-Gefahr).</p>
+                </div>
+            </div>
+            <button onclick="closeModal('modal-remediation-wizard')" class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <!-- Scrollable Remediation Steps -->
+        <div class="overflow-y-auto space-y-3 flex-1 pr-1 font-mono text-xs">
+
+            <!-- Step 1: UFW Firewall -->
+            <div class="p-4 bg-dark-950 border {{ 'border-amber-500/40' if not ufw.active else 'border-dark-800' }} rounded-xl space-y-2.5">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-white text-sm">1. UFW Firewall</span>
+                            <span class="px-2 py-0.2 rounded text-[10px] {{ 'badge-emerald' if ufw.active else 'badge-amber' }}">
+                                {{ 'Aktiv & Geschützt' if ufw.active else 'Inaktiv (Gefahr)' }}
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-gray-400 font-sans">
+                            {% if not ufw.active %}
+                            Alle ungenutzten Ports sind derzeit ungefiltert exponiert. Eingehender Datenverkehr wird nicht kontrolliert.
+                            {% else %}
+                            Eingehende Verbindungen werden blockiert, freigegebene Ports (Web, SSH, Games) sind erreichbar.
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if not ufw.active %}
+                    <button type="button" onclick="closeModal('modal-remediation-wizard'); openFirewallWizard();" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shrink-0 transition shadow-lg shadow-emerald-900/20">
+                        Mit Port-Schutz aktivieren →
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Step 2: Fail2Ban Intrusion Prevention -->
+            <div class="p-4 bg-dark-950 border {{ 'border-amber-500/40' if not f2b.running else 'border-dark-800' }} rounded-xl space-y-2.5">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-white text-sm">2. Fail2Ban Brute-Force Schutz</span>
+                            <span class="px-2 py-0.2 rounded text-[10px] {{ 'badge-emerald' if f2b.running else 'badge-amber' }}">
+                                {{ 'Aktiv' if f2b.running else ('Nicht gestartet' if f2b.installed else 'Nicht installiert') }}
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-gray-400 font-sans">
+                            Schützt SSH und Systemdienste vor automatisierten Wörterbuch- und Brute-Force-Attacken durch dynamische IP-Sperren.
+                        </p>
+                    </div>
+                    <div class="shrink-0 flex items-center gap-2">
+                        {% if not f2b.installed %}
+                        <a href="{{ url_for('packages.index', tab='discover') }}" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition">
+                            Installieren →
+                        </a>
+                        {% elif not f2b.running %}
+                        <form method="POST" action="{{ url_for('security.apply_remediation') }}">
+                            <input type="hidden" name="action" value="fix_fail2ban_start">
+                            <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition">
+                                Jetzt starten & aktivieren
+                            </button>
+                        </form>
+                        {% else %}
+                        <button type="button" onclick="closeModal('modal-remediation-wizard'); openFail2banModal();" class="px-3 py-1.5 bg-dark-850 hover:bg-dark-800 text-teal-400 border border-teal-500/30 rounded-lg text-xs transition">
+                            Konfigurieren ⚙️
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: SSH Root-Login -->
+            <div class="p-4 bg-dark-950 border {{ 'border-rose-500/40' if ssh.permit_root_login == 'yes' else 'border-dark-800' }} rounded-xl space-y-2.5">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-white text-sm">3. SSH Root-Login</span>
+                            <span class="px-2 py-0.2 rounded text-[10px] {{ 'badge-rose' if ssh.permit_root_login == 'yes' else 'badge-emerald' }}">
+                                {{ 'Aktiviert (Gefahr)' if ssh.permit_root_login == 'yes' else 'Deaktiviert (Sicher)' }}
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-gray-400 font-sans">
+                            Verhindert direkte Anmeldeversuche als Administrator 'root'. Erfordert Login über reguläre Sudo-Benutzer.
+                        </p>
+                    </div>
+                    {% if ssh.permit_root_login == 'yes' %}
+                    <form method="POST" action="{{ url_for('security.apply_remediation') }}">
+                        <input type="hidden" name="action" value="fix_ssh_root">
+                        <button type="submit" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold shrink-0 transition shadow-lg shadow-rose-900/20">
+                            Sicher deaktivieren
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% if ssh.permit_root_login == 'yes' %}
+                <div class="p-2 bg-dark-900 rounded border border-dark-800 text-[10px] text-teal-300">
+                    🔒 <strong>Aussperr-Schutz:</strong> SysCore nutzt SafeApply, prüft die Syntax mit <code class="text-white">sshd -t</code> vor dem Neuladen und rollt bei Fehlern automatisch zurück.
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Step 4: SSH Standardport 22 -->
+            <div class="p-4 bg-dark-950 border {{ 'border-amber-500/30' if ssh.port == 22 else 'border-dark-800' }} rounded-xl space-y-2.5">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-white text-sm">4. SSH Standardport</span>
+                            <span class="px-2 py-0.2 rounded text-[10px] {{ 'badge-amber' if ssh.port == 22 else 'badge-emerald' }}">
+                                Port {{ ssh.port }} {{ '(Standard)' if ssh.port == 22 else '(Gehärtet)' }}
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-gray-400 font-sans">
+                            Ein Wechsel von Port 22 auf einen benutzerdefinierten Port (z.B. 2222) eliminiert 95% aller automatisierten Bot-Scans im Vorfeld.
+                        </p>
+                    </div>
+                </div>
+                {% if ssh.port == 22 %}
+                <form method="POST" action="{{ url_for('security.apply_remediation') }}" class="flex items-center gap-2 pt-1">
+                    <input type="hidden" name="action" value="fix_ssh_port">
+                    <label class="text-gray-400 text-[11px]">Neuer Port:</label>
+                    <input type="number" name="new_port" value="2222" min="1024" max="65535" required class="w-24 px-2.5 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-white font-mono text-xs">
+                    <button type="submit" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-black font-bold rounded-lg text-xs transition">
+                        Port sicher wechseln
+                    </button>
+                    <span class="text-[10px] text-gray-500">Wird automatisch vorab in UFW freigegeben!</span>
+                </form>
+                {% endif %}
+            </div>
+
+            <!-- Step 5: NGINX Sicherheits-Header & WAF -->
+            <div class="p-4 bg-dark-950 border {{ 'border-amber-500/30' if not waf.active else 'border-dark-800' }} rounded-xl space-y-2.5">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-white text-sm">5. NGINX Sicherheits-Header & WAF</span>
+                            <span class="px-2 py-0.2 rounded text-[10px] {{ 'badge-emerald' if waf.active else 'badge-amber' }}">
+                                {{ 'Aktiv' if waf.active else 'Standard' }}
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-gray-400 font-sans">
+                            Aktiviert moderne Schutz-Header (X-Content-Type-Options, Frame-Options, XSS-Filter, Referrer-Policy) über NGINX Drop-Ins.
+                        </p>
+                    </div>
+                    {% if not waf.active %}
+                    <form method="POST" action="{{ url_for('security.apply_remediation') }}">
+                        <input type="hidden" name="action" value="fix_waf">
+                        <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shrink-0 transition">
+                            Jetzt aktivieren
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="pt-3 border-t border-dark-800 flex justify-end gap-2 shrink-0">
+            <button type="button" onclick="closeModal('modal-remediation-wizard')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl text-xs font-mono transition">
+                Schließen
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Fail2Ban Konfigurations-Editor -->
+<div id="modal-fail2ban-config" class="sys-modal fixed inset-0 z-50 cmd-palette-backdrop hidden items-center justify-center p-4">
+    <div class="bg-dark-900 border border-dark-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-fade-in space-y-4 max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="flex justify-between items-center pb-3 border-b border-dark-800 shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="p-1.5 bg-teal-500/10 border border-teal-500/20 text-teal-400 rounded-lg text-sm">🚨</span>
+                <h3 class="text-base font-bold text-white font-mono">Fail2Ban Schutz-Konfiguration</h3>
+            </div>
+            <button onclick="closeModal('modal-fail2ban-config')" class="text-gray-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('security.configure_fail2ban') }}" class="space-y-4 font-mono text-xs flex-1 overflow-y-auto pr-1">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-gray-400 mb-1 font-bold">Sperrdauer (bantime)</label>
+                    <input type="text" name="bantime" value="{{ fail2ban_cfg.bantime }}" required placeholder="z.B. 3600 oder 1h" class="w-full px-3 py-2 bg-dark-950 border border-dark-700 focus:border-teal-500 rounded-xl text-white outline-none">
+                    <p class="text-[10px] text-gray-500 mt-1">Dauer des IP-Banns (z.B. 3600 = 1 Std., 86400 = 24 Std.).</p>
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-1 font-bold">Zeitfenster (findtime)</label>
+                    <input type="text" name="findtime" value="{{ fail2ban_cfg.findtime }}" required placeholder="z.B. 600 oder 10m" class="w-full px-3 py-2 bg-dark-950 border border-dark-700 focus:border-teal-500 rounded-xl text-white outline-none">
+                    <p class="text-[10px] text-gray-500 mt-1">Zeitspanne für Fehlversuche.</p>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1 font-bold">Maximale Fehlversuche (maxretry)</label>
+                <input type="number" name="maxretry" value="{{ fail2ban_cfg.maxretry }}" min="1" max="50" required class="w-full px-3 py-2 bg-dark-950 border border-dark-700 focus:border-teal-500 rounded-xl text-white outline-none">
+                <p class="text-[10px] text-gray-500 mt-1">Nach wie vielen Fehlversuchen die IP gesperrt wird (Empfehlung: 3-5).</p>
+            </div>
+
+            <div>
+                <label class="block text-gray-400 mb-1 font-bold">IP-Whitelist (ignoreip)</label>
+                <input type="text" name="ignoreip" value="{{ fail2ban_cfg.ignoreip }}" required placeholder="127.0.0.1/8 ::1" class="w-full px-3 py-2 bg-dark-950 border border-dark-700 focus:border-teal-500 rounded-xl text-white outline-none">
+                <p class="text-[10px] text-gray-500 mt-1">IP-Adressen oder Subnetze, die niemals gesperrt werden dürfen.</p>
+            </div>
+
+            <div class="space-y-2 pt-1 border-t border-dark-800">
+                <span class="block text-gray-400 font-bold uppercase text-[10px]">Aktive Schutz-Jails</span>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="sshd_enabled" value="1" {{ 'checked' if fail2ban_cfg.sshd_enabled else '' }} class="w-4 h-4 rounded bg-dark-950 border-dark-700 text-teal-500 focus:ring-0">
+                    <span class="text-gray-200">OpenSSH Jail aktivieren (Schutz für Port {{ ssh.port }})</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="nginx_enabled" value="1" {{ 'checked' if fail2ban_cfg.nginx_enabled else '' }} class="w-4 h-4 rounded bg-dark-950 border-dark-700 text-teal-500 focus:ring-0">
+                    <span class="text-gray-200">NGINX HTTP-Auth Jail aktivieren (Passwort-Schutz für Webspaces)</span>
+                </label>
+            </div>
+
+            <div class="p-2.5 bg-teal-500/10 border border-teal-500/20 rounded-xl text-teal-300 text-[10px]">
+                🛡️ <strong>Drop-In Architektur (SEC-005):</strong> Die Konfiguration wird in <code class="text-white">/etc/fail2ban/jail.d/99-syscore.conf</code> abgelegt. Vorhandene Systemkonfigurationen bleiben unberührt.
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="pt-3 border-t border-dark-800 flex justify-end gap-2 shrink-0">
+                <button type="button" onclick="closeModal('modal-fail2ban-config')" class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 rounded-xl transition">Abbrechen</button>
+                <button type="submit" class="px-5 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl font-bold transition shadow-lg shadow-teal-900/30">
+                    Konfiguration speichern & neu laden
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -1903,10 +2241,42 @@ async function copyAuditToClipboard() {
     }
 }
 
+// Remediation & Fail2ban Modals
+function openRemediationModal() {
+    const modal = document.getElementById('modal-remediation-wizard');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+function openFail2banModal() {
+    const modal = document.getElementById('modal-fail2ban-config');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     // Standardmäßig Easy Mode aktiv
     toggleSecurityMode('easy');
     loadAuditPreview();
+
+    // URL Parameter prüfen
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam) switchSecTab(tabParam);
+    if (urlParams.get('config') === 'fail2ban') openFail2banModal();
+    if (urlParams.get('action') === 'remediate') openRemediationModal();
 });
 </script>
 {% endblock %}
