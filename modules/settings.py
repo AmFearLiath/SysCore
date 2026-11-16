@@ -8,7 +8,7 @@ import glob
 import shutil
 import threading
 import subprocess
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, Response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, Response, stream_with_context
 from modules.auth_users import login_required, role_required, current_user
 from db import query_db, execute_db, log_audit, get_db, get_database_engine_info
 import config
@@ -415,7 +415,12 @@ def pm2_action(pm_id, action):
 @role_required(["root_admin"])
 def run_system_update():
     """Führt ein 1-Klick Git-Update mit Live-Streaming im Terminal Drawer aus"""
-    log_audit(session.get("username"), "SYSTEM_UPDATE_START", "SysCore Auto-Update von GitHub gestartet", request.remote_addr)
+    username = session.get("username", "admin")
+    client_ip = request.remote_addr or "127.0.0.1"
+    try:
+        log_audit(username, "SYSTEM_UPDATE_START", "SysCore Auto-Update von GitHub gestartet", client_ip)
+    except Exception:
+        pass
     base_dir = str(config.BASE_DIR)
 
     def generate():
@@ -446,23 +451,40 @@ def run_system_update():
                 yield f"data: {line.strip()}\n\n"
             reset_proc.wait()
 
-        # 3. Pip dependencies & DB migration (SEC-019: Venv-Isolation)
+        # 3. Pip dependencies & DB migration (SEC-019: Venv-Isolation + Debian 12 PEP 668 Support)
         yield "data: [3/4] Prüfe Abhängigkeiten in SysCore-Venv & führe Datenbank-Migrationen aus...\n\n"
-        venv_pip = os.path.join(base_dir, "venv", "bin", "pip")
+        venv_dir = os.path.join(base_dir, "venv")
+        venv_pip = os.path.join(venv_dir, "bin", "pip")
         if not os.path.exists(venv_pip):
-            venv_pip = os.path.join(base_dir, "venv", "Scripts", "pip.exe")
+            venv_pip = os.path.join(venv_dir, "Scripts", "pip.exe")
+
+        # Falls keine venv existiert, erstelle eine oder nutze Fallback
+        if not os.path.exists(venv_pip) and hasattr(os, "geteuid"):
+            try:
+                subprocess.run([sys.executable, "-m", "venv", venv_dir], cwd=base_dir, capture_output=True, timeout=30)
+                if os.path.exists(os.path.join(venv_dir, "bin", "pip")):
+                    venv_pip = os.path.join(venv_dir, "bin", "pip")
+            except Exception:
+                pass
 
         if os.path.exists(venv_pip):
             pip_cmd = [venv_pip, "install", "-r", "requirements.txt", "--quiet"]
         else:
-            pip_cmd = [sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "--quiet"]
+            # Fallback mit PEP 668 Flag für systemweites Python auf Debian 12 / Ubuntu 24.04
+            pip_cmd = [sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "--quiet", "--break-system-packages"]
 
         try:
             pip_res = subprocess.run(pip_cmd, cwd=base_dir, capture_output=True, text=True, timeout=60)
+            if pip_res.returncode != 0 and "--break-system-packages" in pip_cmd:
+                # Falls älteres Pip das Flag nicht kennt, einmalig ohne probieren
+                pip_fallback = [c for c in pip_cmd if c != "--break-system-packages"]
+                pip_res = subprocess.run(pip_fallback, cwd=base_dir, capture_output=True, text=True, timeout=60)
+
             if pip_res.returncode == 0:
                 yield "data: Python Abhängigkeiten in isolierter Umgebung erfolgreich verifiziert.\n\n"
             else:
-                yield f"data: Pip Info: {pip_res.stderr[:100]}\n\n"
+                err_msg = pip_res.stderr.strip() or pip_res.stdout.strip()
+                yield f"data: Pip Info: {err_msg[:120]}\n\n"
         except Exception as e:
             yield f"data: Pip Warnung: {e}\n\n"
 
@@ -477,9 +499,16 @@ def run_system_update():
         clear_updater_cache()
         yield "data: [4/4] Aktualisierung abgeschlossen! Server-Dienst startet in 2 Sekunden automatisch neu...\n\n"
         yield "data: [ERFOLG] SysCore erfolgreich auf die neueste Version aktualisiert!\n\n"
-        log_audit(session.get("username"), "SYSTEM_UPDATE_FINISH", "SysCore Update erfolgreich abgeschlossen", request.remote_addr)
 
-        trigger_system_restart(delay_seconds=2)
+        try:
+            log_audit(username, "SYSTEM_UPDATE_FINISH", "SysCore Update erfolgreich abgeschlossen", client_ip)
+        except Exception:
+            pass
+
+        try:
+            trigger_system_restart(delay_seconds=2)
+        except Exception as restart_err:
+            yield f"data: [WARNUNG NEUSTART] {restart_err}\n\n"
 
     def safe_generate():
         try:
@@ -488,7 +517,7 @@ def run_system_update():
         except Exception as e:
             yield f"data: [FEHLER BEIM UPDATE] {e}\n\n"
 
-    return Response(safe_generate(), mimetype="text/event-stream")
+    return Response(stream_with_context(safe_generate()), mimetype="text/event-stream")
 
 @settings_bp.route("/api/updater/check", methods=["GET"])
 @login_required

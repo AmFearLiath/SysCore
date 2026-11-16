@@ -16,13 +16,18 @@ echo "[1/4] Ziehe neueste Version von origin/main..."
 git fetch origin main
 git pull --rebase=false origin main
 
-# 2. Abhängigkeiten in isolierter Virtualenv prüfen (SEC-019)
+# 2. Abhängigkeiten in isolierter Virtualenv prüfen (SEC-019 + PEP 668 Support)
 echo "[2/4] Überprüfe Python-Abhängigkeiten in SysCore-Venv..."
 if [ ! -d "venv" ]; then
-    echo "       Erstelle fehlende Virtualenv in ./venv..."
-    python3 -m venv venv
+    echo "       Erstelle Virtualenv in ./venv..."
+    python3 -m venv venv 2>/dev/null || true
 fi
-./venv/bin/pip install --upgrade -r requirements.txt --quiet
+
+if [ -f "./venv/bin/pip" ]; then
+    ./venv/bin/pip install --upgrade -r requirements.txt --quiet || true
+else
+    pip3 install --upgrade -r requirements.txt --quiet --break-system-packages 2>/dev/null || pip3 install --upgrade -r requirements.txt --quiet || true
+fi
 
 # 3. Datenbank-Migrationen & Hooks initialisieren
 echo "[3/4] Initialisiere Datenbank & Auto-Restart Hooks..."

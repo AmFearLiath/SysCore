@@ -127,13 +127,45 @@ def ufw_run(args, timeout=30):
 
 def trigger_panel_restart(delay_seconds=2):
     """
-    Startet das SysCore-Panel verzögert neu (z.B. nach Einstellungsänderungen).
-    Verwendet einen nicht-blockierenden systemctl Aufruf über nohup/subshell.
+    Startet das SysCore-Panel verzögert neu (z.B. nach Einstellungsänderungen oder Updates).
+    Nutzt bevorzugt systemd-run als eigenständige transiente Unit außerhalb der cgroup,
+    sodass systemd den Neustart-Prozess nicht beim Beenden des alten Daemons terminiert.
     """
     if hasattr(os, "geteuid"):
         sudo_prefix = "sudo -n " if not is_running_as_root() and shutil.which("sudo") else ""
-        cmd = f"sleep {delay_seconds}; {sudo_prefix}systemctl restart --no-block syscore-panel || {sudo_prefix}systemctl restart --no-block syscore"
-        subprocess.Popen(["sh", "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        delay = max(1, int(delay_seconds))
+
+        # 1. Bevorzugt: systemd-run (erstellt unabhängige Unit außerhalb der syscore-panel CGroup)
+        systemd_run_bin = shutil.which("systemd-run")
+        if systemd_run_bin:
+            try:
+                cmd_run = (
+                    f"{sudo_prefix}systemd-run --unit=syscore-restarter-{int(time.time())} "
+                    f"--on-active={delay}s {sudo_prefix}systemctl restart syscore-panel"
+                )
+                res = subprocess.run(["sh", "-c", cmd_run], capture_output=True, text=True, timeout=5)
+                if res.returncode == 0:
+                    return
+            except Exception:
+                pass
+
+        # 2. Fallback: Vollständig entkoppelter Subshell-Prozess mit nohup & neuer Session
+        cmd = (
+            f"nohup sh -c 'sleep {delay}; "
+            f"{sudo_prefix}systemctl restart --no-block syscore-panel 2>/dev/null || "
+            f"{sudo_prefix}systemctl restart --no-block syscore 2>/dev/null || "
+            f"true' >/dev/null 2>&1 &"
+        )
+        try:
+            subprocess.Popen(
+                ["sh", "-c", cmd],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True
+            )
+        except Exception:
+            subprocess.Popen(["sh", "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         # Windows Dev-Modus
         pass
