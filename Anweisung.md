@@ -76,4 +76,43 @@ Strukturiere das Backend sauber mit einer lokalen **SQLite-Datenbank (`syscore.d
    - Saubere Trennung zwischen Backend-Services/Logik und Flask-Routen.
 4. **Schrittweise Implementierung:** Beginne mit der Datenbank- & Auth-Basis (`syscore.db` + RBAC) sowie dem neuen Master-Layout (`base.html` + Echtzeit-Metrik-API), und arbeite danach Modul für Modul durch. Aktualisiere am Ende auch `install.sh` und `README.md`.
 
-Starte jetzt mit Schritt 1 (Analyse der vorhandenen Dateien im Workspace) und präsentiere mir kurz deinen Umsetzungsplan, bevor du die ersten Dateien schreibst.
+---
+
+## 5. Verbindliche Sicherheitsarchitektur & Sicherheits-Manifest (Enterprise Security Standard)
+Dieses Manifest basiert auf dem umfassenden Sicherheits-Audit (`Allgemeine Sicherheit.md`) und ist **verbindlicher Standard für jeden Codebestandteil von SysCore**. Da das System die vollständige Kontrolle über Webserver, Domains, Datenbanken und Systemdienste besitzt, müssen folgende Grundsätze ausnahmslos eingehalten werden:
+
+### 1. Privilege Separation & Ausführungsumgebung (SEC-001)
+- Die Flask/Gunicorn-Webanwendung darf **niemals als Root** laufen.
+- Der Webprozess wird unter einem dedizierten, unprivilegierten Systembenutzer (`syscore`) ausgeführt.
+- Privilegierte Systemoperationen (z. B. NGINX-Reload, Certbot, UFW, Systemd, User-Management) werden strikt vom Webinterface getrennt und über einen sicheren, validierten internen IPC-Agenten bzw. Sudoer-Wrapper mit expliziter Command-Whitelist ausgeführt.
+
+### 2. Keine beliebige Code-/Shell-Ausführung (SEC-002, SEC-018)
+- Keine Ausführung von `post_install_commands` oder Shell-Skripten aus hochgeladenen/importierten App-Paketen.
+- Umstellung auf eine deklarative Installationslogik über eine feste, serverseitige Action-Registry mit validierten Parametern.
+- Keine dynamische Interpretation von Benutzereingaben in Shell-Kontexten; stets `subprocess.run([...], shell=False)` mit expliziten Argumentlisten.
+
+### 3. Absolute Domain-Isolation & Symlink-Schutz (SEC-003, SEC-005, SEC-006)
+- **Strikte Mandantentrennung im Dateimanager:** Jeder Zugriff ist zwingend auf das zugehörige Domain-Verzeichnis beschränkt (z. B. `/var/www/domain.de/`).
+- Kein Ausbruch auf `/var/www` oder fremde Domains möglich – weder über Pfadmanipulation (`../`), absolute Pfade noch über Symlinks oder Hardlinks.
+- Sichere Pfadvalidierung mit kanonischer Verzeichnisgrenzenprüfung (`os.path.commonpath`) und Symlink-Auflösungsprüfung vor jeder Dateisystemoperation.
+
+### 4. Sichere Archiv-Verarbeitung & DoS-Schutz (SEC-004, SEC-007, SEC-014)
+- Vollständiger Schutz gegen Zip-Slip und Tar-Slip bei allen Import- und Restore-Vorgängen.
+- Vor der Extraktion: Einzelprüfung aller Archivmitglieder (keine absoluten Pfade, kein `..`, keine Symlinks auf Systemziele, keine Sonderdateien).
+- Harte Begrenzung von Upload-Größen pro Funktion, maximaler Dateianzahl und Gesamt-Entpackungsgröße (Schutz vor Zip-/Tar-Bomben).
+- Archiv-Extraktionen erfolgen stets zuerst in isolierte temporäre Quarantäne-Verzeichnisse mit atomarer Übernahme erst nach vollständiger Validierung.
+
+### 5. Durchgängiger Web- & Session-Schutz (SEC-008, SEC-009, SEC-010, SEC-011, SEC-017)
+- **CSRF-Schutz:** Sämtliche statusverändernden HTTP-Anfragen (POST, PUT, DELETE) und AJAX-Calls sind durch CSRF-Tokens geschützt.
+- **Echtzeit-Berechtigungsprüfung:** Rollen- und Aktivitätsprüfungen (`role_required`, `is_active`) werden bei jeder privilegierten Anfrage live gegen die Datenbank validiert – nicht allein aus der Flask-Session.
+- **Sichere Session-Cookies:** `SESSION_COOKIE_HTTPONLY = True`, `SESSION_COOKIE_SAMESITE = 'Lax'`, sowie `SESSION_COOKIE_SECURE = True` unter HTTPS. Session-Regenerierung bei Login und Logout.
+- **Open-Redirect-Schutz:** `next`-Parameter werden strikt auf relative, interne Pfade validiert.
+- **QR-Login-Härtung:** Einmalige Token-Verwendung, kurze Ablaufzeiten, CSRF-Schutz bei Bestätigung und strikte Bindung an die anfragende Session.
+
+### 6. Secrets, Datenbankrechte & System-Updates (SEC-012, SEC-013, SEC-015, SEC-016, SEC-019)
+- Dateirechte `0600` für `.env`, `.secret_key` und Datenbankdateien.
+- Keine Offenlegung von Stacktraces oder internen Pfaden in öffentlichen Fehlerseiten (`SEC-016`); technische Details ausschließlich in geschützten Server-Logs mit Request-ID.
+- Webhook-Endpunkte mit kryptografischer Signaturprüfung (HMAC-SHA256) und Replay-Schutz.
+- SysCore-Updates laufen ausschließlich isoliert innerhalb der virtuellen Umgebung (`/opt/syscore/venv`) – niemals global mit `--break-system-packages`.
+
+---
