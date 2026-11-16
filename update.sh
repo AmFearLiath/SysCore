@@ -16,13 +16,13 @@ echo "[1/4] Ziehe neueste Version von origin/main..."
 git fetch origin main
 git pull --rebase=false origin main
 
-# 2. Abhängigkeiten prüfen
-echo "[2/4] Überprüfe Python-Abhängigkeiten..."
-if [ -d "venv" ]; then
-    ./venv/bin/pip install --upgrade -r requirements.txt --quiet
-elif command -v pip3 >/dev/null 2>&1; then
-    pip3 install --upgrade -r requirements.txt --break-system-packages --quiet
+# 2. Abhängigkeiten in isolierter Virtualenv prüfen (SEC-019)
+echo "[2/4] Überprüfe Python-Abhängigkeiten in SysCore-Venv..."
+if [ ! -d "venv" ]; then
+    echo "       Erstelle fehlende Virtualenv in ./venv..."
+    python3 -m venv venv
 fi
+./venv/bin/pip install --upgrade -r requirements.txt --quiet
 
 # 3. Datenbank-Migrationen & Hooks initialisieren
 echo "[3/4] Initialisiere Datenbank & Auto-Restart Hooks..."

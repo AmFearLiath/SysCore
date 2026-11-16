@@ -68,9 +68,14 @@ def run_cli_update():
     out = (pull.stdout or "").strip()
     print(out if out else "Bereits auf dem neuesten Stand.")
 
-    print("[2/4] Überprüfe Python-Abhängigkeiten...")
-    if shutil.which("pip3"):
-        subprocess.run(["pip3", "install", "-r", "requirements.txt", "--break-system-packages", "--quiet"], cwd=base_dir)
+    print("[2/4] Überprüfe Python-Abhängigkeiten in SysCore-Venv (SEC-019)...")
+    venv_pip = os.path.join(base_dir, "venv", "bin", "pip")
+    if not os.path.exists(venv_pip):
+        venv_pip = os.path.join(base_dir, "venv", "Scripts", "pip.exe")
+    if os.path.exists(venv_pip):
+        subprocess.run([venv_pip, "install", "-r", "requirements.txt", "--quiet"], cwd=base_dir)
+    else:
+        subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "--quiet"], cwd=base_dir)
 
     print("[3/4] Initialisiere Datenbank & Hooks...")
     db.init_db()

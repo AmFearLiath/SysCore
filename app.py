@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import config
@@ -81,6 +82,7 @@ def require_authentication():
     }
 
     if (request.path.startswith("/api/webhook/") or 
+        request.path.startswith("/web/webhook/deploy/") or
         request.path.startswith("/mail/config-v1.1.xml") or 
         request.path.startswith("/login/2fa/") or
         "autodiscover" in request.path or 
@@ -111,11 +113,29 @@ def not_found(e):
 
 @app.errorhandler(500)
 def server_error(e):
+    # Generiere eindeutige Referenz-ID für diesen Fehler (SEC-016)
+    error_id = f"ERR-{secrets.token_hex(4).upper()}"
+    import traceback
+    tb = traceback.format_exc()
+    
+    # Technische Details und Stacktrace ausschließlich serverseitig protokollieren
+    print(f"[SysCore Server Exception {error_id}] {e}\n{tb}")
     try:
-        return render_template("500.html", error=str(e)), 500
-    except Exception as render_err:
-        import traceback
-        tb = traceback.format_exc()
+        db.log_audit(
+            username=session.get("username", "ANONYMOUS"),
+            action="SERVER_ERROR_500",
+            details=f"Fehler {error_id}: {str(e)[:250]} auf Pfad '{request.path}'",
+            ip_address=request.remote_addr,
+            status="error"
+        )
+    except Exception:
+        pass
+
+    # Benutzerfreundliche, maskierte Meldung ohne interne Datenlecks
+    masked_message = f"Ein unerwarteter interner Verarbeitungsfehler ist aufgetreten. Referenz: {error_id}"
+    try:
+        return render_template("500.html", error=masked_message, error_id=error_id), 500
+    except Exception:
         return f"""<!DOCTYPE html>
 <html lang="de" class="dark">
 <head>
@@ -123,9 +143,10 @@ def server_error(e):
     <title>500 - Interner Systemfehler // SysCore</title>
     <style>
         body {{ background-color: #030712; color: #f3f4f6; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; padding: 2rem; }}
-        .box {{ max-width: 700px; margin: 3rem auto; background: #111827; border: 1px solid #374151; border-radius: 1rem; padding: 2rem; }}
-        h1 {{ color: #f43f5e; margin-top: 0; font-size: 1.5rem; }}
-        pre {{ background: #030712; border: 1px solid #1f2937; padding: 1rem; border-radius: 0.5rem; color: #fb7185; font-size: 11px; overflow-x: auto; white-space: pre-wrap; }}
+        .box {{ max-width: 600px; margin: 4rem auto; background: #111827; border: 1px solid #1f2937; border-radius: 1rem; padding: 2.5rem; text-align: center; }}
+        h1 {{ color: #f43f5e; font-size: 1.5rem; margin-top: 0; }}
+        p {{ color: #9ca3af; font-size: 0.9rem; line-height: 1.5; }}
+        .ref-box {{ display: inline-block; background: #030712; border: 1px solid #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; color: #34d399; font-weight: bold; margin: 1.5rem 0; font-size: 0.85rem; }}
         a {{ color: #10b981; text-decoration: none; font-weight: bold; }}
         a:hover {{ text-decoration: underline; }}
     </style>
@@ -133,9 +154,10 @@ def server_error(e):
 <body>
     <div class="box">
         <h1>500 - Interner Systemfehler</h1>
-        <p>Ein interner Fehler ist aufgetreten:</p>
-        <pre>{e}\n\n[Template Fallback Details]\n{tb}</pre>
-        <p style="margin-top: 1.5rem;"><a href="/">&larr; Zurück zum Dashboard</a></p>
+        <p>Ein interner Fehler ist aufgetreten. Aus Sicherheitsgründen werden technische Details nicht öffentlich ausgegeben.</p>
+        <div class="ref-box">Fehler-Referenz: {error_id}</div>
+        <p>Bitte wende dich mit dieser Referenz-ID an den Server-Administrator.</p>
+        <p style="margin-top: 2rem;"><a href="/">&larr; Zurück zum Dashboard</a></p>
     </div>
 </body>
 </html>""", 500

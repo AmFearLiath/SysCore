@@ -445,18 +445,25 @@ def run_system_update():
                 yield f"data: {line.strip()}\n\n"
             reset_proc.wait()
 
-        # 3. Pip dependencies & DB migration
-        yield "data: [3/4] Prüfe Abhängigkeiten & führe Datenbank-Migrationen aus...\n\n"
-        if shutil.which("pip3"):
-            pip_cmd = ["pip3", "install", "-r", "requirements.txt", "--break-system-packages"]
-            try:
-                pip_res = subprocess.run(pip_cmd, cwd=base_dir, capture_output=True, text=True, timeout=60)
-                if pip_res.returncode == 0:
-                    yield "data: Python Abhängigkeiten verifiziert.\n\n"
-                else:
-                    yield f"data: Pip Info: {pip_res.stderr[:100]}\n\n"
-            except Exception as e:
-                yield f"data: Pip Warnung: {e}\n\n"
+        # 3. Pip dependencies & DB migration (SEC-019: Venv-Isolation)
+        yield "data: [3/4] Prüfe Abhängigkeiten in SysCore-Venv & führe Datenbank-Migrationen aus...\n\n"
+        venv_pip = os.path.join(base_dir, "venv", "bin", "pip")
+        if not os.path.exists(venv_pip):
+            venv_pip = os.path.join(base_dir, "venv", "Scripts", "pip.exe")
+
+        if os.path.exists(venv_pip):
+            pip_cmd = [venv_pip, "install", "-r", "requirements.txt", "--quiet"]
+        else:
+            pip_cmd = [sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "--quiet"]
+
+        try:
+            pip_res = subprocess.run(pip_cmd, cwd=base_dir, capture_output=True, text=True, timeout=60)
+            if pip_res.returncode == 0:
+                yield "data: Python Abhängigkeiten in isolierter Umgebung erfolgreich verifiziert.\n\n"
+            else:
+                yield f"data: Pip Info: {pip_res.stderr[:100]}\n\n"
+        except Exception as e:
+            yield f"data: Pip Warnung: {e}\n\n"
 
         try:
             import db

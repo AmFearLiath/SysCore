@@ -408,7 +408,18 @@ def upload():
     count = 0
     for f in files:
         if f and f.filename:
+            # Ressourcenschutz gegen Speicherplatz-Erschöpfung (SEC-014)
+            try:
+                free_space = shutil.disk_usage(domain_base).free
+                if free_space < 50 * 1024 * 1024:  # Mindestens 50 MB Puffer
+                    flash("Upload abgebrochen: Zu wenig freier Festplattenspeicher verfügbar.", "error")
+                    break
+            except Exception:
+                pass
+
             fname = secure_filename(f.filename)
+            if not fname:
+                continue
             dest = os.path.join(abs_path, fname)
             f.save(dest)
             if shutil.which("chown"):

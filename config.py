@@ -2,11 +2,20 @@ import os
 import secrets
 from pathlib import Path
 
+def ensure_secure_file_permissions(file_path):
+    """Sicherheitsanforderung SEC-012: Dateirechte für Secrets auf 0600 (nur Besitzer) beschränken"""
+    try:
+        if os.name != "nt" and os.path.exists(file_path):
+            os.chmod(file_path, 0o600)
+    except Exception:
+        pass
+
 # Versuche .env Datei zu laden (sofern python-dotenv verfügbar)
 try:
     from dotenv import load_dotenv
     env_path = Path(__file__).resolve().parent / ".env"
     if env_path.exists():
+        ensure_secure_file_permissions(env_path)
         load_dotenv(dotenv_path=env_path, override=True)
 except ImportError:
     pass
@@ -24,10 +33,12 @@ if not SECRET_KEY:
     keyfile = BASE_DIR / ".secret_key"
     if keyfile.exists():
         SECRET_KEY = keyfile.read_text().strip()
+        ensure_secure_file_permissions(keyfile)
     else:
         SECRET_KEY = secrets.token_hex(32)
         try:
             keyfile.write_text(SECRET_KEY)
+            ensure_secure_file_permissions(keyfile)
         except OSError:
             pass
 

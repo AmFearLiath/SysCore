@@ -4,6 +4,9 @@ import glob
 import time
 import shutil
 import secrets
+import shlex
+import hmac
+import hashlib
 import subprocess
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_file, Response
@@ -611,14 +614,7 @@ def fix_certbot_conflict_core():
     if os.name == "nt":
         return True, "Windows: Prüfung übersprungen"
 
-    # Versuch 1: pyopenssl via pip3 aktualisieren (--break-system-packages)
-    if shutil.which("pip3"):
-        subprocess.run(["pip3", "install", "--upgrade", "pyopenssl>=24.0.0", "--break-system-packages"], capture_output=True, text=True, timeout=60)
-        ok, _, status = check_certbot_status()
-        if ok or status != "conflict":
-            return True, "pyOpenSSL erfolgreich via Pip aktualisiert. Certbot ist wieder voll funktionsfähig."
-
-    # Versuch 2: Störende globale pip dist-packages bereinigen und Debian APT-Pakete reparieren
+    # Saubere APT-Paketreparatur ohne globale pip-Kollisionen (SEC-019)
     try:
         sh_cmd = """
         rm -rf /usr/local/lib/python3*/dist-packages/cryptography* 2>/dev/null
@@ -628,6 +624,8 @@ def fix_certbot_conflict_core():
         apt-get install --reinstall -y python3-cryptography python3-openssl certbot python3-certbot-nginx 2>/dev/null
         """
         subprocess.run(["sh", "-c", sh_cmd], capture_output=True, text=True, timeout=90)
+    except Exception:
+        pass
     except Exception:
         pass
 
@@ -1619,12 +1617,40 @@ def domain_logs_stream(domain, log_type):
 
     return Response(stream(), mimetype="text/event-stream")
 
+ALLOWED_DEPLOY_BINARIES = {
+    "composer", "npm", "yarn", "pnpm", "php", "python", "python3", "pip", "artisan", "wp"
+}
+
+def validate_post_deploy_cmd(cmd_str):
+    """Prüft Post-Deploy-Befehle gegen Whitelist und verbietet Shell-Pipes/Chaining (SEC-015)"""
+    if not cmd_str:
+        return True, ""
+    forbidden_chars = [";", "&&", "||", "|", "`", "$", "\n", "\r", "<", ">"]
+    for ch in forbidden_chars:
+        if ch in cmd_str:
+            return False, f"Zeichen '{ch}' im Post-Deploy-Befehl aus Sicherheitsgründen nicht erlaubt."
+    try:
+        parts = shlex.split(cmd_str)
+    except Exception as e:
+        return False, f"Befehlssyntax ungültig: {e}"
+    if not parts:
+        return True, ""
+    binary = os.path.basename(parts[0]).lower()
+    if binary not in ALLOWED_DEPLOY_BINARIES:
+        return False, f"Befehl '{binary}' nicht in der Whitelist erlaubt. Zulässige Build-Tools: {', '.join(sorted(ALLOWED_DEPLOY_BINARIES))}"
+    return True, ""
+
 @webserver_bp.route("/domain/webhook/save/<domain>", methods=["POST"])
 @login_required
 @role_required(["root_admin", "web_admin"])
 def save_domain_webhook(domain):
     branch = request.form.get("branch", "main").strip() or "main"
     post_cmd = request.form.get("post_deploy_cmd", "").strip()
+
+    is_valid_cmd, cmd_err = validate_post_deploy_cmd(post_cmd)
+    if not is_valid_cmd:
+        flash(f"Webhook-Konfiguration abgelehnt: {cmd_err}", "error")
+        return redirect(url_for("webserver.index"))
 
     existing = query_db("SELECT token FROM web_deploy_hooks WHERE domain = ?", (domain,), one=True)
     if existing:
@@ -1646,11 +1672,38 @@ def save_domain_webhook(domain):
     log_audit(session.get("username"), "WEBHOOK_CONFIG", f"Git Auto-Deploy für '{domain}' konfiguriert (Branch: {branch})", request.remote_addr)
     return redirect(url_for("webserver.index"))
 
-@webserver_bp.route("/webhook/deploy/<token>", methods=["GET", "POST"])
+@webserver_bp.route("/webhook/deploy/<token>", methods=["POST"])
 def trigger_deploy_webhook(token):
+    # Nur POST-Anfragen sind für Deploy-Hooks zulässig (SEC-015)
     hook = query_db("SELECT * FROM web_deploy_hooks WHERE token = ?", (token,), one=True)
     if not hook:
         return jsonify({"error": "Ungültiges Webhook-Token"}), 404
+
+    # 1. Signaturprüfung für GitHub/GitLab (SEC-015)
+    gh_signature = request.headers.get("X-Hub-Signature-256")
+    if gh_signature:
+        expected_sig = "sha256=" + hmac.new(token.encode("utf-8"), request.get_data(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected_sig, gh_signature):
+            log_audit("WEBHOOK", "DEPLOY_REJECTED", f"Ungültige GitHub HMAC-Signatur für {hook['domain']}", request.remote_addr, "warning")
+            return jsonify({"error": "Ungültige HMAC-Signatur"}), 403
+
+    gl_token = request.headers.get("X-Gitlab-Token")
+    if gl_token and not hmac.compare_digest(gl_token, token):
+        log_audit("WEBHOOK", "DEPLOY_REJECTED", f"Ungültiger GitLab Token für {hook['domain']}", request.remote_addr, "warning")
+        return jsonify({"error": "Ungültiger GitLab Token"}), 403
+
+    # 2. Replay- & DoS-Schutz: Rate-Limiting (mindestens 15 Sekunden Abstand, SEC-015)
+    if hook["last_deployed_at"]:
+        try:
+            last_dt = datetime.strptime(str(hook["last_deployed_at"])[:19], "%Y-%m-%d %H:%M:%S")
+            delta = (datetime.utcnow() - last_dt).total_seconds()
+            if delta < 15:
+                return jsonify({
+                    "error": "Rate-Limit aktiv: Bitte warte mindestens 15 Sekunden zwischen Auto-Deploys.",
+                    "retry_after_seconds": int(15 - delta)
+                }), 429
+        except Exception:
+            pass
 
     domain = hook["domain"]
     branch = hook["branch"] or "main"
@@ -1675,21 +1728,27 @@ def trigger_deploy_webhook(token):
         execute_db("UPDATE web_deploy_hooks SET last_status = ?, last_deployed_at = CURRENT_TIMESTAMP WHERE id = ?", (f"error: {e}", hook["id"]))
         return jsonify({"status": "failed", "error": str(e)}), 500
 
+    # 3. Sichere Post-Deploy-Ausführung ohne shell=True (SEC-015)
     if post_cmd:
-        try:
-            cmd_res = subprocess.run(
-                post_cmd, shell=True, cwd=webroot, capture_output=True, text=True, timeout=120
-            )
-            deploy_logs.append(f"Post-Deploy Command: {post_cmd}\n" + cmd_res.stdout + "\n" + cmd_res.stderr)
-        except Exception as e:
-            deploy_logs.append(f"Post-Deploy Command Fehler: {e}")
+        is_safe, err_msg = validate_post_deploy_cmd(post_cmd)
+        if not is_safe:
+            deploy_logs.append(f"Post-Deploy Command Sicherheitsfehler: {err_msg}")
+        else:
+            try:
+                cmd_parts = shlex.split(post_cmd)
+                cmd_res = subprocess.run(
+                    cmd_parts, shell=False, cwd=webroot, capture_output=True, text=True, timeout=120
+                )
+                deploy_logs.append(f"Post-Deploy Command: {post_cmd}\n" + cmd_res.stdout + "\n" + cmd_res.stderr)
+            except Exception as e:
+                deploy_logs.append(f"Post-Deploy Command Fehler: {e}")
 
     if shutil.which("chown"):
         subprocess.run(["chown", "-R", "www-data:www-data", webroot], check=False)
 
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     execute_db("UPDATE web_deploy_hooks SET last_status = 'success', last_deployed_at = ? WHERE id = ?", (now_str, hook["id"]))
-    log_audit("WEBHOOK", "GIT_AUTO_DEPLOY", f"Auto-Deploy für {domain} via Webhook ausgeführt", request.remote_addr)
+    log_audit("WEBHOOK", "GIT_AUTO_DEPLOY", f"Auto-Deploy für {domain} via Webhook ausgeführt", request.remote_addr, "success")
 
     return jsonify({
         "status": "success",

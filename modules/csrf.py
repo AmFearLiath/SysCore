@@ -6,6 +6,7 @@ from db import log_audit
 
 EXEMPT_PATHS = (
     "/api/webhook/",
+    "/web/webhook/deploy/",
     "/mail/config-v1.1.xml",
     "/static/"
 )

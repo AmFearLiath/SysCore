@@ -356,19 +356,20 @@ def create_mysql_admin_user(username, password):
     if len(password) < 6 or "'" in password or "\\" in password:
         return False, "Das Passwort muss mindestens 6 Zeichen lang sein und darf keine einfachen Anführungszeichen (') oder Backslashes enthalten."
 
+    # Principle of Least Privilege (SEC-013): Keine unnötigen GRANT OPTION Rechte vergeben
     sql = (
         f"CREATE USER IF NOT EXISTS '{username}'@'localhost' IDENTIFIED BY '{password}'; "
         f"ALTER USER '{username}'@'localhost' IDENTIFIED BY '{password}'; "
-        f"GRANT ALL PRIVILEGES ON *.* TO '{username}'@'localhost' WITH GRANT OPTION; "
+        f"GRANT ALL PRIVILEGES ON *.* TO '{username}'@'localhost'; "
         f"CREATE USER IF NOT EXISTS '{username}'@'127.0.0.1' IDENTIFIED BY '{password}'; "
         f"ALTER USER '{username}'@'127.0.0.1' IDENTIFIED BY '{password}'; "
-        f"GRANT ALL PRIVILEGES ON *.* TO '{username}'@'127.0.0.1' WITH GRANT OPTION; "
+        f"GRANT ALL PRIVILEGES ON *.* TO '{username}'@'127.0.0.1'; "
         f"FLUSH PRIVILEGES;"
     )
     ok, out, err = run_mysql(sql)
     if not ok:
         return False, f"MySQL Fehler: {err or out}"
-    return True, f"MySQL Administrator '{username}' erfolgreich mit vollen Rechten (ALL PRIVILEGES ... WITH GRANT OPTION) eingerichtet."
+    return True, f"MySQL Administrator '{username}' erfolgreich eingerichtet (ALL PRIVILEGES auf *.*)."
 
 @packages_bp.route("/configure/<pkg_key>", methods=["POST"])
 @login_required
@@ -522,9 +523,15 @@ def install_stream(pkg_key):
         yield f"data: === SysCore Paket-Installation: {cfg['name']} ===\n\n"
         for cmd in cfg["install_cmds"]:
             yield f"data: [Befehl] {cmd}\n\n"
+            # Privilegienprüfung für dedizierten syscore-Benutzer (SEC-001 / SEC-018)
+            exec_cmd = cmd
+            if os.name != "nt" and os.geteuid() != 0:
+                if not cmd.startswith("export") and not cmd.startswith("sudo"):
+                    exec_cmd = f"sudo -n {cmd}"
+
             try:
                 proc = subprocess.Popen(
-                    cmd,
+                    exec_cmd,
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
